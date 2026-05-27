@@ -20,14 +20,50 @@
 
   <main class="layout">
     <section class="panel config">
+
+      <!-- Pre-processor -->
+      <div class="card proc-card">
+        <div class="card-head">
+          <label class="toggle-label">
+            <input type="checkbox" id="pre-enabled" />
+            <div>
+              <h2>Pre-processor <span class="proc-tag setup">Setup</span></h2>
+              <p>Request yang berjalan <strong>sekali</strong> sebelum test dimulai — cocok untuk login &amp; mendapatkan token.</p>
+            </div>
+          </label>
+        </div>
+        <div id="pre-body" class="proc-body hidden">
+          <div class="proc-tip">Ekstrak variabel dari respons (mis. token), lalu gunakan <code>{{nama_variabel}}</code> di request manapun setelahnya.</div>
+          <div id="pre-requests"></div>
+          <button type="button" id="add-pre-request" class="btn ghost small">+ Tambah Request</button>
+        </div>
+      </div>
+
       <!-- Skenario / Requests -->
       <div class="card">
         <div class="card-head">
           <h2>1. Skenario Request</h2>
-          <p>Tentukan satu atau beberapa request yang dijalankan tiap virtual user.</p>
+          <p>Request yang dijalankan oleh setiap virtual user secara berulang.</p>
         </div>
         <div id="requests"></div>
         <button type="button" id="add-request" class="btn ghost">+ Tambah Request</button>
+      </div>
+
+      <!-- Post-processor -->
+      <div class="card proc-card">
+        <div class="card-head">
+          <label class="toggle-label">
+            <input type="checkbox" id="post-enabled" />
+            <div>
+              <h2>Post-processor <span class="proc-tag teardown">Teardown</span></h2>
+              <p>Request yang berjalan <strong>sekali</strong> setelah semua VU selesai — cocok untuk logout &amp; cleanup.</p>
+            </div>
+          </label>
+        </div>
+        <div id="post-body" class="proc-body hidden">
+          <div id="post-requests"></div>
+          <button type="button" id="add-post-request" class="btn ghost small">+ Tambah Request</button>
+        </div>
       </div>
 
       <!-- Beban / Load -->

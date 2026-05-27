@@ -3,8 +3,7 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
-// ---------- Request builder ----------
-const requestsEl = $("#requests");
+// ---------- Shared helpers ----------
 
 function headerRow(key = "", value = "") {
   const row = document.createElement("div");
@@ -19,25 +18,81 @@ function headerRow(key = "", value = "") {
   return row;
 }
 
-function requestBlock(index) {
+function extractionRow() {
+  const row = document.createElement("div");
+  row.className = "extraction-row";
+  row.innerHTML = `
+    <input class="ext-name" placeholder="nama_variabel" title="Nama variabel, gunakan {{nama_variabel}} di request lain" />
+    <select class="ext-source">
+      <option value="json">Body JSON</option>
+      <option value="header">Header</option>
+      <option value="regex">Regex</option>
+    </select>
+    <input class="ext-selector" placeholder="mis. data.token" />
+    <button type="button" title="Hapus">&times;</button>`;
+
+  const selInput = row.querySelector(".ext-selector");
+  row.querySelector(".ext-source").addEventListener("change", (e) => {
+    const placeholders = {
+      json: "mis. data.token atau items[0].id",
+      header: "mis. X-Auth-Token",
+      regex: 'mis. "token":"(.+?)"',
+    };
+    selInput.placeholder = placeholders[e.target.value] || "";
+  });
+  row.querySelector("button").addEventListener("click", () => row.remove());
+  return row;
+}
+
+function collectHeaders(block) {
+  return Array.from(block.querySelectorAll(".header-row"))
+    .map((h) => ({ key: h.querySelector(".h-key").value.trim(), value: h.querySelector(".h-val").value }))
+    .filter((h) => h.key);
+}
+
+function collectExtractions(block) {
+  return Array.from(block.querySelectorAll(".extraction-row"))
+    .map((r) => ({
+      varName: r.querySelector(".ext-name").value.trim().replace(/\s+/g, "_"),
+      source: r.querySelector(".ext-source").value,
+      selector: r.querySelector(".ext-selector").value.trim(),
+    }))
+    .filter((e) => e.varName);
+}
+
+// ---------- Unified request block ----------
+// context: 'main' | 'pre' | 'post'
+
+function requestBlock(index, context = "main") {
   const block = document.createElement("div");
   block.className = "request";
+  block.dataset.context = context;
+
+  const isMain = context === "main";
+  const numLabel = isMain ? `#${index + 1}` : `${index + 1}`;
+
   block.innerHTML = `
     <div class="request-head">
-      <span class="num">#${index + 1}</span>
+      <span class="num">${numLabel}</span>
       <select class="method"></select>
       <input class="url" placeholder="https://contoh.com/api" />
       <button type="button" class="req-remove" title="Hapus request">Hapus</button>
     </div>
-    <div class="sub-label">Headers</div>
+    <div class="sub-label">Headers <span class="tip-inline">— gunakan {{nama_variabel}} di nilai untuk menyisipkan hasil ekstraksi</span></div>
     <div class="headers-list"></div>
     <button type="button" class="btn ghost small add-header">+ Header</button>
     <div class="sub-label" style="margin-top:10px">Body (untuk POST/PUT/PATCH)</div>
-    <textarea class="body" placeholder='mis. {"username":"andi","pass":"123"}'></textarea>
+    <textarea class="body" placeholder='mis. {"username":"{{user}}","token":"{{token}}"}'></textarea>
     <div class="req-options">
-      <label><input type="checkbox" class="check-status" checked /> Cek status sukses (2xx/3xx)</label>
-      <label>Jeda setelah request (detik): <input type="number" class="sleep" min="0" step="0.5" value="1" /></label>
-    </div>`;
+      <label><input type="checkbox" class="check-status" checked /> Cek status sukses (2xx)</label>
+      <label>Jeda setelah (detik): <input type="number" class="sleep" min="0" step="0.5" value="${isMain ? 1 : 0}" /></label>
+    </div>
+    <details class="extraction-details">
+      <summary>Ekstrak variabel dari respons</summary>
+      <div class="extraction-hint">Variabel yang diekstrak bisa digunakan dengan <code>{{nama_variabel}}</code> di request berikutnya.</div>
+      <div class="extractions"></div>
+      <button type="button" class="btn ghost small add-extraction">+ Ekstrak Variabel</button>
+    </details>`;
 
   const methodSel = block.querySelector(".method");
   METHODS.forEach((m) => {
@@ -49,28 +104,56 @@ function requestBlock(index) {
   block.querySelector(".add-header").addEventListener("click", () => {
     block.querySelector(".headers-list").appendChild(headerRow());
   });
+  block.querySelector(".add-extraction").addEventListener("click", () => {
+    block.querySelector(".extractions").appendChild(extractionRow());
+    block.querySelector(".extraction-details").open = true;
+  });
   block.querySelector(".req-remove").addEventListener("click", () => {
     block.remove();
-    renumber();
+    if (context === "main") renumber();
   });
 
   return block;
 }
 
+// ---------- Main scenario ----------
+
+const requestsEl = $("#requests");
+
 function renumber() {
-  $$(".request").forEach((b, i) => {
+  $$('.request[data-context="main"]').forEach((b, i) => {
     b.querySelector(".num").textContent = `#${i + 1}`;
   });
 }
 
 function addRequest() {
-  requestsEl.appendChild(requestBlock(requestsEl.children.length));
+  requestsEl.appendChild(requestBlock(requestsEl.children.length, "main"));
 }
 
 $("#add-request").addEventListener("click", addRequest);
 
+// ---------- Pre/Post processor ----------
+
+$("#pre-enabled").addEventListener("change", (e) => {
+  $("#pre-body").classList.toggle("hidden", !e.target.checked);
+});
+$("#post-enabled").addEventListener("change", (e) => {
+  $("#post-body").classList.toggle("hidden", !e.target.checked);
+});
+
+$("#add-pre-request").addEventListener("click", () => {
+  const container = $("#pre-requests");
+  container.appendChild(requestBlock(container.children.length, "pre"));
+});
+$("#add-post-request").addEventListener("click", () => {
+  const container = $("#post-requests");
+  container.appendChild(requestBlock(container.children.length, "post"));
+});
+
 // ---------- Stages builder ----------
+
 const stagesEl = $("#stages");
+
 function stageRow(duration = "30s", target = "20") {
   const row = document.createElement("div");
   row.className = "stage-row";
@@ -85,9 +168,9 @@ function stageRow(duration = "30s", target = "20") {
   row.querySelector("button").addEventListener("click", () => row.remove());
   return row;
 }
+
 $("#add-stage").addEventListener("click", () => stagesEl.appendChild(stageRow()));
 
-// Toggle simple vs stages
 $$('input[name="load-mode"]').forEach((r) => {
   r.addEventListener("change", () => {
     const mode = document.querySelector('input[name="load-mode"]:checked').value;
@@ -97,18 +180,20 @@ $$('input[name="load-mode"]').forEach((r) => {
 });
 
 // ---------- Collect config ----------
-function collectConfig() {
-  const requests = $$(".request").map((b) => ({
+
+function collectRequestList(selector) {
+  return $$(selector).map((b) => ({
     method: b.querySelector(".method").value,
     url: b.querySelector(".url").value.trim(),
-    headers: Array.from(b.querySelectorAll(".header-row"))
-      .map((h) => ({ key: h.querySelector(".h-key").value.trim(), value: h.querySelector(".h-val").value }))
-      .filter((h) => h.key),
+    headers: collectHeaders(b),
     body: b.querySelector(".body").value,
     checkStatus: b.querySelector(".check-status").checked,
     sleepAfter: b.querySelector(".sleep").value,
+    extractions: collectExtractions(b),
   }));
+}
 
+function collectConfig() {
   const mode = document.querySelector('input[name="load-mode"]:checked').value;
   const load = { mode };
   if (mode === "simple") {
@@ -122,7 +207,19 @@ function collectConfig() {
   }
 
   return {
-    scenario: { requests },
+    preprocessor: {
+      requests: $("#pre-enabled").checked
+        ? collectRequestList('.request[data-context="pre"]')
+        : [],
+    },
+    scenario: {
+      requests: collectRequestList('.request[data-context="main"]'),
+    },
+    postprocessor: {
+      requests: $("#post-enabled").checked
+        ? collectRequestList('.request[data-context="post"]')
+        : [],
+    },
     load,
     thresholds: { p95: $("#p95").value, errorRate: $("#errorRate").value },
   };
@@ -130,7 +227,7 @@ function collectConfig() {
 
 function validate(config) {
   const reqs = config.scenario.requests.filter((r) => r.url);
-  if (reqs.length === 0) return "Tambahkan minimal satu request dengan URL.";
+  if (reqs.length === 0) return "Tambahkan minimal satu request dengan URL di bagian Skenario Request.";
   if (config.load.mode === "stages") {
     const stages = (config.load.stages || []).filter((s) => s.duration && s.target !== "");
     if (stages.length === 0) return "Tambahkan minimal satu stage yang valid.";
@@ -139,6 +236,7 @@ function validate(config) {
 }
 
 // ---------- Script preview ----------
+
 async function previewScript() {
   const config = collectConfig();
   const err = validate(config);
@@ -152,6 +250,7 @@ async function previewScript() {
   $("#script-preview").textContent = data.script || data.error || "";
   $("#script-card").classList.remove("hidden");
 }
+
 $("#preview-btn").addEventListener("click", previewScript);
 
 $("#copy-script").addEventListener("click", () => {
@@ -161,6 +260,7 @@ $("#copy-script").addEventListener("click", () => {
 });
 
 // ---------- Run test ----------
+
 let controller = null;
 
 function setRunning(running) {
@@ -286,11 +386,15 @@ function renderMetrics(summary) {
   if (vus && vus.value != null) cards.push({ label: "VUs maksimum", value: vus.value });
 
   const metricsEl = $("#metrics");
-  metricsEl.innerHTML = cards.map((c) => `
+  metricsEl.innerHTML = cards
+    .map(
+      (c) => `
     <div class="metric">
       <div class="label">${c.label}</div>
       <div class="value ${c.good === true ? "ok" : c.good === false ? "bad" : ""}">${c.value}</div>
-    </div>`).join("");
+    </div>`
+    )
+    .join("");
   metricsEl.classList.remove("hidden");
 }
 
@@ -302,6 +406,7 @@ $("#stop-btn").addEventListener("click", () => {
 });
 
 // ---------- k6 status ----------
+
 async function checkK6() {
   const el = $("#k6-status");
   try {
