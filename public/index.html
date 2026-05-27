@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>K6UI — Load Testing Tanpa Coding</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">k6</span>
+      <div>
+        <h1>K6UI</h1>
+        <p>Buat &amp; jalankan load test tanpa menulis kode</p>
+      </div>
+    </div>
+    <div id="k6-status" class="k6-status checking">Memeriksa k6...</div>
+  </header>
+
+  <main class="layout">
+    <section class="panel config">
+      <!-- Skenario / Requests -->
+      <div class="card">
+        <div class="card-head">
+          <h2>1. Skenario Request</h2>
+          <p>Tentukan satu atau beberapa request yang dijalankan tiap virtual user.</p>
+        </div>
+        <div id="requests"></div>
+        <button type="button" id="add-request" class="btn ghost">+ Tambah Request</button>
+      </div>
+
+      <!-- Beban / Load -->
+      <div class="card">
+        <div class="card-head">
+          <h2>2. Profil Beban</h2>
+          <p>Berapa banyak pengguna virtual dan berapa lama.</p>
+        </div>
+        <div class="field-row">
+          <label class="radio">
+            <input type="radio" name="load-mode" value="simple" checked />
+            <span>Sederhana (VUs tetap)</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="load-mode" value="stages" />
+            <span>Bertahap (ramp up/down)</span>
+          </label>
+        </div>
+
+        <div id="load-simple" class="load-block">
+          <div class="field">
+            <label for="vus">Virtual Users (VUs)</label>
+            <input type="number" id="vus" min="1" value="10" />
+          </div>
+          <div class="field">
+            <label for="duration">Durasi</label>
+            <input type="text" id="duration" value="30s" placeholder="mis. 30s, 5m, 1h" />
+          </div>
+        </div>
+
+        <div id="load-stages" class="load-block hidden">
+          <div id="stages"></div>
+          <button type="button" id="add-stage" class="btn ghost small">+ Tambah Stage</button>
+        </div>
+      </div>
+
+      <!-- Thresholds -->
+      <div class="card">
+        <div class="card-head">
+          <h2>3. Target / SLA <span class="optional">(opsional)</span></h2>
+          <p>Test dianggap gagal jika target tidak tercapai.</p>
+        </div>
+        <div class="load-block">
+          <div class="field">
+            <label for="p95">Respons p95 maksimum (ms)</label>
+            <input type="number" id="p95" min="0" placeholder="mis. 500" />
+          </div>
+          <div class="field">
+            <label for="errorRate">Error rate maksimum (%)</label>
+            <input type="number" id="errorRate" min="0" max="100" step="0.1" placeholder="mis. 1" />
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="preview-btn" class="btn secondary">Lihat Script</button>
+        <button type="button" id="run-btn" class="btn primary">Jalankan Test</button>
+        <button type="button" id="stop-btn" class="btn danger hidden">Hentikan</button>
+      </div>
+    </section>
+
+    <section class="panel output">
+      <div class="card script-card hidden" id="script-card">
+        <div class="card-head row">
+          <h2>Script k6</h2>
+          <button type="button" id="copy-script" class="btn ghost small">Salin</button>
+        </div>
+        <pre id="script-preview"></pre>
+      </div>
+
+      <div class="card" id="results-card">
+        <div class="card-head">
+          <h2>Hasil</h2>
+          <p id="results-hint">Jalankan test untuk melihat hasil di sini.</p>
+        </div>
+
+        <div id="metrics" class="metrics hidden"></div>
+
+        <div class="log-wrap">
+          <div class="log-head">
+            <span>Log Live</span>
+            <span id="run-state" class="run-state"></span>
+          </div>
+          <pre id="log"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
