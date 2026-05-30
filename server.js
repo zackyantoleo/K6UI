@@ -16,7 +16,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.static(join(__dirname, "public")));
 
 // Cek apakah binary k6 tersedia di server.
-app.get("/api/k6-status", (req, res) => {
+app.get("/api/k6-status", (_req, res) => {
   execFile("k6", ["version"], (err, stdout) => {
     if (err) {
       res.json({ installed: false });
@@ -85,8 +85,44 @@ app.post("/api/run", async (req, res) => {
     res.end();
   });
 
-  child.stdout.on("data", (chunk) => send("log", { line: chunk.toString() }));
-  child.stderr.on("data", (chunk) => send("log", { line: chunk.toString() }));
+  const MAX_REQ_LOGS = 500;
+  let reqLogCount = 0;
+
+  function makeLineSplitter(onLine) {
+    let buf = "";
+    return (chunk) => {
+      buf += chunk.toString();
+      let idx;
+      while ((idx = buf.indexOf("\n")) !== -1) {
+        onLine(buf.slice(0, idx));
+        buf = buf.slice(idx + 1);
+      }
+    };
+  }
+
+  function handleOutputLine(line) {
+    const t = line.trim();
+    // k6 wraps console.log in logrus text format: ...msg="<content>" source=console
+    const consoleMatch = t.match(/ msg="(.*)" source=console$/);
+    if (consoleMatch) {
+      try {
+        // logrus escaping is equivalent to JSON string body escaping — reverse it
+        const raw = JSON.parse('"' + consoleMatch[1] + '"');
+        if (raw.startsWith('{"__r":1,')) {
+          const entry = JSON.parse(raw);
+          if (reqLogCount < MAX_REQ_LOGS) {
+            reqLogCount++;
+            send("req-log", entry);
+          }
+          return;
+        }
+      } catch { /* fall through to log */ }
+    }
+    send("log", { line: line + "\n" });
+  }
+
+  child.stdout.on("data", makeLineSplitter(handleOutputLine));
+  child.stderr.on("data", makeLineSplitter(handleOutputLine));
 
   child.on("close", async (code) => {
     let summary = null;

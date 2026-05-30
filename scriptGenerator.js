@@ -139,7 +139,7 @@ function buildExtractionLines(extractions, resVar, targetPrefix, localVarSet) {
 
 // ---- Single request block ----
 
-function buildRequestCode(req, index, prefix, setupVars, localVars, extractTarget) {
+function buildRequestCode(req, index, prefix, setupVars, localVars, extractTarget, logRequests) {
   const method = (req.method || "GET").toUpperCase();
   const urlCode = interpolate(req.url, setupVars, localVars);
 
@@ -191,6 +191,12 @@ function buildRequestCode(req, index, prefix, setupVars, localVars, extractTarge
   );
   if (extractCode) lines.push(extractCode);
 
+  if (logRequests) {
+    lines.push(
+      `  try { console.log(JSON.stringify({__r:1,vu:__VU,it:__ITER,i:${index},m:${JSON.stringify(method)},url:String(${urlCode}),s:${resVar}.status,d:+(${resVar}.timings.duration.toFixed(1)),ok:${resVar}.status>=200&&${resVar}.status<400,rb:String(${resVar}.body||'').slice(0,500)})); } catch(e) {}`
+    );
+  }
+
   const sleepAfter = Number(req.sleepAfter);
   if (sleepAfter > 0) lines.push(`  sleep(${sleepAfter});`);
 
@@ -216,6 +222,7 @@ export function generateScript(config) {
   const post = config.postprocessor || {};
   const scenario = config.scenario || {};
   const options = buildOptions(config);
+  const logRequests = !!(config.options && config.options.logRequests);
 
   const preReqs = (pre.requests || []).filter((r) => r && String(r.url || "").trim());
   const postReqs = (post.requests || []).filter((r) => r && String(r.url || "").trim());
@@ -236,7 +243,7 @@ export function generateScript(config) {
     out += `  const data = {};\n`;
     const progressiveSetupVars = new Set();
     for (let i = 0; i < preReqs.length; i++) {
-      out += "\n" + buildRequestCode(preReqs[i], i, "pre", progressiveSetupVars, new Set(), "data");
+      out += "\n" + buildRequestCode(preReqs[i], i, "pre", progressiveSetupVars, new Set(), "data", false);
       out += "\n";
       for (const e of preReqs[i].extractions || []) {
         if (e && e.varName) progressiveSetupVars.add(e.varName);
@@ -250,7 +257,7 @@ export function generateScript(config) {
   out += `\nexport default function(data = {}) {\n`;
   const localVars = new Set();
   for (let i = 0; i < mainReqs.length; i++) {
-    out += "\n" + buildRequestCode(mainReqs[i], i, "main", allSetupVars, localVars, null);
+    out += "\n" + buildRequestCode(mainReqs[i], i, "main", allSetupVars, localVars, null, logRequests);
     out += "\n";
   }
   out += `}\n`;
@@ -261,7 +268,7 @@ export function generateScript(config) {
     out += `export function teardown(data) {\n`;
     const teardownLocalVars = new Set();
     for (let i = 0; i < postReqs.length; i++) {
-      out += "\n" + buildRequestCode(postReqs[i], i, "post", allSetupVars, teardownLocalVars, null);
+      out += "\n" + buildRequestCode(postReqs[i], i, "post", allSetupVars, teardownLocalVars, null, false);
       out += "\n";
     }
     out += `}\n`;
