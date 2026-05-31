@@ -129,7 +129,8 @@ function buildExtractionLines(extractions, resVar, targetPrefix, localVarSet) {
     if (targetPrefix) {
       lines.push(`  ${targetPrefix}.${e.varName} = ${rhs};`);
     } else {
-      lines.push(`  let ${e.varName} = ${rhs};`);
+      const declared = localVarSet && localVarSet.has(e.varName);
+      lines.push(`  ${declared ? '' : 'let '}${e.varName} = ${rhs};`);
       if (localVarSet) localVarSet.add(e.varName);
     }
   }
@@ -203,76 +204,115 @@ function buildRequestCode(req, index, prefix, setupVars, localVars, extractTarge
   return lines.join("\n");
 }
 
-// ---- Kumpulkan nama variabel dari semua ekstraksi ----
+// ---- Assertion codegen ----
 
-function collectExtractedVars(requests) {
-  const vars = new Set();
-  for (const req of requests || []) {
-    for (const e of req.extractions || []) {
-      if (e && e.varName) vars.add(e.varName);
-    }
+function buildAssertionFn(type, val, val2) {
+  const num  = Number(val);
+  const sv   = JSON.stringify(val);
+  const sv2  = JSON.stringify(val2);
+  switch (type) {
+    case 'status-2xx':        return `r.status >= 200 && r.status < 300`;
+    case 'status-eq':         return `r.status === ${num}`;
+    case 'status-ne':         return `r.status !== ${num}`;
+    case 'status-lt':         return `r.status < ${num}`;
+    case 'body-contains':     return `r.body.includes(${sv})`;
+    case 'body-not-contains': return `!r.body.includes(${sv})`;
+    case 'body-matches':      return `${buildRegex(val)}.test(r.body)`;
+    case 'header-exists':     return `r.headers[${sv}] != null`;
+    case 'header-eq':         return `r.headers[${sv}] === ${sv2}`;
+    case 'duration-lt':       return `r.timings.duration < ${num}`;
+    default:                  return '';
   }
-  return vars;
+}
+
+function buildAssertionLabel(assertion) {
+  const v = assertion.value || '', v2 = assertion.value2 || '';
+  const labels = {
+    'status-2xx':        'status sukses (2xx)',
+    'status-eq':         `status == ${v}`,
+    'status-ne':         `status != ${v}`,
+    'status-lt':         `status < ${v}`,
+    'body-contains':     `body mengandung "${v}"`,
+    'body-not-contains': `body tidak mengandung "${v}"`,
+    'body-matches':      `body cocok regex ${v}`,
+    'header-exists':     `header ${v} ada`,
+    'header-eq':         `header ${v} == "${v2}"`,
+    'duration-lt':       `respons < ${v}ms`,
+  };
+  return labels[assertion.type] || assertion.type;
+}
+
+function buildAssertionsCode(assertions, resVar) {
+  if (!Array.isArray(assertions) || !assertions.length) return '';
+  const parts = assertions
+    .map(a => {
+      const fn = buildAssertionFn(a.type, a.value || '', a.value2 || '');
+      if (!fn) return '';
+      return `    ${JSON.stringify(buildAssertionLabel(a))}: (r) => ${fn}`;
+    })
+    .filter(Boolean);
+  if (!parts.length) return '';
+  return `  check(${resVar}, {\n${parts.join(',\n')}\n  });\n`;
 }
 
 // ---- Export utama ----
 
 export function generateScript(config) {
-  const pre = config.preprocessor || {};
-  const post = config.postprocessor || {};
-  const scenario = config.scenario || {};
-  const options = buildOptions(config);
+  const scenario    = config.scenario || {};
+  const options     = buildOptions(config);
   const logRequests = !!(config.options && config.options.logRequests);
 
-  const preReqs = (pre.requests || []).filter((r) => r && String(r.url || "").trim());
-  const postReqs = (post.requests || []).filter((r) => r && String(r.url || "").trim());
   const mainReqs = (scenario.requests || []).filter((r) => r && String(r.url || "").trim());
-
-  // Semua variabel dari setup — diakses sebagai data.* di default() dan teardown()
-  const allSetupVars = collectExtractedVars(preReqs);
 
   let out = "";
   out += `import http from 'k6/http';\n`;
   out += `import { check, sleep } from 'k6';\n\n`;
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
 
-  // setup() — sekali sebelum VU mulai
-  if (preReqs.length > 0) {
-    out += `\n// Pre-processor: dijalankan sekali sebelum test dimulai\n`;
-    out += `export function setup() {\n`;
-    out += `  const data = {};\n`;
-    const progressiveSetupVars = new Set();
-    for (let i = 0; i < preReqs.length; i++) {
-      out += "\n" + buildRequestCode(preReqs[i], i, "pre", progressiveSetupVars, new Set(), "data", false);
+  out += `\nexport default function() {\n`;
+
+  // Variabel yang sudah dideklarasikan — cegah double `let`
+  const declaredVars = new Set();
+
+  for (let i = 0; i < mainReqs.length; i++) {
+    const req = mainReqs[i];
+
+    // ── Pre sub-request ──────────────────────────────────────
+    const preReq = req.pre && String(req.pre.url || "").trim() ? req.pre : null;
+    if (preReq) {
+      out += `\n  // Pre: request ${i + 1}\n`;
+      out += buildRequestCode(preReq, i, `pre${i}`, new Set(), declaredVars, null, false);
       out += "\n";
-      for (const e of preReqs[i].extractions || []) {
-        if (e && e.varName) progressiveSetupVars.add(e.varName);
+      for (const e of preReq.extractions || []) {
+        if (e && e.varName) declaredVars.add(e.varName);
       }
     }
-    out += `\n  return data;\n`;
-    out += `}\n`;
-  }
 
-  // default function — tiap VU
-  out += `\nexport default function(data = {}) {\n`;
-  const localVars = new Set();
-  for (let i = 0; i < mainReqs.length; i++) {
-    out += "\n" + buildRequestCode(mainReqs[i], i, "main", allSetupVars, localVars, null, logRequests);
+    // ── Main request ─────────────────────────────────────────
+    out += "\n" + buildRequestCode(req, i, "main", declaredVars, declaredVars, null, logRequests);
     out += "\n";
-  }
-  out += `}\n`;
 
-  // teardown() — sekali setelah semua VU selesai
-  if (postReqs.length > 0) {
-    out += `\n// Post-processor: dijalankan sekali setelah test selesai\n`;
-    out += `export function teardown(data) {\n`;
-    const teardownLocalVars = new Set();
-    for (let i = 0; i < postReqs.length; i++) {
-      out += "\n" + buildRequestCode(postReqs[i], i, "post", allSetupVars, teardownLocalVars, null, false);
+    // ── Assertions ───────────────────────────────────────────
+    const assertCode = buildAssertionsCode(req.assertions, `res_main_${i}`);
+    if (assertCode) out += assertCode;
+
+    // ── Post sub-request ─────────────────────────────────────
+    const postReq = req.post && String(req.post.url || "").trim() ? req.post : null;
+    if (postReq) {
+      out += `\n  // Post: request ${i + 1}\n`;
+      out += buildRequestCode(postReq, i, `post${i}`, new Set(), declaredVars, null, false);
       out += "\n";
+      for (const e of postReq.extractions || []) {
+        if (e && e.varName) declaredVars.add(e.varName);
+      }
     }
-    out += `}\n`;
+
+    // Tambahkan variabel dari main request ke declared set
+    for (const e of req.extractions || []) {
+      if (e && e.varName) declaredVars.add(e.varName);
+    }
   }
 
+  out += `}\n`;
   return out;
 }
