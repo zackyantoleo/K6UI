@@ -23,6 +23,37 @@ function collectGlobalVars(variables) {
   return map;
 }
 
+// Pre/post-processor scripts are inlined into the generated script as
+// block-scoped code. Assignments to `vars.<name>` make {{name}} usable in
+// later URLs/headers/bodies (see scanAssignedVars + interpolate.js).
+const ASSIGNED_VAR =
+  /\bvars\.([A-Za-z_]\w*)\s*(?:=(?!=)|[+\-*/%]=|\*\*=|&&=|\|\|=|\?\?=|\+\+|--)/g;
+
+function scanAssignedVars(code, into) {
+  for (const m of code.matchAll(ASSIGNED_VAR)) into.add(m[1]);
+}
+
+// Compile (without executing) to reject broken user code with a clear
+// message instead of producing a script that k6 cannot parse.
+function validateProcessor(code, label, withRes) {
+  try {
+    new Function(withRes ? `const res = 0;\n${code}` : code);
+  } catch (e) {
+    throw new Error(`${label} is not valid JavaScript: ${e.message}`);
+  }
+}
+
+function buildProcessorBlock(code, label, resVar) {
+  const body = code
+    .split("\n")
+    .map((l) => (l.trim() ? "    " + l : ""))
+    .join("\n");
+  const lines = [`  // ${label}`, `  {`];
+  if (resVar) lines.push(`    const res = ${resVar};`);
+  lines.push(body, `  }`);
+  return lines.join("\n") + "\n";
+}
+
 // Global headers are merged into every request (including pre/post
 // sub-requests) at codegen time, so their values go through the normal
 // {{var}} interpolation. A request-level header with the same name
@@ -71,35 +102,61 @@ export function generateScript(config) {
   out += `\nexport default function() {\n`;
 
   // Variables already declared — prevents a double `let`
-  const declaredVars = new Set();
+  const declaredVars   = new Set();
+  // {{name}}s made available by processor scripts assigning vars.<name>
+  const processorVars  = new Set();
+  const ctx = { localVars: declaredVars, processorVars, globalVars };
+
+  const hasProcessors = mainReqs.some(
+    (r) => String(r.preScript || "").trim() || String(r.postScript || "").trim()
+  );
+  if (hasProcessors) {
+    out += `  const vars = {};  // shared by pre/post-processor scripts\n`;
+  }
 
   for (let i = 0; i < mainReqs.length; i++) {
     const req = mainReqs[i];
+    const preScript  = String(req.preScript  || "").trim();
+    const postScript = String(req.postScript || "").trim();
 
     // ── Pre sub-request ──────────────────────────────────────
     const preReq = req.pre && String(req.pre.url || "").trim() ? req.pre : null;
     if (preReq) {
       out += `\n  // Pre: request ${i + 1}\n`;
-      out += buildRequestCode(withGlobalHeaders(preReq), i, `pre${i}`, declaredVars, globalVars, null, false);
+      out += buildRequestCode(withGlobalHeaders(preReq), i, `pre${i}`, ctx, null, false);
       out += "\n";
       for (const e of preReq.extractions || []) {
         if (e && e.varName) declaredVars.add(e.varName);
       }
     }
 
+    // ── Pre-processor ────────────────────────────────────────
+    if (preScript) {
+      validateProcessor(preScript, `Pre-processor of request ${i + 1}`, false);
+      scanAssignedVars(preScript, processorVars);
+      out += "\n" + buildProcessorBlock(preScript, `Pre-processor: request ${i + 1}`, null);
+    }
+
     // ── Main request ─────────────────────────────────────────
-    out += "\n" + buildRequestCode(withGlobalHeaders(req), i, "main", declaredVars, globalVars, null, logRequests);
+    out += "\n" + buildRequestCode(withGlobalHeaders(req), i, "main", ctx, null, logRequests);
     out += "\n";
 
     // ── Assertions ───────────────────────────────────────────
     const assertCode = buildAssertionsCode(req.assertions, `res_main_${i}`);
     if (assertCode) out += assertCode;
 
+    // ── Post-processor ───────────────────────────────────────
+    if (postScript) {
+      validateProcessor(postScript, `Post-processor of request ${i + 1}`, true);
+      out += "\n" + buildProcessorBlock(postScript, `Post-processor: request ${i + 1}`, `res_main_${i}`);
+      scanAssignedVars(postScript, processorVars);
+    }
+
     // ── Post sub-request ─────────────────────────────────────
     const postReq = req.post && String(req.post.url || "").trim() ? req.post : null;
     if (postReq) {
       out += `\n  // Post: request ${i + 1}\n`;
-      out += buildRequestCode(withGlobalHeaders(postReq), i, `post${i}`, declaredVars, globalVars, null, false);
+      out += buildRequestCode(withGlobalHeaders(postReq), i, `post${i}`, ctx, null, false);
       out += "\n";
       for (const e of postReq.extractions || []) {
         if (e && e.varName) declaredVars.add(e.varName);

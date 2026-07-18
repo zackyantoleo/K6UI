@@ -3,9 +3,10 @@
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
 
-export function buildRequestCode(req, index, prefix, localVars, globalVars, extractTarget, logRequests) {
+// ctx = { localVars, processorVars, globalVars } — see interpolate.js.
+export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests) {
   const method = (req.method || "GET").toUpperCase();
-  const urlCode = interpolate(req.url, localVars, globalVars);
+  const urlCode = interpolate(req.url, ctx);
 
   const headers = {};
   if (Array.isArray(req.headers)) {
@@ -14,7 +15,7 @@ export function buildRequestCode(req, index, prefix, localVars, globalVars, extr
     }
   }
   const headersCode = Object.entries(headers)
-    .map(([k, v]) => `${JSON.stringify(k)}: ${interpolate(v, localVars, globalVars)}`)
+    .map(([k, v]) => `${JSON.stringify(k)}: ${interpolate(v, ctx)}`)
     .join(", ");
   const paramsCode = headersCode ? `{ headers: { ${headersCode} } }` : "{}";
 
@@ -29,7 +30,7 @@ export function buildRequestCode(req, index, prefix, localVars, globalVars, extr
   lines.push(`  // Request ${index + 1}: ${method} ${req.url}`);
 
   if (hasBody) {
-    const bodyCode = interpolate(req.body, localVars, globalVars);
+    const bodyCode = interpolate(req.body, ctx);
     lines.push(`  const body_${prefix}_${index} = ${bodyCode};`);
     lines.push(
       `  const ${resVar} = http.request(${JSON.stringify(method)}, ${urlCode}, body_${prefix}_${index}, ${paramsCode});`
@@ -51,7 +52,7 @@ export function buildRequestCode(req, index, prefix, localVars, globalVars, extr
     req.extractions,
     resVar,
     extractTarget,
-    extractTarget ? null : localVars
+    extractTarget ? null : ctx && ctx.localVars
   );
   if (extractCode) lines.push(extractCode);
 

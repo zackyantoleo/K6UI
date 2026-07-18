@@ -96,12 +96,15 @@ Shape of one request:
   "extractions": [{ "varName": "token", "source": "json", "selector": "data.token" }],
   // source: "json" (JSON path), "header" (header name), "regex" (1st capture group)
   "assertions": [{ "type": "status-eq", "value": "200", "value2": "" }],
+  "preScript":  "vars.ts = Date.now();",              // JS inlined before the request
+  "postScript": "vars.id = JSON.parse(res.body).id;", // JS inlined after it; `res` = response
   "pre":  null,   // "Before" sub-request: same shape, but without assertions/pre/post
   "post": null    // "After" sub-request: same
 }
 ```
 
-- `{{varName}}` interpolation in url/headers/body uses global variables and values extracted by earlier requests (extracted values take precedence); unknown names are left as literal text.
+- `{{varName}}` interpolation in url/headers/body uses global variables, values extracted by earlier requests, and `vars.<name>` assignments made by earlier pre/post-processor scripts (precedence: extracted > processor > global); unknown names are left as literal text.
+- Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
 - Assertion type list: `ASSERT_TYPES` in `public/js/components/req-card.js` — **must stay in sync** with the switch in `server/generator/assertions.js`.
 
 ## Conventions

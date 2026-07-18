@@ -401,6 +401,12 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
   font-family: ui-monospace, monospace; font-size: 11px;
 }
 
+/* scripts tab */
+.script-label {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  margin-bottom: -4px;
+}
+
 /* options tab */
 .options-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .opt-label { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 7px; }
