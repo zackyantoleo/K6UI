@@ -1,7 +1,7 @@
 {
   "name": "k6ui",
   "version": "1.0.0",
-  "description": "UI untuk membuat dan menjalankan load test k6 tanpa coding",
+  "description": "UI for building and running k6 load tests without writing code",
   "main": "server/index.js",
   "type": "module",
   "scripts": {

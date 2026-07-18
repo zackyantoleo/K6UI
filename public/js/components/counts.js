@@ -1,6 +1,6 @@
-// Helper bersama untuk kartu request: badge jumlah ekstraksi/assertion di tab
-// dan penomoran ulang kartu. Dipisah ke modul sendiri agar req-card.js dan
-// rows.js tidak perlu saling meng-import (hindari circular import).
+// Shared helpers for request cards: extraction/assertion count badges on tabs
+// and card renumbering. Kept in a separate module so req-card.js and rows.js
+// don't need to import each other (avoids a circular import).
 import { $$ } from '../dom.js';
 
 export function updateExtCount(card) {

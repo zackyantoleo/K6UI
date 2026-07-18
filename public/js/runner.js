@@ -1,6 +1,6 @@
-// Menjalankan test: kirim konfigurasi ke POST /api/run, parse stream SSE
-// (status/log/req-log/error/done), lalu render log live, tabel detail
-// request, dan kartu metrik ringkasan.
+// Runs the test: sends the config to POST /api/run, parses the SSE stream
+// (status/log/req-log/error/done), then renders the live log, request
+// detail table, and summary metric cards.
 import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
@@ -56,7 +56,7 @@ function renderReqLogRow(entry) {
     tr.classList.add('expanded');
     const detail = document.createElement('tr');
     detail.className = 'req-detail-row';
-    detail.innerHTML = `<td colspan="7"><pre class="req-detail-body">${escHtml(entry.rb || '(kosong)')}</pre></td>`;
+    detail.innerHTML = `<td colspan="7"><pre class="req-detail-body">${escHtml(entry.rb || '(empty)')}</pre></td>`;
     tr.after(detail);
   });
 
@@ -95,7 +95,7 @@ function handleSSE(event, data) {
     logEl.textContent += `[${data.message}]\n`;
   } else if (event === 'error') {
     logEl.textContent += `\n[ERROR] ${data.message}\n`;
-    stateEl.textContent = 'GAGAL'; stateEl.className = 'run-state-badge fail';
+    stateEl.textContent = 'FAILED'; stateEl.className = 'run-state-badge fail';
   } else if (event === 'req-log') {
     reqLogs.push(data);
     $('#req-log-count').textContent = reqLogs.length;
@@ -108,7 +108,7 @@ function handleSSE(event, data) {
     $('#req-log-tbody').appendChild(row);
   } else if (event === 'done') {
     const ok = data.code === 0;
-    stateEl.textContent = ok ? 'SELESAI ✓' : 'THRESHOLD TIDAK TERPENUHI';
+    stateEl.textContent = ok ? 'DONE ✓' : 'THRESHOLDS NOT MET';
     stateEl.className   = 'run-state-badge ' + (ok ? 'ok' : 'fail');
     dot.className = 'run-dot done'; dot.classList.remove('hidden');
     if (data.summary) renderMetrics(data.summary);
@@ -127,18 +127,18 @@ function renderMetrics(summary) {
   const dur   = m.http_req_duration;
   const fail  = m.http_req_failed;
 
-  if (reqs)       cards.push({ label: 'Total Request', val: reqs.count ?? '-' });
-  if (reqs?.rate) cards.push({ label: 'Request/detik', val: fmt(reqs.rate, 1) });
+  if (reqs)       cards.push({ label: 'Total Requests', val: reqs.count ?? '-' });
+  if (reqs?.rate) cards.push({ label: 'Requests/sec', val: fmt(reqs.rate, 1) });
   if (dur) {
-    cards.push({ label: 'Respons avg',  val: fmt(dur.avg)       + ' ms' });
-    cards.push({ label: 'Respons p95',  val: fmt(dur['p(95)'])  + ' ms' });
-    cards.push({ label: 'Respons maks', val: fmt(dur.max)       + ' ms' });
+    cards.push({ label: 'Avg response',  val: fmt(dur.avg)       + ' ms' });
+    cards.push({ label: 'p95 response',  val: fmt(dur['p(95)'])  + ' ms' });
+    cards.push({ label: 'Max response',  val: fmt(dur.max)       + ' ms' });
   }
   if (fail?.value != null) {
     const pct = fail.value * 100;
     cards.push({ label: 'Error rate', val: fmt(pct, 2) + ' %', good: pct === 0 });
   }
-  if (m.vus_max?.value != null) cards.push({ label: 'VUs maks', val: m.vus_max.value });
+  if (m.vus_max?.value != null) cards.push({ label: 'Max VUs', val: m.vus_max.value });
 
   const el = $('#run-metrics');
   el.innerHTML = cards.map(c => `
@@ -162,7 +162,7 @@ export async function runTest() {
   logEl.textContent = '';
   $('#run-metrics').classList.add('hidden');
   $('#run-metrics').innerHTML = '';
-  stateEl.textContent = 'BERJALAN';
+  stateEl.textContent = 'RUNNING';
   stateEl.className   = 'run-state-badge running';
   resetReqLog();
   $$('.results-tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === 'live'));
@@ -205,7 +205,7 @@ export async function runTest() {
   } catch (e) {
     if (e.name !== 'AbortError') {
       logEl.textContent += `\n[ERROR] ${e.message}\n`;
-      stateEl.textContent = 'GAGAL';
+      stateEl.textContent = 'FAILED';
       stateEl.className   = 'run-state-badge fail';
     }
   } finally {
@@ -216,7 +216,7 @@ export async function runTest() {
 
 export function stopTest() {
   if (abortCtrl) abortCtrl.abort();
-  $('#run-state').textContent = 'DIHENTIKAN';
+  $('#run-state').textContent = 'STOPPED';
   $('#run-state').className   = 'run-state-badge fail';
   setRunning(false);
 }
@@ -226,10 +226,10 @@ export async function checkK6() {
   const el = $('#k6-status');
   try {
     const { installed } = await (await fetch('/api/k6-status')).json();
-    el.textContent = installed ? 'k6 terpasang ✓' : 'k6 tidak terpasang';
+    el.textContent = installed ? 'k6 installed ✓' : 'k6 not installed';
     el.className   = 'k6-pill ' + (installed ? 'ok' : 'bad');
   } catch {
-    el.textContent = 'k6 tidak terpasang';
+    el.textContent = 'k6 not installed';
     el.className   = 'k6-pill bad';
   }
 }

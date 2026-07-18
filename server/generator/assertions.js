@@ -1,4 +1,4 @@
-// Codegen assertion per request → blok check() k6 dengan label deskriptif.
+// Per-request assertion codegen → k6 check() block with descriptive labels.
 import { buildRegex } from "./helpers.js";
 
 function buildAssertionFn(type, val, val2) {
@@ -23,16 +23,16 @@ function buildAssertionFn(type, val, val2) {
 function buildAssertionLabel(assertion) {
   const v = assertion.value || '', v2 = assertion.value2 || '';
   const labels = {
-    'status-2xx':        'status sukses (2xx)',
+    'status-2xx':        'status success (2xx)',
     'status-eq':         `status == ${v}`,
     'status-ne':         `status != ${v}`,
     'status-lt':         `status < ${v}`,
-    'body-contains':     `body mengandung "${v}"`,
-    'body-not-contains': `body tidak mengandung "${v}"`,
-    'body-matches':      `body cocok regex ${v}`,
-    'header-exists':     `header ${v} ada`,
+    'body-contains':     `body contains "${v}"`,
+    'body-not-contains': `body does not contain "${v}"`,
+    'body-matches':      `body matches regex ${v}`,
+    'header-exists':     `header ${v} exists`,
     'header-eq':         `header ${v} == "${v2}"`,
-    'duration-lt':       `respons < ${v}ms`,
+    'duration-lt':       `response < ${v}ms`,
   };
   return labels[assertion.type] || assertion.type;
 }

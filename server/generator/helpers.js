@@ -1,4 +1,4 @@
-// Helper kecil untuk codegen: selector JSON dan literal regex.
+// Small codegen helpers: JSON selectors and regex literals.
 
 // "data.token"   → ?.['data']?.['token']
 // "items[0].id"  → ?.['items']?.[0]?.['id']
@@ -17,8 +17,8 @@ export function buildJsonAccessor(selector) {
     .join("");
 }
 
-// Mengubah input user menjadi literal regex JS.
-// Input yang sudah berbentuk /.../flags dipakai apa adanya.
+// Turns user input into a JS regex literal.
+// Input already shaped like /.../flags is used as-is.
 export function buildRegex(selector) {
   if (!selector) return "/(?:)/";
   const s = String(selector);

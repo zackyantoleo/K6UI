@@ -1,4 +1,4 @@
-// Menyusun objek `options` k6 (beban + threshold) dari konfigurasi UI.
+// Builds the k6 `options` object (load + thresholds) from the UI configuration.
 
 export function buildOptions(config) {
   const load = config.load || {};

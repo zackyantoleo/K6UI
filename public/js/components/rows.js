@@ -1,13 +1,13 @@
-// Baris form yang bisa ditambah/dihapus: header dan ekstraksi variabel.
+// Addable/removable form rows: headers and variable extractions.
 import { updateExtCount } from './counts.js';
 
 export function headerRow(key = '', val = '') {
   const row = document.createElement('div');
   row.className = 'header-row';
   row.innerHTML = `
-    <input class="h-key" placeholder="Header (mis. Authorization)" />
-    <input class="h-val" placeholder="Nilai (mis. Bearer {{token}})" />
-    <button class="row-remove" title="Hapus">&times;</button>`;
+    <input class="h-key" placeholder="Header (e.g. Authorization)" />
+    <input class="h-val" placeholder="Value (e.g. Bearer {{token}})" />
+    <button class="row-remove" title="Remove">&times;</button>`;
   row.querySelector('.h-key').value = key;
   row.querySelector('.h-val').value = val;
   row.querySelector('.row-remove').addEventListener('click', () => row.remove());
@@ -18,18 +18,18 @@ export function extractionRow() {
   const row = document.createElement('div');
   row.className = 'extraction-row';
   row.innerHTML = `
-    <input  class="ext-name"     placeholder="nama_variabel" />
+    <input  class="ext-name"     placeholder="variable_name" />
     <select class="ext-source">
-      <option value="json">Body JSON</option>
+      <option value="json">JSON Body</option>
       <option value="header">Header</option>
       <option value="regex">Regex</option>
     </select>
-    <input class="ext-selector" placeholder="mis. data.token" />
-    <button class="row-remove" title="Hapus">&times;</button>`;
+    <input class="ext-selector" placeholder="e.g. data.token" />
+    <button class="row-remove" title="Remove">&times;</button>`;
 
   const selInput = row.querySelector('.ext-selector');
   row.querySelector('.ext-source').addEventListener('change', e => {
-    const ph = { json: 'mis. data.token  atau  items[0].id', header: 'mis. X-Auth-Token', regex: 'mis. "token":"(.+?)"' };
+    const ph = { json: 'e.g. data.token  or  items[0].id', header: 'e.g. X-Auth-Token', regex: 'e.g. "token":"(.+?)"' };
     selInput.placeholder = ph[e.target.value] || '';
   });
   row.querySelector('.row-remove').addEventListener('click', () => {

@@ -1,4 +1,4 @@
-// Endpoint API. Logika proses k6 ada di k6-runner.js, codegen di generator/.
+// API endpoints. k6 process logic lives in k6-runner.js, codegen in generator/.
 import { Router } from "express";
 import { execFile } from "node:child_process";
 
@@ -7,7 +7,7 @@ import { startK6Run } from "./k6-runner.js";
 
 export const apiRouter = Router();
 
-// GET /api/k6-status — cek apakah binary k6 tersedia di server.
+// GET /api/k6-status — check whether the k6 binary is available on the server.
 apiRouter.get("/k6-status", (_req, res) => {
   execFile("k6", ["version"], (err, stdout) => {
     if (err) {
@@ -18,7 +18,7 @@ apiRouter.get("/k6-status", (_req, res) => {
   });
 });
 
-// POST /api/generate — hasilkan script k6 dari konfigurasi UI.
+// POST /api/generate — generate a k6 script from the UI configuration.
 apiRouter.post("/generate", (req, res) => {
   try {
     const script = generateScript(req.body || {});
@@ -28,8 +28,8 @@ apiRouter.post("/generate", (req, res) => {
   }
 });
 
-// POST /api/run — jalankan test k6 dan stream output live via Server-Sent Events.
-// Event yang dikirim: status, log, req-log, error, done (lihat k6-runner.js).
+// POST /api/run — run a k6 test and stream live output via Server-Sent Events.
+// Emitted events: status, log, req-log, error, done (see k6-runner.js).
 apiRouter.post("/run", async (req, res) => {
   let script;
   try {
@@ -52,6 +52,6 @@ apiRouter.post("/run", async (req, res) => {
     onEnd: () => res.end(),
   });
 
-  // Hentikan proses k6 jika klien menutup koneksi.
+  // Kill the k6 process if the client closes the connection.
   req.on("close", () => run.stop());
 });

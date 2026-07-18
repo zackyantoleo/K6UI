@@ -1,5 +1,5 @@
-// Kartu request: baris utama (method + URL), tab Headers/Body/Ekstraksi/
-// Assertions/Opsi, serta sub-request opsional "Sebelum" dan "Sesudah".
+// Request card: main row (method + URL), Headers/Body/Extract/Assertions/
+// Options tabs, plus optional "Before" and "After" sub-requests.
 import { $$ } from '../dom.js';
 import { headerRow, extractionRow } from './rows.js';
 import { updateExtCount, updateAssertCount, renumberMain } from './counts.js';
@@ -13,19 +13,19 @@ function activateTab(card, tabId) {
 }
 
 // ── Assertion row ──────────────────────────────────────────────
-// Nilai `value` di sini harus cocok dengan tipe yang dikenali
+// The `value` here must match the types recognized by
 // server/generator/assertions.js.
 const ASSERT_TYPES = [
-  { value: 'status-2xx',        label: 'Status sukses (2xx)',   hasVal: false },
-  { value: 'status-eq',         label: 'Status code ==',        hasVal: true, numVal: true,  ph: '200' },
-  { value: 'status-ne',         label: 'Status code !=',        hasVal: true, numVal: true,  ph: '404' },
-  { value: 'status-lt',         label: 'Status code <',         hasVal: true, numVal: true,  ph: '500' },
-  { value: 'body-contains',     label: 'Body mengandung',       hasVal: true, ph: 'teks yang diharapkan' },
-  { value: 'body-not-contains', label: 'Body tidak mengandung', hasVal: true, ph: 'teks yang tidak diinginkan' },
-  { value: 'body-matches',      label: 'Body cocok regex',      hasVal: true, ph: '"key":"(\\w+)"' },
-  { value: 'header-exists',     label: 'Header ada',            hasVal: true, ph: 'Authorization' },
-  { value: 'header-eq',         label: 'Header == nilai',       hasVal: true, dualVal: true, ph: 'Header-Name', ph2: 'Nilai yang diharapkan' },
-  { value: 'duration-lt',       label: 'Respons < X ms',        hasVal: true, numVal: true,  ph: '500' },
+  { value: 'status-2xx',        label: 'Status success (2xx)',   hasVal: false },
+  { value: 'status-eq',         label: 'Status code ==',         hasVal: true, numVal: true,  ph: '200' },
+  { value: 'status-ne',         label: 'Status code !=',         hasVal: true, numVal: true,  ph: '404' },
+  { value: 'status-lt',         label: 'Status code <',          hasVal: true, numVal: true,  ph: '500' },
+  { value: 'body-contains',     label: 'Body contains',          hasVal: true, ph: 'expected text' },
+  { value: 'body-not-contains', label: 'Body does not contain',  hasVal: true, ph: 'unwanted text' },
+  { value: 'body-matches',      label: 'Body matches regex',     hasVal: true, ph: '"key":"(\\w+)"' },
+  { value: 'header-exists',     label: 'Header exists',          hasVal: true, ph: 'Authorization' },
+  { value: 'header-eq',         label: 'Header == value',        hasVal: true, dualVal: true, ph: 'Header-Name', ph2: 'Expected value' },
+  { value: 'duration-lt',       label: 'Response < X ms',        hasVal: true, numVal: true,  ph: '500' },
 ];
 
 export function assertionRow(type = 'status-2xx', value = '', value2 = '') {
@@ -46,7 +46,7 @@ export function assertionRow(type = 'status-2xx', value = '', value2 = '') {
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button'; removeBtn.className = 'row-remove';
-  removeBtn.title = 'Hapus'; removeBtn.innerHTML = '&times;';
+  removeBtn.title = 'Remove'; removeBtn.innerHTML = '&times;';
   removeBtn.addEventListener('click', () => {
     const card = row.closest('.req-card');
     row.remove();
@@ -73,8 +73,8 @@ export function assertionRow(type = 'status-2xx', value = '', value2 = '') {
 // ── Sub-request section ────────────────────────────────────────
 function buildSubReqSection(position) {
   const isPost  = position === 'post';
-  const label   = isPost ? 'Sesudah' : 'Sebelum';
-  const btnText = isPost ? '+ Request Sesudah' : '+ Request Sebelum';
+  const label   = isPost ? 'After' : 'Before';
+  const btnText = isPost ? '+ After Request' : '+ Before Request';
 
   const wrapper = document.createElement('div');
   wrapper.className = `subreq-section subreq-${position}`;
@@ -101,7 +101,7 @@ function buildSubReqSection(position) {
 
   const expandBtn = document.createElement('button');
   expandBtn.type = 'button'; expandBtn.className = 'subreq-expand-btn';
-  expandBtn.title = 'Headers / Body / Ekstraksi'; expandBtn.textContent = '⚙';
+  expandBtn.title = 'Headers / Body / Extract'; expandBtn.textContent = '⚙';
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button'; removeBtn.className = 'subreq-remove-btn'; removeBtn.textContent = '✕';
@@ -113,7 +113,7 @@ function buildSubReqSection(position) {
 
   const srTabs = document.createElement('div');
   srTabs.className = 'sr-tabs';
-  [{ id: 'headers', label: 'Headers' }, { id: 'body', label: 'Body' }, { id: 'ext', label: 'Ekstraksi' }]
+  [{ id: 'headers', label: 'Headers' }, { id: 'body', label: 'Body' }, { id: 'ext', label: 'Extract' }]
     .forEach((def, i) => {
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'sr-tab' + (i === 0 ? ' active' : '');
@@ -143,7 +143,7 @@ function buildSubReqSection(position) {
   srPE.className = 'sr-panel hidden'; srPE.dataset.panel = 'ext';
   const srExtList = document.createElement('div'); srExtList.className = 'sr-extractions-list';
   const srAddExt  = document.createElement('button');
-  srAddExt.type = 'button'; srAddExt.className = 'add-row-btn'; srAddExt.textContent = '+ Ekstrak Variabel';
+  srAddExt.type = 'button'; srAddExt.className = 'add-row-btn'; srAddExt.textContent = '+ Extract Variable';
   srAddExt.addEventListener('click', () => srExtList.appendChild(extractionRow()));
   srPE.append(srExtList, srAddExt);
 
@@ -186,7 +186,7 @@ export function reqCard(index, context) {
 
   const urlInput = document.createElement('input');
   urlInput.type = 'text'; urlInput.className = 'url';
-  urlInput.placeholder = 'https://api.contoh.com/endpoint';
+  urlInput.placeholder = 'https://api.example.com/endpoint';
 
   const actions = document.createElement('div');
   actions.className = 'req-card-actions';
@@ -196,7 +196,7 @@ export function reqCard(index, context) {
   colBtn.innerHTML = '<span class="chevron">▾</span>';
 
   const delBtn = document.createElement('button');
-  delBtn.className = 'req-action-btn del'; delBtn.title = 'Hapus request';
+  delBtn.className = 'req-action-btn del'; delBtn.title = 'Remove request';
   delBtn.textContent = '✕';
 
   actions.append(colBtn, delBtn);
@@ -212,9 +212,9 @@ export function reqCard(index, context) {
   [
     { id: 'headers',    label: 'Headers' },
     { id: 'body',       label: 'Body' },
-    { id: 'extractions',label: 'Ekstraksi',  badge: 'tab-count-ext' },
+    { id: 'extractions',label: 'Extract',    badge: 'tab-count-ext' },
     { id: 'assertions', label: 'Assertions', badge: 'tab-count-assert' },
-    { id: 'options',    label: 'Opsi' },
+    { id: 'options',    label: 'Options' },
   ].forEach((def, i) => {
     const btn = document.createElement('button');
     btn.className = 'req-tab' + (i === 0 ? ' active' : '');
@@ -236,17 +236,17 @@ export function reqCard(index, context) {
   pBody.className = 'req-tab-panel hidden'; pBody.dataset.panel = 'body';
   const bodyTA = document.createElement('textarea');
   bodyTA.className = 'body';
-  bodyTA.placeholder = '{"key":"value"}\n\nUntuk POST/PUT/PATCH/DELETE. Gunakan {{nama_variabel}} untuk menyisipkan nilai.';
+  bodyTA.placeholder = '{"key":"value"}\n\nFor POST/PUT/PATCH/DELETE. Use {{variable_name}} to insert values.';
   pBody.appendChild(bodyTA);
 
   const pExt = document.createElement('div');
   pExt.className = 'req-tab-panel hidden'; pExt.dataset.panel = 'extractions';
   const extHintEl = document.createElement('p');
   extHintEl.className = 'ext-hint';
-  extHintEl.innerHTML = 'Ekstrak nilai dari respons, lalu gunakan <code>{{nama_variabel}}</code> di request berikutnya.';
+  extHintEl.innerHTML = 'Extract values from the response, then use <code>{{variable_name}}</code> in later requests.';
   const extList = document.createElement('div'); extList.className = 'extractions-list';
   const addExtBtn = document.createElement('button');
-  addExtBtn.className = 'add-row-btn'; addExtBtn.textContent = '+ Ekstrak Variabel';
+  addExtBtn.className = 'add-row-btn'; addExtBtn.textContent = '+ Extract Variable';
   addExtBtn.addEventListener('click', () => { extList.appendChild(extractionRow()); updateExtCount(card); });
   extList.addEventListener('input', e => { if (e.target.classList.contains('ext-name')) updateExtCount(card); });
   pExt.append(extHintEl, extList, addExtBtn);
@@ -255,10 +255,10 @@ export function reqCard(index, context) {
   pAssert.className = 'req-tab-panel hidden'; pAssert.dataset.panel = 'assertions';
   const assertHint = document.createElement('p');
   assertHint.className = 'ext-hint';
-  assertHint.textContent = 'Validasi respons — jika assertion gagal, k6 menandai request sebagai failed.';
+  assertHint.textContent = 'Validate the response — if an assertion fails, k6 marks the request as failed.';
   const assertList = document.createElement('div'); assertList.className = 'assertions-list';
   const addAssertBtn = document.createElement('button');
-  addAssertBtn.className = 'add-row-btn'; addAssertBtn.textContent = '+ Tambah Assertion';
+  addAssertBtn.className = 'add-row-btn'; addAssertBtn.textContent = '+ Add Assertion';
   addAssertBtn.addEventListener('click', () => { assertList.appendChild(assertionRow()); updateAssertCount(card); });
   assertList.addEventListener('change', e => { if (e.target.classList.contains('assert-type')) updateAssertCount(card); });
   pAssert.append(assertHint, assertList, addAssertBtn);
@@ -269,10 +269,10 @@ export function reqCard(index, context) {
     <div class="options-row">
       <label class="opt-label">
         <input type="checkbox" class="check-status" checked />
-        Cek status sukses (2xx)
+        Check success status (2xx)
       </label>
       <label class="opt-label">
-        Jeda setelah request (detik):
+        Pause after request (seconds):
         <input type="number" class="sleep" min="0" step="0.5" value="1" />
       </label>
     </div>`;

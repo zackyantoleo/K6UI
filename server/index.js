@@ -1,4 +1,4 @@
-// Titik masuk server: setup Express, serve frontend statis, dan mount API.
+// Server entry point: set up Express, serve the static frontend, mount the API.
 import express from "express";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,5 +14,5 @@ app.use(express.static(join(__dirname, "..", "public")));
 app.use("/api", apiRouter);
 
 app.listen(PORT, () => {
-  console.log(`K6UI berjalan di http://localhost:${PORT}`);
+  console.log(`K6UI running at http://localhost:${PORT}`);
 });

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>K6UI — Load Testing Tanpa Coding</title>
+  <title>K6UI — Load Testing Without Code</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -15,7 +15,7 @@
       <span class="brand-logo">k6</span>
       <span class="brand-name">K6UI</span>
     </div>
-    <div id="k6-status" class="k6-pill checking">Memeriksa k6…</div>
+    <div id="k6-status" class="k6-pill checking">Checking k6…</div>
   </header>
 
   <div class="app-body">
@@ -23,123 +23,123 @@
     <!-- ── Sidebar ───────────────────────────────────────────── -->
     <nav class="sidebar">
       <div class="nav-group">
-        <div class="nav-group-title">PROJEK</div>
+        <div class="nav-group-title">PROJECT</div>
         <a class="nav-link" href="#" id="save-project-btn">
-          <span class="nav-ic">↓</span><span>Simpan</span>
+          <span class="nav-ic">↓</span><span>Save</span>
         </a>
         <a class="nav-link" href="#" id="open-project-btn">
-          <span class="nav-ic">↑</span><span>Buka</span>
+          <span class="nav-ic">↑</span><span>Open</span>
         </a>
       </div>
       <input type="file" id="project-file-input" accept=".json" style="display:none" />
 
       <div class="nav-group">
-        <div class="nav-group-title">SKENARIO</div>
+        <div class="nav-group-title">SCENARIO</div>
         <a class="nav-link active" data-view="flow" href="#">
-          <span class="nav-ic">⇄</span><span>Alur Request</span>
+          <span class="nav-ic">⇄</span><span>Request Flow</span>
         </a>
       </div>
 
       <div class="nav-group">
-        <div class="nav-group-title">KONFIGURASI</div>
+        <div class="nav-group-title">CONFIGURATION</div>
         <a class="nav-link soon" href="#">
-          <span class="nav-ic">$</span><span>Variabel Global</span>
-          <span class="badge-soon">Segera</span>
+          <span class="nav-ic">$</span><span>Global Variables</span>
+          <span class="badge-soon">Soon</span>
         </a>
         <a class="nav-link soon" href="#">
-          <span class="nav-ic">#</span><span>Headers Global</span>
-          <span class="badge-soon">Segera</span>
+          <span class="nav-ic">#</span><span>Global Headers</span>
+          <span class="badge-soon">Soon</span>
         </a>
         <a class="nav-link soon" href="#">
-          <span class="nav-ic">⊡</span><span>Data CSV</span>
-          <span class="badge-soon">Segera</span>
+          <span class="nav-ic">⊡</span><span>CSV Data</span>
+          <span class="badge-soon">Soon</span>
         </a>
         <a class="nav-link soon" href="#">
           <span class="nav-ic">🍪</span><span>Cookies</span>
-          <span class="badge-soon">Segera</span>
+          <span class="badge-soon">Soon</span>
         </a>
       </div>
 
       <div class="nav-group">
-        <div class="nav-group-title">BEBAN &amp; VALIDASI</div>
+        <div class="nav-group-title">LOAD &amp; VALIDATION</div>
         <a class="nav-link" data-view="load" href="#">
-          <span class="nav-ic">⊕</span><span>Profil Beban</span>
+          <span class="nav-ic">⊕</span><span>Load Profile</span>
         </a>
         <a class="nav-link soon" href="#">
           <span class="nav-ic">✓</span><span>Assertions</span>
-          <span class="badge-soon">Segera</span>
+          <span class="badge-soon">Soon</span>
         </a>
         <a class="nav-link soon" href="#">
-          <span class="nav-ic">⏱</span><span>Timer</span>
-          <span class="badge-soon">Segera</span>
+          <span class="nav-ic">⏱</span><span>Timers</span>
+          <span class="badge-soon">Soon</span>
         </a>
         <a class="nav-link soon" href="#">
-          <span class="nav-ic">⊞</span><span>Multi Skenario</span>
-          <span class="badge-soon">Segera</span>
+          <span class="nav-ic">⊞</span><span>Multi Scenario</span>
+          <span class="badge-soon">Soon</span>
         </a>
         <a class="nav-link" data-view="sla" href="#">
-          <span class="nav-ic">◎</span><span>Threshold / SLA</span>
+          <span class="nav-ic">◎</span><span>Thresholds / SLA</span>
         </a>
       </div>
 
       <div class="nav-group">
-        <div class="nav-group-title">HASIL</div>
+        <div class="nav-group-title">RESULTS</div>
         <a class="nav-link" data-view="script" href="#">
-          <span class="nav-ic">&lt;/&gt;</span><span>Script k6</span>
+          <span class="nav-ic">&lt;/&gt;</span><span>k6 Script</span>
         </a>
         <a class="nav-link" data-view="results" href="#">
           <span class="nav-ic">▶</span>
-          <span>Jalankan &amp; Monitor</span>
+          <span>Run &amp; Monitor</span>
           <span class="run-dot hidden" id="nav-run-dot"></span>
         </a>
       </div>
 
       <div class="sidebar-footer">
-        <button class="btn-run" id="run-btn">▶ Jalankan Test</button>
-        <button class="btn-stop hidden" id="stop-btn">■ Hentikan</button>
+        <button class="btn-run" id="run-btn">▶ Run Test</button>
+        <button class="btn-stop hidden" id="stop-btn">■ Stop</button>
       </div>
     </nav>
 
     <!-- ── Workspace ─────────────────────────────────────────── -->
     <div class="workspace">
       <div class="ws-header">
-        <h2 id="page-title">Alur Request</h2>
+        <h2 id="page-title">Request Flow</h2>
         <div class="ws-actions">
-          <button class="btn ghost sm" id="preview-btn">&lt;/&gt; Lihat Script</button>
+          <button class="btn ghost sm" id="preview-btn">&lt;/&gt; View Script</button>
         </div>
       </div>
 
       <div class="ws-content">
 
-        <!-- VIEW: Alur Request -->
+        <!-- VIEW: Request Flow -->
         <section id="view-flow" class="view">
           <p class="view-hint">
-            Susun request yang dijalankan k6. Gunakan
-            <code>{{nama_variabel}}</code> di URL, header, atau body
-            untuk menyisipkan nilai yang diekstrak dari respons sebelumnya.
+            Arrange the requests k6 will run. Use
+            <code>{{variable_name}}</code> in a URL, header, or body
+            to insert values extracted from previous responses.
           </p>
-          <!-- Diisi oleh app.js -->
+          <!-- Populated by app.js -->
         </section>
 
-        <!-- VIEW: Profil Beban -->
+        <!-- VIEW: Load Profile -->
         <section id="view-load" class="view hidden">
-          <p class="view-hint">Tentukan jumlah virtual user (VU) dan pola beban selama test berlangsung.</p>
+          <p class="view-hint">Set the number of virtual users (VUs) and the load pattern for the duration of the test.</p>
           <div class="page-cols">
             <div class="form-card">
-              <h3>Mode Beban</h3>
+              <h3>Load Mode</h3>
               <div class="radio-group">
                 <label class="radio-card">
                   <input type="radio" name="load-mode" value="simple" checked />
                   <div>
-                    <strong>VU Tetap</strong>
-                    <span>Jumlah VU konstan sepanjang durasi.</span>
+                    <strong>Fixed VUs</strong>
+                    <span>Constant number of VUs for the whole duration.</span>
                   </div>
                 </label>
                 <label class="radio-card">
                   <input type="radio" name="load-mode" value="stages" />
                   <div>
-                    <strong>Bertahap</strong>
-                    <span>Ramp up/down antar stage.</span>
+                    <strong>Staged</strong>
+                    <span>Ramp up/down across stages.</span>
                   </div>
                 </label>
               </div>
@@ -150,77 +150,77 @@
                   <input type="number" id="vus" min="1" value="10" />
                 </div>
                 <div class="field">
-                  <label>Durasi <span class="muted-label">mis. 30s, 5m, 1h</span></label>
+                  <label>Duration <span class="muted-label">e.g. 30s, 5m, 1h</span></label>
                   <input type="text" id="duration" value="30s" />
                 </div>
               </div>
 
               <div id="load-stages" class="hidden">
                 <div id="stages"></div>
-                <button type="button" id="add-stage" class="btn ghost sm">+ Tambah Stage</button>
+                <button type="button" id="add-stage" class="btn ghost sm">+ Add Stage</button>
               </div>
             </div>
 
             <div class="form-card info-card">
-              <h3>Panduan Durasi</h3>
+              <h3>Duration Guide</h3>
               <table class="ref-table">
-                <tr><td><code>30s</code></td><td>30 detik</td></tr>
-                <tr><td><code>5m</code></td><td>5 menit</td></tr>
-                <tr><td><code>1h</code></td><td>1 jam</td></tr>
-                <tr><td><code>1h30m</code></td><td>1 jam 30 menit</td></tr>
+                <tr><td><code>30s</code></td><td>30 seconds</td></tr>
+                <tr><td><code>5m</code></td><td>5 minutes</td></tr>
+                <tr><td><code>1h</code></td><td>1 hour</td></tr>
+                <tr><td><code>1h30m</code></td><td>1 hour 30 minutes</td></tr>
               </table>
-              <p class="note">Mode Bertahap: setiap stage mendefinisikan transisi dari VU saat ini ke jumlah VU target dalam rentang waktu tertentu.</p>
+              <p class="note">Staged mode: each stage defines a transition from the current VU count to the target VU count over the given time range.</p>
             </div>
           </div>
         </section>
 
-        <!-- VIEW: Threshold / SLA -->
+        <!-- VIEW: Thresholds / SLA -->
         <section id="view-sla" class="view hidden">
-          <p class="view-hint">Test dianggap gagal (exit code ≠ 0) jika target performa ini tidak terpenuhi — berguna untuk CI/CD pipeline.</p>
+          <p class="view-hint">The test is considered failed (exit code ≠ 0) if these performance targets are not met — useful for CI/CD pipelines.</p>
           <div class="page-cols">
             <div class="form-card">
-              <h3>Target Performa</h3>
+              <h3>Performance Targets</h3>
               <div class="field">
-                <label>Respons p95 maksimum <span class="muted-label">(ms)</span></label>
-                <input type="number" id="p95" min="0" placeholder="mis. 500" />
-                <span class="field-note">95% request harus selesai di bawah nilai ini.</span>
+                <label>Max p95 response time <span class="muted-label">(ms)</span></label>
+                <input type="number" id="p95" min="0" placeholder="e.g. 500" />
+                <span class="field-note">95% of requests must finish below this value.</span>
               </div>
               <div class="field">
-                <label>Error rate maksimum <span class="muted-label">(%)</span></label>
-                <input type="number" id="errorRate" min="0" max="100" step="0.1" placeholder="mis. 1" />
-                <span class="field-note">Persentase request yang diizinkan gagal.</span>
+                <label>Max error rate <span class="muted-label">(%)</span></label>
+                <input type="number" id="errorRate" min="0" max="100" step="0.1" placeholder="e.g. 1" />
+                <span class="field-note">Percentage of requests allowed to fail.</span>
               </div>
             </div>
 
             <div class="form-card info-card">
-              <h3>Apa itu Threshold?</h3>
-              <p class="note">Threshold adalah syarat kelulusan test. Jika tidak terpenuhi, k6 keluar dengan <strong>exit code 99</strong>.</p>
-              <p class="note">Contoh: jika kamu set p95 = 500ms dan 5% request melebihi itu, test dinyatakan <strong style="color:var(--danger)">GAGAL</strong>.</p>
+              <h3>What are Thresholds?</h3>
+              <p class="note">Thresholds are the pass criteria for the test. If they are not met, k6 exits with <strong>exit code 99</strong>.</p>
+              <p class="note">Example: if you set p95 = 500ms and 5% of requests exceed it, the test is marked <strong style="color:var(--danger)">FAILED</strong>.</p>
             </div>
           </div>
         </section>
 
-        <!-- VIEW: Script k6 -->
+        <!-- VIEW: k6 Script -->
         <section id="view-script" class="view hidden">
           <div class="ws-toolbar">
-            <span class="toolbar-label">Script yang digenerate dari konfigurasi kamu:</span>
-            <button class="btn ghost sm" id="copy-script">Salin</button>
-            <button class="btn ghost sm" id="refresh-script">↻ Perbarui</button>
+            <span class="toolbar-label">Script generated from your configuration:</span>
+            <button class="btn ghost sm" id="copy-script">Copy</button>
+            <button class="btn ghost sm" id="refresh-script">↻ Refresh</button>
           </div>
-          <pre id="script-preview" class="code-block">Klik "Perbarui" atau "Lihat Script" untuk memuat script.</pre>
+          <pre id="script-preview" class="code-block">Click "Refresh" or "View Script" to load the script.</pre>
         </section>
 
-        <!-- VIEW: Jalankan & Monitor -->
+        <!-- VIEW: Run & Monitor -->
         <section id="view-results" class="view hidden">
           <div id="run-metrics" class="metrics-grid hidden"></div>
 
           <div class="results-tabs">
-            <button class="results-tab active" data-tab="live">Log Live</button>
-            <button class="results-tab" data-tab="requests">Detail Request (<span id="req-log-count">0</span>)</button>
+            <button class="results-tab active" data-tab="live">Live Log</button>
+            <button class="results-tab" data-tab="requests">Request Details (<span id="req-log-count">0</span>)</button>
             <div class="results-tab-spacer"></div>
             <label class="toggle-label">
               <input type="checkbox" id="log-requests" checked />
-              Rekam request
+              Record requests
             </label>
             <span id="run-state" class="run-state-badge"></span>
           </div>
@@ -233,7 +233,7 @@
             <div class="req-log-toolbar">
               <label class="req-filter-label">
                 <input type="checkbox" id="filter-errors-only" />
-                Error saja
+                Errors only
               </label>
               <input type="text" id="filter-url" class="req-filter-input" placeholder="Filter URL…" />
             </div>
@@ -247,7 +247,7 @@
                     <th>Method</th>
                     <th>URL</th>
                     <th>Status</th>
-                    <th>Durasi</th>
+                    <th>Duration</th>
                   </tr>
                 </thead>
                 <tbody id="req-log-tbody"></tbody>
@@ -257,13 +257,13 @@
         </section>
 
         <!-- ── Coming Soon views ────────────────────────────── -->
-        <section id="view-vars"      class="view hidden"><div class="cs-view"><div class="cs-icon">$</div><h2>Variabel Global</h2><p>Definisikan variabel yang tersedia di seluruh request. Cocok untuk base URL, credential, atau nilai lingkungan.</p><span class="cs-badge">Segera Hadir</span></div></section>
-        <section id="view-headers"   class="view hidden"><div class="cs-view"><div class="cs-icon">#</div><h2>Headers Global</h2><p>Headers yang ditambahkan ke semua request secara otomatis — mis. Content-Type atau Accept.</p><span class="cs-badge">Segera Hadir</span></div></section>
-        <section id="view-csv"       class="view hidden"><div class="cs-view"><div class="cs-icon">⊡</div><h2>Data CSV</h2><p>Muat data dari file CSV untuk parametrisasi test — daftar username, password, atau ID produk.</p><span class="cs-badge">Segera Hadir</span></div></section>
-        <section id="view-cookies"   class="view hidden"><div class="cs-view"><div class="cs-icon">🍪</div><h2>Cookies</h2><p>Kelola cookie yang dikirim bersama request dan di-share antar request dalam satu sesi VU.</p><span class="cs-badge">Segera Hadir</span></div></section>
-        <section id="view-asserts"   class="view hidden"><div class="cs-view"><div class="cs-icon">✓</div><h2>Assertions</h2><p>Validasi respons per request — cek status code, isi body, header, atau waktu respons.</p><span class="cs-badge">Segera Hadir</span></div></section>
-        <section id="view-timers"    class="view hidden"><div class="cs-view"><div class="cs-icon">⏱</div><h2>Timer</h2><p>Tambahkan delay dinamis antara request — constant timer, random timer, atau pacing throughput.</p><span class="cs-badge">Segera Hadir</span></div></section>
-        <section id="view-multiscen" class="view hidden"><div class="cs-view"><div class="cs-icon">⊞</div><h2>Multi Skenario</h2><p>Jalankan beberapa pola beban berbeda secara bersamaan — seperti browser user dan API user paralel.</p><span class="cs-badge">Segera Hadir</span></div></section>
+        <section id="view-vars"      class="view hidden"><div class="cs-view"><div class="cs-icon">$</div><h2>Global Variables</h2><p>Define variables available across all requests. Great for base URLs, credentials, or environment values.</p><span class="cs-badge">Coming Soon</span></div></section>
+        <section id="view-headers"   class="view hidden"><div class="cs-view"><div class="cs-icon">#</div><h2>Global Headers</h2><p>Headers automatically added to every request — e.g. Content-Type or Accept.</p><span class="cs-badge">Coming Soon</span></div></section>
+        <section id="view-csv"       class="view hidden"><div class="cs-view"><div class="cs-icon">⊡</div><h2>CSV Data</h2><p>Load data from a CSV file to parameterize tests — lists of usernames, passwords, or product IDs.</p><span class="cs-badge">Coming Soon</span></div></section>
+        <section id="view-cookies"   class="view hidden"><div class="cs-view"><div class="cs-icon">🍪</div><h2>Cookies</h2><p>Manage cookies sent with requests and shared between requests within a VU session.</p><span class="cs-badge">Coming Soon</span></div></section>
+        <section id="view-asserts"   class="view hidden"><div class="cs-view"><div class="cs-icon">✓</div><h2>Assertions</h2><p>Validate responses per request — check status codes, body content, headers, or response time.</p><span class="cs-badge">Coming Soon</span></div></section>
+        <section id="view-timers"    class="view hidden"><div class="cs-view"><div class="cs-icon">⏱</div><h2>Timers</h2><p>Add dynamic delays between requests — constant timers, random timers, or throughput pacing.</p><span class="cs-badge">Coming Soon</span></div></section>
+        <section id="view-multiscen" class="view hidden"><div class="cs-view"><div class="cs-icon">⊞</div><h2>Multi Scenario</h2><p>Run several different load patterns at once — like browser users and API users in parallel.</p><span class="cs-badge">Coming Soon</span></div></section>
 
       </div>
     </div>

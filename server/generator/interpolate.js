@@ -1,8 +1,8 @@
-// Interpolasi variabel {{varName}} menjadi ekspresi JS.
-// Mengubah "https://api/{{userId}}" menjadi template literal `https://api/${userId}`.
-// setupVars → diakses sebagai data.varName (hasil setup() k6)
-// localVars → diakses langsung sebagai varName (hasil ekstraksi di fungsi utama)
-// Nama yang tidak dikenal dibiarkan apa adanya sebagai teks {{...}}.
+// {{varName}} variable interpolation into JS expressions.
+// Turns "https://api/{{userId}}" into the template literal `https://api/${userId}`.
+// setupVars → accessed as data.varName (result of k6 setup())
+// localVars → accessed directly as varName (extracted in the main function)
+// Unknown names are left as-is as literal {{...}} text.
 
 export function interpolate(str, setupVars, localVars) {
   if (str == null) return '""';
