@@ -73,6 +73,9 @@ The same object is used for `/api/generate`, `/api/run`, and project save files.
   "variables": [{ "key": "base_url", "value": "https://api.example.com" }],
   // global variables, usable as {{base_url}} in any url/header/body;
   // keys must be valid JS identifiers ([A-Za-z_]\w*) — others are ignored
+  "globalHeaders": [{ "key": "Accept", "value": "application/json" }],
+  // headers merged into every request (incl. pre/post); a request-level
+  // header with the same name (case-insensitive) overrides the global one
   "load": { "mode": "simple", "vus": "10", "duration": "30s" },
   // or: { "mode": "stages", "stages": [{ "duration": "30s", "target": "20" }] }
   "thresholds": { "p95": "500", "errorRate": "1" },   // empty string = unused

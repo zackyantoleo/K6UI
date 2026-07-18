@@ -23,12 +23,34 @@ function collectGlobalVars(variables) {
   return map;
 }
 
+// Global headers are merged into every request (including pre/post
+// sub-requests) at codegen time, so their values go through the normal
+// {{var}} interpolation. A request-level header with the same name
+// (case-insensitive, as HTTP headers are) overrides the global one.
+function mergeHeaders(globalHeaders, reqHeaders) {
+  const out = [];
+  const byName = new Map(); // lowercase name → index in out
+  const all = [...globalHeaders, ...(Array.isArray(reqHeaders) ? reqHeaders : [])];
+  for (const h of all) {
+    if (!h || !h.key) continue;
+    const name = String(h.key).toLowerCase();
+    if (byName.has(name)) out[byName.get(name)] = h;
+    else { byName.set(name, out.length); out.push(h); }
+  }
+  return out;
+}
+
 export function generateScript(config) {
   const scenario    = config.scenario || {};
   const options     = buildOptions(config);
   const logRequests = !!(config.options && config.options.logRequests);
   const globals     = collectGlobalVars(config.variables);
   const globalVars  = new Set(globals.keys());
+
+  const globalHeaders = (Array.isArray(config.globalHeaders) ? config.globalHeaders : [])
+    .filter((h) => h && h.key && String(h.key).trim());
+  const withGlobalHeaders = (req) =>
+    globalHeaders.length ? { ...req, headers: mergeHeaders(globalHeaders, req.headers) } : req;
 
   const mainReqs = (scenario.requests || []).filter((r) => r && String(r.url || "").trim());
 
@@ -58,7 +80,7 @@ export function generateScript(config) {
     const preReq = req.pre && String(req.pre.url || "").trim() ? req.pre : null;
     if (preReq) {
       out += `\n  // Pre: request ${i + 1}\n`;
-      out += buildRequestCode(preReq, i, `pre${i}`, declaredVars, globalVars, null, false);
+      out += buildRequestCode(withGlobalHeaders(preReq), i, `pre${i}`, declaredVars, globalVars, null, false);
       out += "\n";
       for (const e of preReq.extractions || []) {
         if (e && e.varName) declaredVars.add(e.varName);
@@ -66,7 +88,7 @@ export function generateScript(config) {
     }
 
     // ── Main request ─────────────────────────────────────────
-    out += "\n" + buildRequestCode(req, i, "main", declaredVars, globalVars, null, logRequests);
+    out += "\n" + buildRequestCode(withGlobalHeaders(req), i, "main", declaredVars, globalVars, null, logRequests);
     out += "\n";
 
     // ── Assertions ───────────────────────────────────────────
@@ -77,7 +99,7 @@ export function generateScript(config) {
     const postReq = req.post && String(req.post.url || "").trim() ? req.post : null;
     if (postReq) {
       out += `\n  // Post: request ${i + 1}\n`;
-      out += buildRequestCode(postReq, i, `post${i}`, declaredVars, globalVars, null, false);
+      out += buildRequestCode(withGlobalHeaders(postReq), i, `post${i}`, declaredVars, globalVars, null, false);
       out += "\n";
       for (const e of postReq.extractions || []) {
         if (e && e.varName) declaredVars.add(e.varName);

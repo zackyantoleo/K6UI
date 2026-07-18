@@ -111,6 +111,12 @@ export function applyConfig(cfg) {
     if (v && v.key) varsList.appendChild(variableRow(v.key, v.value ?? ''));
   }
 
+  const gHeadersList = $('#global-headers-list');
+  gHeadersList.innerHTML = '';
+  for (const h of cfg.globalHeaders || []) {
+    if (h && h.key) gHeadersList.appendChild(headerRow(h.key, h.value ?? ''));
+  }
+
   $('#p95').value       = cfg.thresholds?.p95       ?? '';
   $('#errorRate').value = cfg.thresholds?.errorRate ?? '';
   const logReqEl = $('#log-requests');

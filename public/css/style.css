@@ -376,6 +376,9 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
 .var-row .var-key { width: 220px; flex-shrink: 0; }
 .var-row .var-val { flex: 1; }
 
+#global-headers-list .header-row { margin-bottom: 8px; }
+#global-headers-list .h-key { width: 220px; flex: none; }
+
 .extraction-row { display: flex; gap: 7px; align-items: center; }
 .extraction-row .ext-name   { width: 130px; flex-shrink: 0; }
 .extraction-row .ext-source { width: 115px; flex-shrink: 0; }
