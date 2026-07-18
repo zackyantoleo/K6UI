@@ -2,7 +2,7 @@
 // it back: refill the entire form from a config object.
 import { $ } from './dom.js';
 import { navigate } from './nav.js';
-import { headerRow, extractionRow } from './components/rows.js';
+import { headerRow, extractionRow, variableRow } from './components/rows.js';
 import { reqCard, assertionRow } from './components/req-card.js';
 import { updateExtCount, updateAssertCount, renumberMain } from './components/counts.js';
 import { stageRow } from './components/flow-view.js';
@@ -103,6 +103,12 @@ export function applyConfig(cfg) {
     const saved = cfg.load?.stages || [];
     if (saved.length) saved.forEach(s => stagesEl.appendChild(stageRow(s.duration, s.target)));
     else stagesEl.appendChild(stageRow());
+  }
+
+  const varsList = $('#global-vars-list');
+  varsList.innerHTML = '';
+  for (const v of cfg.variables || []) {
+    if (v && v.key) varsList.appendChild(variableRow(v.key, v.value ?? ''));
   }
 
   $('#p95').value       = cfg.thresholds?.p95       ?? '';

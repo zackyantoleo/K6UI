@@ -206,7 +206,7 @@ button, input, select, textarea { font-family: inherit; }
 .muted-label { font-weight: 400; color: var(--text-faint); }
 
 /* ── Inputs ──────────────────────────────────────────────────── */
-input[type="text"], input[type="number"], select, textarea {
+input[type="text"], input[type="number"], input:not([type]), select, textarea {
   background: var(--surface-3);
   border: 1px solid var(--border-2);
   color: var(--text); border-radius: var(--radius-sm);
@@ -371,6 +371,10 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
 /* sub-rows inside card panels */
 .header-row { display: flex; gap: 7px; }
 .header-row input { flex: 1; }
+
+.var-row { display: flex; gap: 7px; margin-bottom: 8px; }
+.var-row .var-key { width: 220px; flex-shrink: 0; }
+.var-row .var-val { flex: 1; }
 
 .extraction-row { display: flex; gap: 7px; align-items: center; }
 .extraction-row .ext-name   { width: 130px; flex-shrink: 0; }

@@ -1,5 +1,18 @@
-// Addable/removable form rows: headers and variable extractions.
+// Addable/removable form rows: headers, variable extractions, and global variables.
 import { updateExtCount } from './counts.js';
+
+export function variableRow(key = '', val = '') {
+  const row = document.createElement('div');
+  row.className = 'var-row';
+  row.innerHTML = `
+    <input class="var-key" placeholder="variable_name (e.g. base_url)" />
+    <input class="var-val" placeholder="Value (e.g. https://api.example.com)" />
+    <button class="row-remove" title="Remove">&times;</button>`;
+  row.querySelector('.var-key').value = key;
+  row.querySelector('.var-val').value = val;
+  row.querySelector('.row-remove').addEventListener('click', () => row.remove());
+  return row;
+}
 
 export function headerRow(key = '', val = '') {
   const row = document.createElement('div');

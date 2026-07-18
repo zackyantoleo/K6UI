@@ -3,9 +3,9 @@
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
 
-export function buildRequestCode(req, index, prefix, setupVars, localVars, extractTarget, logRequests) {
+export function buildRequestCode(req, index, prefix, localVars, globalVars, extractTarget, logRequests) {
   const method = (req.method || "GET").toUpperCase();
-  const urlCode = interpolate(req.url, setupVars, localVars);
+  const urlCode = interpolate(req.url, localVars, globalVars);
 
   const headers = {};
   if (Array.isArray(req.headers)) {
@@ -14,7 +14,7 @@ export function buildRequestCode(req, index, prefix, setupVars, localVars, extra
     }
   }
   const headersCode = Object.entries(headers)
-    .map(([k, v]) => `${JSON.stringify(k)}: ${interpolate(v, setupVars, localVars)}`)
+    .map(([k, v]) => `${JSON.stringify(k)}: ${interpolate(v, localVars, globalVars)}`)
     .join(", ");
   const paramsCode = headersCode ? `{ headers: { ${headersCode} } }` : "{}";
 
@@ -29,7 +29,7 @@ export function buildRequestCode(req, index, prefix, setupVars, localVars, extra
   lines.push(`  // Request ${index + 1}: ${method} ${req.url}`);
 
   if (hasBody) {
-    const bodyCode = interpolate(req.body, setupVars, localVars);
+    const bodyCode = interpolate(req.body, localVars, globalVars);
     lines.push(`  const body_${prefix}_${index} = ${bodyCode};`);
     lines.push(
       `  const ${resVar} = http.request(${JSON.stringify(method)}, ${urlCode}, body_${prefix}_${index}, ${paramsCode});`
