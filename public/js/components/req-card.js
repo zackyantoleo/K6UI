@@ -1,5 +1,8 @@
-import { $, $$ } from './utils.js';
-import { headerRow, extractionRow } from './row-builders.js';
+// Kartu request: baris utama (method + URL), tab Headers/Body/Ekstraksi/
+// Assertions/Opsi, serta sub-request opsional "Sebelum" dan "Sesudah".
+import { $$ } from '../dom.js';
+import { headerRow, extractionRow } from './rows.js';
+import { updateExtCount, updateAssertCount, renumberMain } from './counts.js';
 
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
@@ -9,32 +12,9 @@ function activateTab(card, tabId) {
   $$('.req-tab-panel', card).forEach(p => p.classList.toggle('hidden', p.dataset.panel !== tabId));
 }
 
-export function updateExtCount(card) {
-  const list  = card.querySelector('.req-card-body .extractions-list');
-  const n     = $$('.ext-name', list || card).filter(i => i.value.trim()).length;
-  const badge = card.querySelector('.tab-count-ext');
-  if (!badge) return;
-  badge.textContent = n || '';
-  badge.classList.toggle('visible', n > 0);
-}
-
-export function updateAssertCount(card) {
-  const list  = card.querySelector('.assertions-list');
-  const n     = list ? $$('.assertion-row', list).length : 0;
-  const badge = card.querySelector('.tab-count-assert');
-  if (!badge) return;
-  badge.textContent = n || '';
-  badge.classList.toggle('visible', n > 0);
-}
-
-export function renumberMain() {
-  $$('#reqs-main .req-card').forEach((c, i) => {
-    const n = c.querySelector('.req-num');
-    if (n) n.textContent = `#${i + 1}`;
-  });
-}
-
 // ── Assertion row ──────────────────────────────────────────────
+// Nilai `value` di sini harus cocok dengan tipe yang dikenali
+// server/generator/assertions.js.
 const ASSERT_TYPES = [
   { value: 'status-2xx',        label: 'Status sukses (2xx)',   hasVal: false },
   { value: 'status-eq',         label: 'Status code ==',        hasVal: true, numVal: true,  ph: '200' },

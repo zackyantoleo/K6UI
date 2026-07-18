@@ -1,4 +1,6 @@
-import { $, $$ } from './utils.js';
+// Membangun view "Alur Request" (zona skenario utama) dan baris stage
+// untuk profil beban bertahap.
+import { $ } from '../dom.js';
 import { reqCard } from './req-card.js';
 
 export function stageRow(dur = '30s', tgt = '20') {
@@ -19,38 +21,26 @@ export function stageRow(dur = '30s', tgt = '20') {
 export function buildFlowView() {
   const view = $('#view-flow');
   view.appendChild(buildZone('main', 'Skenario Utama', 'Diulang tiap VU', 'badge-loop',
-    'Dijalankan berulang oleh setiap virtual user. Tiap request bisa punya sub-request opsional <em>Sebelum</em> dan <em>Sesudah</em>.', false));
+    'Dijalankan berulang oleh setiap virtual user. Tiap request bisa punya sub-request opsional <em>Sebelum</em> dan <em>Sesudah</em>.'));
 }
 
-function buildZone(ctx, title, badgeText, badgeClass, descHTML, toggleable) {
+function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   const zone = document.createElement('div');
   zone.className = `flow-zone zone-${ctx}`;
   zone.id = `zone-${ctx}`;
 
   const zHead = document.createElement('div');
   zHead.className = 'zone-header';
-
-  const tGroup = document.createElement('div');
-  tGroup.className = 'zone-title-group';
-  tGroup.innerHTML = `<span class="zone-title">${title}</span>
-    <span class="zone-badge ${badgeClass}">${badgeText}</span>`;
-
-  if (toggleable) {
-    const lbl = document.createElement('label');
-    lbl.className = 'zone-toggle';
-    const chk = document.createElement('input');
-    chk.type = 'checkbox'; chk.id = `${ctx}-enabled`;
-    lbl.append(chk, document.createTextNode(' Aktifkan'));
-    zHead.append(tGroup, lbl);
-  } else {
-    zHead.appendChild(tGroup);
-  }
+  zHead.innerHTML = `<div class="zone-title-group">
+    <span class="zone-title">${title}</span>
+    <span class="zone-badge ${badgeClass}">${badgeText}</span>
+  </div>`;
 
   const zDesc = document.createElement('div');
   zDesc.className = 'zone-desc'; zDesc.innerHTML = descHTML;
 
   const zBody = document.createElement('div');
-  zBody.className = `zone-body${toggleable ? ' hidden' : ''}`;
+  zBody.className = 'zone-body';
   zBody.id = `zone-body-${ctx}`;
 
   const reqCont = document.createElement('div');
@@ -63,11 +53,5 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML, toggleable) {
 
   zBody.append(reqCont, addBtn);
   zone.append(zHead, zDesc, zBody);
-
-  if (toggleable) {
-    const chk = zone.querySelector(`#${ctx}-enabled`);
-    chk.addEventListener('change', () => zBody.classList.toggle('hidden', !chk.checked));
-  }
-
   return zone;
 }

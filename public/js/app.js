@@ -1,10 +1,12 @@
-import { $, $$ } from './utils.js';
+// Titik masuk frontend: pasang seluruh event handler dan render awal.
+// Logika per fitur ada di modul masing-masing (lihat komentar header tiap file).
+import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
-import { reqCard } from './req-card.js';
-import { buildFlowView, stageRow } from './flow-builder.js';
-import { collectConfig, validate } from './collector.js';
+import { reqCard } from './components/req-card.js';
+import { buildFlowView, stageRow } from './components/flow-view.js';
+import { collectConfig, validate } from './config.js';
 import { runTest, stopTest, applyReqFilter, checkK6 } from './runner.js';
-import { saveProject, applyConfig } from './save-load.js';
+import { saveProject, applyConfig } from './project-io.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {

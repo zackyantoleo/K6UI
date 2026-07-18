@@ -1,9 +1,12 @@
-import { $, $$ } from './utils.js';
+// Simpan project sebagai file JSON (format = objek collectConfig) dan
+// muat kembali: isi ulang seluruh form dari objek konfigurasi.
+import { $ } from './dom.js';
 import { navigate } from './nav.js';
-import { headerRow, extractionRow } from './row-builders.js';
-import { reqCard, assertionRow, renumberMain, updateExtCount, updateAssertCount } from './req-card.js';
-import { stageRow } from './flow-builder.js';
-import { collectConfig } from './collector.js';
+import { headerRow, extractionRow } from './components/rows.js';
+import { reqCard, assertionRow } from './components/req-card.js';
+import { updateExtCount, updateAssertCount, renumberMain } from './components/counts.js';
+import { stageRow } from './components/flow-view.js';
+import { collectConfig } from './config.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 function fillSubReq(section, req) {

@@ -1,6 +1,9 @@
-import { $, $$ } from './utils.js';
+// Menjalankan test: kirim konfigurasi ke POST /api/run, parse stream SSE
+// (status/log/req-log/error/done), lalu render log live, tabel detail
+// request, dan kartu metrik ringkasan.
+import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
-import { collectConfig, validate } from './collector.js';
+import { collectConfig, validate } from './config.js';
 
 let reqLogs  = [];
 let abortCtrl = null;
