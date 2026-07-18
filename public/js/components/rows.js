@@ -1,4 +1,5 @@
-import { $$ } from './utils.js';
+// Baris form yang bisa ditambah/dihapus: header dan ekstraksi variabel.
+import { updateExtCount } from './counts.js';
 
 export function headerRow(key = '', val = '') {
   const row = document.createElement('div');
@@ -34,17 +35,7 @@ export function extractionRow() {
   row.querySelector('.row-remove').addEventListener('click', () => {
     const card = row.closest('.req-card');
     row.remove();
-    if (card) updateExtCountOnCard(card);
+    if (card) updateExtCount(card);
   });
   return row;
-}
-
-// Lazy reference — dipanggil saat event terjadi, bukan saat module di-load
-function updateExtCountOnCard(card) {
-  const list  = card.querySelector('.req-card-body .extractions-list');
-  const n     = $$(`.ext-name`, list || card).filter(i => i.value.trim()).length;
-  const badge = card.querySelector('.tab-count-ext');
-  if (!badge) return;
-  badge.textContent = n || '';
-  badge.classList.toggle('visible', n > 0);
 }

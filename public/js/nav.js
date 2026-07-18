@@ -1,4 +1,5 @@
-import { $, $$ } from './utils.js';
+// Navigasi antar view: tampilkan satu section, tandai link sidebar aktif.
+import { $, $$ } from './dom.js';
 
 const NAV_TITLES = {
   flow:      'Alur Request',
