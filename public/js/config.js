@@ -63,6 +63,16 @@ function collectReqList(containerId) {
   });
 }
 
+// ── Global variables ───────────────────────────────────────────
+function readVariableRows() {
+  return $$('#global-vars-list .var-row')
+    .map(r => ({
+      key:   r.querySelector('.var-key').value.trim().replace(/\s+/g, '_'),
+      value: r.querySelector('.var-val').value,
+    }))
+    .filter(v => v.key);
+}
+
 // ── Public API ─────────────────────────────────────────────────
 export function collectConfig() {
   const mode = $('input[name="load-mode"]:checked').value;
@@ -78,6 +88,7 @@ export function collectConfig() {
   }
   return {
     scenario:   { requests: collectReqList('reqs-main') },
+    variables:  readVariableRows(),
     load,
     thresholds: { p95: $('#p95').value, errorRate: $('#errorRate').value },
     options:    { logRequests: $('#log-requests')?.checked ?? true },

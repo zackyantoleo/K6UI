@@ -70,6 +70,9 @@ The same object is used for `/api/generate`, `/api/run`, and project save files.
 ```jsonc
 {
   "scenario": { "requests": [ /* request, see below */ ] },
+  "variables": [{ "key": "base_url", "value": "https://api.example.com" }],
+  // global variables, usable as {{base_url}} in any url/header/body;
+  // keys must be valid JS identifiers ([A-Za-z_]\w*) — others are ignored
   "load": { "mode": "simple", "vus": "10", "duration": "30s" },
   // or: { "mode": "stages", "stages": [{ "duration": "30s", "target": "20" }] }
   "thresholds": { "p95": "500", "errorRate": "1" },   // empty string = unused
@@ -95,7 +98,7 @@ Shape of one request:
 }
 ```
 
-- `{{varName}}` interpolation in url/headers/body uses values extracted by earlier requests; unknown names are left as literal text.
+- `{{varName}}` interpolation in url/headers/body uses global variables and values extracted by earlier requests (extracted values take precedence); unknown names are left as literal text.
 - Assertion type list: `ASSERT_TYPES` in `public/js/components/req-card.js` — **must stay in sync** with the switch in `server/generator/assertions.js`.
 
 ## Conventions

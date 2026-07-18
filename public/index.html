@@ -42,9 +42,8 @@
 
       <div class="nav-group">
         <div class="nav-group-title">CONFIGURATION</div>
-        <a class="nav-link soon" href="#">
+        <a class="nav-link" data-view="vars" href="#">
           <span class="nav-ic">$</span><span>Global Variables</span>
-          <span class="badge-soon">Soon</span>
         </a>
         <a class="nav-link soon" href="#">
           <span class="nav-ic">#</span><span>Global Headers</span>
@@ -116,7 +115,7 @@
           <p class="view-hint">
             Arrange the requests k6 will run. Use
             <code>{{variable_name}}</code> in a URL, header, or body
-            to insert values extracted from previous responses.
+            to insert global variables or values extracted from previous responses.
           </p>
           <!-- Populated by app.js -->
         </section>
@@ -256,8 +255,29 @@
           </div>
         </section>
 
+        <!-- VIEW: Global Variables -->
+        <section id="view-vars" class="view hidden">
+          <p class="view-hint">
+            Define values once and reuse them in any request with
+            <code>{{variable_name}}</code> — great for base URLs, API keys, or environment values.
+          </p>
+          <div class="page-cols">
+            <div class="form-card">
+              <h3>Variables</h3>
+              <div id="global-vars-list"></div>
+              <button type="button" id="add-global-var" class="btn ghost sm">+ Add Variable</button>
+            </div>
+
+            <div class="form-card info-card">
+              <h3>How it works</h3>
+              <p class="note">Reference a variable as <code>{{name}}</code> in a URL, header, or body — e.g. <code>{{base_url}}/users</code>.</p>
+              <p class="note">Names must start with a letter or underscore and contain only letters, digits, and underscores.</p>
+              <p class="note">If a request <strong>extracts</strong> a variable with the same name, the extracted value overrides the global one for the requests that follow.</p>
+            </div>
+          </div>
+        </section>
+
         <!-- ── Coming Soon views ────────────────────────────── -->
-        <section id="view-vars"      class="view hidden"><div class="cs-view"><div class="cs-icon">$</div><h2>Global Variables</h2><p>Define variables available across all requests. Great for base URLs, credentials, or environment values.</p><span class="cs-badge">Coming Soon</span></div></section>
         <section id="view-headers"   class="view hidden"><div class="cs-view"><div class="cs-icon">#</div><h2>Global Headers</h2><p>Headers automatically added to every request — e.g. Content-Type or Accept.</p><span class="cs-badge">Coming Soon</span></div></section>
         <section id="view-csv"       class="view hidden"><div class="cs-view"><div class="cs-icon">⊡</div><h2>CSV Data</h2><p>Load data from a CSV file to parameterize tests — lists of usernames, passwords, or product IDs.</p><span class="cs-badge">Coming Soon</span></div></section>
         <section id="view-cookies"   class="view hidden"><div class="cs-view"><div class="cs-icon">🍪</div><h2>Cookies</h2><p>Manage cookies sent with requests and shared between requests within a VU session.</p><span class="cs-badge">Coming Soon</span></div></section>

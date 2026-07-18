@@ -1,10 +1,12 @@
 // {{varName}} variable interpolation into JS expressions.
 // Turns "https://api/{{userId}}" into the template literal `https://api/${userId}`.
-// setupVars → accessed as data.varName (result of k6 setup())
-// localVars → accessed directly as varName (extracted in the main function)
+// localVars  → accessed directly as varName (extracted in the main function)
+// globalVars → accessed as GLOBALS.varName (global variables declared at the top
+//              of the script). Local variables take precedence, so a value
+//              extracted from a response overrides a global with the same name.
 // Unknown names are left as-is as literal {{...}} text.
 
-export function interpolate(str, setupVars, localVars) {
+export function interpolate(str, localVars, globalVars) {
   if (str == null) return '""';
   const s = String(str);
   if (!s.includes("{{")) return JSON.stringify(s);
@@ -23,10 +25,10 @@ export function interpolate(str, setupVars, localVars) {
     result += literal;
 
     const name = m[1];
-    if (setupVars && setupVars.has(name)) {
-      result += `\${data.${name}}`;
-    } else if (localVars && localVars.has(name)) {
+    if (localVars && localVars.has(name)) {
       result += `\${${name}}`;
+    } else if (globalVars && globalVars.has(name)) {
+      result += `\${GLOBALS.${name}}`;
     } else {
       result += m[0].replace(/`/g, "\\`");
     }
