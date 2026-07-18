@@ -1,5 +1,5 @@
-// Membangun view "Alur Request" (zona skenario utama) dan baris stage
-// untuk profil beban bertahap.
+// Builds the "Request Flow" view (main scenario zone) and the stage rows
+// for the staged load profile.
 import { $ } from '../dom.js';
 import { reqCard } from './req-card.js';
 
@@ -7,9 +7,9 @@ export function stageRow(dur = '30s', tgt = '20') {
   const row = document.createElement('div');
   row.className = 'stage-row';
   row.innerHTML = `
-    <span class="lbl">Selama</span>
-    <input class="stage-dur" placeholder="mis. 30s" />
-    <span class="lbl">naik ke</span>
+    <span class="lbl">For</span>
+    <input class="stage-dur" placeholder="e.g. 30s" />
+    <span class="lbl">ramp to</span>
     <input class="stage-target" type="number" min="0" placeholder="VUs" />
     <button class="btn-remove-sm">&times;</button>`;
   row.querySelector('.stage-dur').value    = dur;
@@ -20,8 +20,8 @@ export function stageRow(dur = '30s', tgt = '20') {
 
 export function buildFlowView() {
   const view = $('#view-flow');
-  view.appendChild(buildZone('main', 'Skenario Utama', 'Diulang tiap VU', 'badge-loop',
-    'Dijalankan berulang oleh setiap virtual user. Tiap request bisa punya sub-request opsional <em>Sebelum</em> dan <em>Sesudah</em>.'));
+  view.appendChild(buildZone('main', 'Main Scenario', 'Repeated per VU', 'badge-loop',
+    'Run repeatedly by every virtual user. Each request can have optional <em>Before</em> and <em>After</em> sub-requests.'));
 }
 
 function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
@@ -47,7 +47,7 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   reqCont.id = `reqs-${ctx}`;
 
   const addBtn = document.createElement('button');
-  addBtn.className = 'add-req-btn'; addBtn.textContent = '+ Tambah Request';
+  addBtn.className = 'add-req-btn'; addBtn.textContent = '+ Add Request';
   addBtn.addEventListener('click', () =>
     reqCont.appendChild(reqCard(reqCont.children.length, ctx)));
 

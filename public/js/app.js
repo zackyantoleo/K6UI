@@ -1,5 +1,6 @@
-// Titik masuk frontend: pasang seluruh event handler dan render awal.
-// Logika per fitur ada di modul masing-masing (lihat komentar header tiap file).
+// Frontend entry point: wires up all event handlers and does the initial
+// render. Per-feature logic lives in each module (see the header comment
+// of every file).
 import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { reqCard } from './components/req-card.js';
@@ -45,7 +46,7 @@ async function loadScript() {
       body:    JSON.stringify(config),
     });
     const data = await res.json();
-    $('#script-preview').textContent = data.script || data.error || '// (kosong)';
+    $('#script-preview').textContent = data.script || data.error || '// (empty)';
   } catch (e) {
     $('#script-preview').textContent = `// Error: ${e.message}`;
   }
@@ -57,8 +58,8 @@ $('#refresh-script').addEventListener('click', loadScript);
 
 $('#copy-script').addEventListener('click', () => {
   navigator.clipboard.writeText($('#script-preview').textContent);
-  $('#copy-script').textContent = 'Tersalin!';
-  setTimeout(() => ($('#copy-script').textContent = 'Salin'), 1600);
+  $('#copy-script').textContent = 'Copied!';
+  setTimeout(() => ($('#copy-script').textContent = 'Copy'), 1600);
 });
 
 // ── Results tabs ───────────────────────────────────────────────
@@ -96,7 +97,7 @@ $('#project-file-input').addEventListener('change', e => {
     try {
       applyConfig(JSON.parse(ev.target.result));
     } catch {
-      alert('File tidak valid. Pastikan file adalah hasil simpan dari K6UI.');
+      alert('Invalid file. Make sure it was saved from K6UI.');
     }
   };
   reader.readAsText(file);

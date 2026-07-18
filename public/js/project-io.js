@@ -1,5 +1,5 @@
-// Simpan project sebagai file JSON (format = objek collectConfig) dan
-// muat kembali: isi ulang seluruh form dari objek konfigurasi.
+// Save the project as a JSON file (format = collectConfig object) and load
+// it back: refill the entire form from a config object.
 import { $ } from './dom.js';
 import { navigate } from './nav.js';
 import { headerRow, extractionRow } from './components/rows.js';

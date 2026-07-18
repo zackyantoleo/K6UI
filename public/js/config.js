@@ -1,9 +1,9 @@
-// Membaca seluruh form UI menjadi satu objek konfigurasi + validasinya.
-// Objek ini dikirim ke POST /api/generate dan /api/run, dan juga menjadi
-// format file simpan project (lihat skema di CLAUDE.md).
+// Reads the whole UI form into a single config object + validation.
+// This object is sent to POST /api/generate and /api/run, and is also the
+// save-file format for projects (see the schema in CLAUDE.md).
 import { $, $$ } from './dom.js';
 
-// ── Pembaca baris — dipakai kartu utama & sub-request ──────────
+// ── Row readers — used by main cards & sub-requests ────────────
 function readHeaderRows(scope) {
   return $$('.header-row', scope)
     .map(r => ({ key: r.querySelector('.h-key').value.trim(), value: r.querySelector('.h-val').value }))
@@ -28,9 +28,9 @@ function readAssertionRows(scope) {
   }));
 }
 
-// ── Per kartu ──────────────────────────────────────────────────
-// Scope ke panel di .req-card-body agar baris milik sub-request
-// (di .subreq-form) tidak ikut terbaca.
+// ── Per card ───────────────────────────────────────────────────
+// Scoped to panels inside .req-card-body so rows belonging to
+// sub-requests (inside .subreq-form) are not picked up.
 function collectSubReq(card, position) {
   const form = card.querySelector(`.subreq-${position} .subreq-form`);
   if (!form || form.classList.contains('hidden')) return null;
@@ -86,10 +86,10 @@ export function collectConfig() {
 
 export function validate(config) {
   if (!config.scenario.requests.filter(r => r.url).length)
-    return 'Tambahkan minimal satu request dengan URL di Skenario Utama.';
+    return 'Add at least one request with a URL in the Main Scenario.';
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
-      return 'Tambahkan minimal satu stage yang valid di Profil Beban.';
+      return 'Add at least one valid stage in the Load Profile.';
   }
   return null;
 }

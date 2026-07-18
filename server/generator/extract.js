@@ -1,9 +1,9 @@
-// Codegen ekstraksi variabel dari respons (JSON path / header / regex).
+// Codegen for extracting variables from a response (JSON path / header / regex).
 import { buildJsonAccessor, buildRegex } from "./helpers.js";
 
-// targetPrefix = 'data' → data.varName = ...  (untuk setup, disimpan ke return value)
-// targetPrefix = null   → let varName = ...   (untuk fungsi utama/teardown)
-// localVarSet mencegah double `let` untuk nama variabel yang sama.
+// targetPrefix = 'data' → data.varName = ...  (for setup, stored on the return value)
+// targetPrefix = null   → let varName = ...   (for the main function/teardown)
+// localVarSet prevents a double `let` for the same variable name.
 export function buildExtractionLines(extractions, resVar, targetPrefix, localVarSet) {
   if (!Array.isArray(extractions)) return "";
   const lines = [];

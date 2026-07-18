@@ -1,111 +1,111 @@
-# K6UI — Panduan Proyek
+# K6UI — Project Guide
 
-UI web untuk membuat dan menjalankan load test [k6](https://k6.io) tanpa menulis kode.
-Stack: Express (ESM) + frontend vanilla JS. **Tanpa build step, tanpa framework, tanpa test otomatis.**
+A web UI for building and running [k6](https://k6.io) load tests without writing code.
+Stack: Express (ESM) + vanilla JS frontend. **No build step, no framework, no automated tests.**
 
-## Menjalankan
+## Running
 
 ```bash
 npm start        # http://localhost:3000
-npm run dev      # auto-restart saat file server berubah
+npm run dev      # auto-restart on server file changes
 ```
 
-Prasyarat: Node 18+, dan binary `k6` di PATH (hanya untuk menjalankan test; generate script tetap bisa tanpanya).
+Prerequisites: Node 18+, and the `k6` binary on PATH (only needed to run tests; script generation works without it).
 
-## Peta kode
+## Code map
 
 ```
 server/                 Backend (Node/Express, ESM)
-├── index.js            Bootstrap Express: static public/ + mount /api
-├── routes.js           Endpoint API (lihat bagian API)
-├── k6-runner.js        Tulis script ke folder temp, spawn `k6 run`, parse output → event
-└── generator/          Konfigurasi JSON → source script k6 (string)
-    ├── index.js        generateScript() — orkestrasi
-    ├── options.js      Objek options k6 (VU/stages + thresholds)
-    ├── request.js      Blok kode satu request HTTP
-    ├── assertions.js   Blok check() dari assertion per request
-    ├── extract.js      Ekstraksi variabel dari respons
-    ├── interpolate.js  Interpolasi {{varName}} → template literal
-    └── helpers.js      Selector JSON & literal regex
+├── index.js            Express bootstrap: static public/ + mount /api
+├── routes.js           API endpoints (see API section)
+├── k6-runner.js        Write script to a temp folder, spawn `k6 run`, parse output → events
+└── generator/          JSON configuration → k6 script source (string)
+    ├── index.js        generateScript() — orchestration
+    ├── options.js      k6 options object (VUs/stages + thresholds)
+    ├── request.js      Code block for one HTTP request
+    ├── assertions.js   check() block from per-request assertions
+    ├── extract.js      Variable extraction from responses
+    ├── interpolate.js  {{varName}} interpolation → template literals
+    └── helpers.js      JSON selectors & regex literals
 
-public/                 Frontend statis (ES modules, tanpa bundler)
-├── index.html          Seluruh markup: sidebar + satu <section> per view
-├── css/style.css       Seluruh styling
+public/                 Static frontend (ES modules, no bundler)
+├── index.html          All markup: sidebar + one <section> per view
+├── css/style.css       All styling
 └── js/
-    ├── app.js          Titik masuk: event wiring + render awal
-    ├── nav.js          Pindah antar view
-    ├── dom.js          Helper $ / $$
-    ├── config.js       Baca form → objek konfigurasi + validasi
-    ├── runner.js       POST /api/run, parse stream SSE, render log/tabel/metrik
-    ├── project-io.js   Simpan/muat project (file JSON = objek konfigurasi)
+    ├── app.js          Entry point: event wiring + initial render
+    ├── nav.js          View switching
+    ├── dom.js          $ / $$ helpers
+    ├── config.js       Read the form → config object + validation
+    ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics
+    ├── project-io.js   Save/load projects (JSON file = config object)
     └── components/
-        ├── req-card.js  Kartu request: tab Headers/Body/Ekstraksi/Assertions/Opsi + sub-request pre/post
-        ├── rows.js      Baris form header & ekstraksi
-        ├── counts.js    Badge jumlah ekstraksi/assertion + penomoran kartu
-        └── flow-view.js Zona "Skenario Utama" + baris stage profil beban
+        ├── req-card.js  Request card: Headers/Body/Extract/Assertions/Options tabs + pre/post sub-requests
+        ├── rows.js      Header & extraction form rows
+        ├── counts.js    Extraction/assertion count badges + card renumbering
+        └── flow-view.js "Main Scenario" zone + load-profile stage rows
 ```
 
-## Alur data
+## Data flow
 
-Form UI → `collectConfig()` (js/config.js) → `POST /api/generate` atau `/api/run`
-→ `generateScript()` (server/generator) → [khusus run] `k6-runner.js` spawn k6
-→ event SSE → `js/runner.js` render log live, tabel detail request, dan metrik.
+UI form → `collectConfig()` (js/config.js) → `POST /api/generate` or `/api/run`
+→ `generateScript()` (server/generator) → [run only] `k6-runner.js` spawns k6
+→ SSE events → `js/runner.js` renders the live log, request detail table, and metrics.
 
 ## API
 
-| Endpoint | Body | Respons |
+| Endpoint | Body | Response |
 |---|---|---|
 | `GET /api/k6-status` | — | `{ installed, version? }` |
-| `POST /api/generate` | objek konfigurasi | `{ script }` atau 400 `{ error }` |
-| `POST /api/run` | objek konfigurasi | Stream SSE (lihat event di bawah) |
+| `POST /api/generate` | config object | `{ script }` or 400 `{ error }` |
+| `POST /api/run` | config object | SSE stream (events below) |
 
-Event SSE dari `/api/run`: `status` (progres), `log` (baris output k6), `req-log`
-(detail satu request, max 500/run), `error`, `done` (`{ code, summary }` — summary
-dari `k6 --summary-export`). Exit code 0 = semua threshold terpenuhi; 99 = gagal.
+SSE events from `/api/run`: `status` (progress), `log` (raw k6 output line), `req-log`
+(single request detail, max 500/run), `error`, `done` (`{ code, summary }` — summary
+from `k6 --summary-export`). Exit code 0 = all thresholds met; 99 = thresholds failed.
 
-## Skema objek konfigurasi
+## Configuration object schema
 
-Objek yang sama dipakai untuk `/api/generate`, `/api/run`, dan file simpan project.
+The same object is used for `/api/generate`, `/api/run`, and project save files.
 
 ```jsonc
 {
-  "scenario": { "requests": [ /* request, lihat bawah */ ] },
+  "scenario": { "requests": [ /* request, see below */ ] },
   "load": { "mode": "simple", "vus": "10", "duration": "30s" },
-  // atau: { "mode": "stages", "stages": [{ "duration": "30s", "target": "20" }] }
-  "thresholds": { "p95": "500", "errorRate": "1" },   // string kosong = tidak dipakai
-  "options": { "logRequests": true }                   // aktifkan event req-log
+  // or: { "mode": "stages", "stages": [{ "duration": "30s", "target": "20" }] }
+  "thresholds": { "p95": "500", "errorRate": "1" },   // empty string = unused
+  "options": { "logRequests": true }                   // enables req-log events
 }
 ```
 
-Bentuk satu request:
+Shape of one request:
 
 ```jsonc
 {
   "method": "GET",
-  "url": "https://api.contoh.com/{{id}}",
+  "url": "https://api.example.com/{{id}}",
   "headers": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-  "body": "",                    // dipakai hanya untuk POST/PUT/PATCH/DELETE
-  "checkStatus": true,           // tambahkan check status 2xx otomatis
-  "sleepAfter": "1",             // detik jeda setelah request
+  "body": "",                    // only used for POST/PUT/PATCH/DELETE
+  "checkStatus": true,           // add the automatic 2xx status check
+  "sleepAfter": "1",             // seconds to pause after the request
   "extractions": [{ "varName": "token", "source": "json", "selector": "data.token" }],
-  // source: "json" (JSON path), "header" (nama header), "regex" (grup tangkap ke-1)
+  // source: "json" (JSON path), "header" (header name), "regex" (1st capture group)
   "assertions": [{ "type": "status-eq", "value": "200", "value2": "" }],
-  "pre":  null,   // sub-request "Sebelum": bentuk sama, tapi tanpa assertions/pre/post
-  "post": null    // sub-request "Sesudah": idem
+  "pre":  null,   // "Before" sub-request: same shape, but without assertions/pre/post
+  "post": null    // "After" sub-request: same
 }
 ```
 
-- Interpolasi `{{varName}}` di url/header/body memakai nilai hasil ekstraksi request sebelumnya; nama yang tidak dikenal dibiarkan sebagai teks.
-- Daftar tipe assertion: `ASSERT_TYPES` di `public/js/components/req-card.js` — **harus sinkron** dengan switch di `server/generator/assertions.js`.
+- `{{varName}}` interpolation in url/headers/body uses values extracted by earlier requests; unknown names are left as literal text.
+- Assertion type list: `ASSERT_TYPES` in `public/js/components/req-card.js` — **must stay in sync** with the switch in `server/generator/assertions.js`.
 
-## Konvensi
+## Conventions
 
-- Bahasa UI, komentar kode, dan pesan error: Indonesia.
-- Nama file kebab-case; frontend tetap vanilla JS (jangan menambah framework/bundler tanpa diminta).
-- Menu sidebar bertanda "Segera" adalah placeholder fitur yang belum diimplementasi.
+- UI text, code comments, and error messages: English.
+- Kebab-case file names; the frontend stays vanilla JS (do not add a framework/bundler unless asked).
+- Sidebar items marked "Soon" are placeholders for unimplemented features.
 
-## Verifikasi (tidak ada test otomatis)
+## Verification (no automated tests)
 
-1. `node --check` untuk semua file JS yang diubah.
-2. `npm start`, lalu `curl localhost:3000/api/k6-status` dan `curl -X POST localhost:3000/api/generate` dengan konfigurasi contoh.
-3. Buka UI: isi URL → "Lihat Script" → "Jalankan Test" (durasi pendek, target localhost).
+1. `node --check` every changed JS file.
+2. `npm start`, then `curl localhost:3000/api/k6-status` and `curl -X POST localhost:3000/api/generate` with a sample configuration.
+3. Open the UI: enter a URL → "View Script" → "Run Test" (short duration, localhost target).

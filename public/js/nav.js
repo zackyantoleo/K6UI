@@ -1,19 +1,19 @@
-// Navigasi antar view: tampilkan satu section, tandai link sidebar aktif.
+// View navigation: show one section, mark the active sidebar link.
 import { $, $$ } from './dom.js';
 
 const NAV_TITLES = {
-  flow:      'Alur Request',
-  load:      'Profil Beban',
-  sla:       'Threshold / SLA',
-  script:    'Script k6',
-  results:   'Jalankan & Monitor',
-  vars:      'Variabel Global',
-  headers:   'Headers Global',
-  csv:       'Data CSV',
+  flow:      'Request Flow',
+  load:      'Load Profile',
+  sla:       'Thresholds / SLA',
+  script:    'k6 Script',
+  results:   'Run & Monitor',
+  vars:      'Global Variables',
+  headers:   'Global Headers',
+  csv:       'CSV Data',
   cookies:   'Cookies',
   asserts:   'Assertions',
-  timers:    'Timer',
-  multiscen: 'Multi Skenario',
+  timers:    'Timers',
+  multiscen: 'Multi Scenario',
 };
 
 export function navigate(viewId) {

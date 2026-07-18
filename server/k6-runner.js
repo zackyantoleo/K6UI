@@ -1,21 +1,21 @@
-// Menjalankan k6 pada script sementara dan meneruskan output sebagai event.
+// Runs k6 against a temporary script and forwards its output as events.
 //
-// startK6Run(script, { onEvent, onEnd }) menulis script ke folder temp,
-// spawn `k6 run`, lalu memancarkan event lewat onEvent(event, data):
-//   status  — pesan progres, mis. "Memulai k6..."
-//   log     — satu baris output mentah k6
-//   req-log — detail satu request (dipancarkan script via console.log JSON {__r:1,...})
-//   error   — kegagalan (k6 tidak terpasang, gagal tulis file, dll.)
-//   done    — proses selesai: { code, summary } (summary dari --summary-export)
-// onEnd() dipanggil sekali proses berakhir. Return value: { stop() } untuk
-// menghentikan k6 (mis. saat klien menutup koneksi).
+// startK6Run(script, { onEvent, onEnd }) writes the script to a temp folder,
+// spawns `k6 run`, then emits events through onEvent(event, data):
+//   status  — progress message, e.g. "Starting k6..."
+//   log     — one raw line of k6 output
+//   req-log — details of a single request (emitted by the script via console.log JSON {__r:1,...})
+//   error   — failures (k6 not installed, failed to write the file, etc.)
+//   done    — process finished: { code, summary } (summary from --summary-export)
+// onEnd() is called once the process ends. Return value: { stop() } to
+// terminate k6 (e.g. when the client closes the connection).
 import { spawn } from "node:child_process";
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-// Batas jumlah event req-log per run agar UI tidak kebanjiran.
+// Cap on req-log events per run so the UI doesn't get flooded.
 const MAX_REQ_LOGS = 500;
 
 export async function startK6Run(script, { onEvent, onEnd }) {
@@ -27,7 +27,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
     try {
       await rm(workDir, { recursive: true, force: true });
     } catch {
-      // abaikan kegagalan cleanup
+      // ignore cleanup failures
     }
   }
 
@@ -35,12 +35,12 @@ export async function startK6Run(script, { onEvent, onEnd }) {
     await mkdir(workDir, { recursive: true });
     await writeFile(scriptPath, script, "utf8");
   } catch (err) {
-    onEvent("error", { message: `Gagal menyiapkan file test: ${err.message}` });
+    onEvent("error", { message: `Failed to prepare the test file: ${err.message}` });
     onEnd();
     return { stop() {} };
   }
 
-  onEvent("status", { message: "Memulai k6..." });
+  onEvent("status", { message: "Starting k6..." });
 
   const child = spawn("k6", ["run", "--summary-export", summaryPath, scriptPath], {
     cwd: workDir,
@@ -48,9 +48,9 @@ export async function startK6Run(script, { onEvent, onEnd }) {
 
   child.on("error", (err) => {
     if (err.code === "ENOENT") {
-      onEvent("error", { message: "k6 tidak ditemukan di server. Pastikan k6 sudah terpasang (https://k6.io/docs/get-started/installation/)." });
+      onEvent("error", { message: "k6 was not found on the server. Make sure k6 is installed (https://k6.io/docs/get-started/installation/)." });
     } else {
-      onEvent("error", { message: `Gagal menjalankan k6: ${err.message}` });
+      onEvent("error", { message: `Failed to run k6: ${err.message}` });
     }
     cleanup();
     onEnd();
@@ -58,7 +58,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
 
   let reqLogCount = 0;
 
-  // Pecah stream stdout/stderr menjadi baris utuh.
+  // Split the stdout/stderr streams into whole lines.
   function makeLineSplitter(onLine) {
     let buf = "";
     return (chunk) => {
@@ -73,11 +73,11 @@ export async function startK6Run(script, { onEvent, onEnd }) {
 
   function handleOutputLine(line) {
     const t = line.trim();
-    // k6 membungkus console.log dalam format teks logrus: ...msg="<content>" source=console
+    // k6 wraps console.log in logrus text format: ...msg="<content>" source=console
     const consoleMatch = t.match(/ msg="(.*)" source=console$/);
     if (consoleMatch) {
       try {
-        // Escaping logrus setara dengan escaping isi string JSON — balikkan
+        // logrus escaping is equivalent to JSON string body escaping — reverse it
         const raw = JSON.parse('"' + consoleMatch[1] + '"');
         if (raw.startsWith('{"__r":1,')) {
           const entry = JSON.parse(raw);
@@ -87,7 +87,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
           }
           return;
         }
-      } catch { /* jatuh ke log biasa */ }
+      } catch { /* fall through to a plain log line */ }
     }
     onEvent("log", { line: line + "\n" });
   }
@@ -100,7 +100,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
     try {
       summary = JSON.parse(await readFile(summaryPath, "utf8"));
     } catch {
-      // summary mungkin tidak tersedia jika test gagal sangat awal
+      // the summary may be missing if the test failed very early
     }
     onEvent("done", { code, summary });
     await cleanup();

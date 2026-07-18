@@ -1,10 +1,10 @@
-// Mengubah konfigurasi dari UI menjadi script k6 yang siap dijalankan.
-// Orkestrasi utama — detail codegen ada di modul saudara:
-//   options.js     → objek options k6 (beban + threshold)
-//   request.js     → blok kode satu request HTTP
-//   assertions.js  → blok check() untuk assertion per request
-//   extract.js     → ekstraksi variabel dari respons
-//   interpolate.js → interpolasi {{varName}}
+// Turns the UI configuration into a ready-to-run k6 script.
+// Main orchestration — codegen details live in sibling modules:
+//   options.js     → k6 options object (load + thresholds)
+//   request.js     → code block for one HTTP request
+//   assertions.js  → check() block for per-request assertions
+//   extract.js     → variable extraction from responses
+//   interpolate.js → {{varName}} interpolation
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildAssertionsCode } from "./assertions.js";
@@ -23,7 +23,7 @@ export function generateScript(config) {
 
   out += `\nexport default function() {\n`;
 
-  // Variabel yang sudah dideklarasikan — cegah double `let`
+  // Variables already declared — prevents a double `let`
   const declaredVars = new Set();
 
   for (let i = 0; i < mainReqs.length; i++) {
@@ -59,7 +59,7 @@ export function generateScript(config) {
       }
     }
 
-    // Tambahkan variabel dari main request ke declared set
+    // Add variables extracted by the main request to the declared set
     for (const e of req.extractions || []) {
       if (e && e.varName) declaredVars.add(e.varName);
     }

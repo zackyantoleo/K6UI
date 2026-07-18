@@ -1,5 +1,5 @@
-// Codegen satu blok request HTTP: http.request + check status + ekstraksi +
-// log request (opsional) + sleep.
+// Codegen for one HTTP request block: http.request + status check +
+// extractions + optional request logging + sleep.
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
 
@@ -55,8 +55,8 @@ export function buildRequestCode(req, index, prefix, setupVars, localVars, extra
   );
   if (extractCode) lines.push(extractCode);
 
-  // Log per request dalam format JSON bertanda {__r:1,...} — diparse server
-  // (k6-runner.js) menjadi event req-log untuk tabel "Detail Request" di UI.
+  // Per-request log as JSON tagged {__r:1,...} — parsed by the server
+  // (k6-runner.js) into req-log events for the "Request Details" table.
   if (logRequests) {
     lines.push(
       `  try { console.log(JSON.stringify({__r:1,vu:__VU,it:__ITER,i:${index},m:${JSON.stringify(method)},url:String(${urlCode}),s:${resVar}.status,d:+(${resVar}.timings.duration.toFixed(1)),ok:${resVar}.status>=200&&${resVar}.status<400,rb:String(${resVar}.body||'').slice(0,500)})); } catch(e) {}`
