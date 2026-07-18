@@ -45,9 +45,8 @@
         <a class="nav-link" data-view="vars" href="#">
           <span class="nav-ic">$</span><span>Global Variables</span>
         </a>
-        <a class="nav-link soon" href="#">
+        <a class="nav-link" data-view="headers" href="#">
           <span class="nav-ic">#</span><span>Global Headers</span>
-          <span class="badge-soon">Soon</span>
         </a>
         <a class="nav-link soon" href="#">
           <span class="nav-ic">⊡</span><span>CSV Data</span>
@@ -277,8 +276,29 @@
           </div>
         </section>
 
+        <!-- VIEW: Global Headers -->
+        <section id="view-headers" class="view hidden">
+          <p class="view-hint">
+            Headers automatically added to <strong>every</strong> request —
+            e.g. <code>Content-Type</code>, <code>Accept</code>, or an <code>Authorization</code> token.
+          </p>
+          <div class="page-cols">
+            <div class="form-card">
+              <h3>Headers</h3>
+              <div id="global-headers-list"></div>
+              <button type="button" id="add-global-header" class="btn ghost sm">+ Add Header</button>
+            </div>
+
+            <div class="form-card info-card">
+              <h3>How it works</h3>
+              <p class="note">These headers are sent with every request in the scenario, including <em>Before</em> and <em>After</em> sub-requests.</p>
+              <p class="note">Values can use <code>{{name}}</code> variables — e.g. <code>Bearer {{token}}</code> with a global or extracted variable.</p>
+              <p class="note">If a request defines a header with the same name, the request's value <strong>overrides</strong> the global one (names are case-insensitive).</p>
+            </div>
+          </div>
+        </section>
+
         <!-- ── Coming Soon views ────────────────────────────── -->
-        <section id="view-headers"   class="view hidden"><div class="cs-view"><div class="cs-icon">#</div><h2>Global Headers</h2><p>Headers automatically added to every request — e.g. Content-Type or Accept.</p><span class="cs-badge">Coming Soon</span></div></section>
         <section id="view-csv"       class="view hidden"><div class="cs-view"><div class="cs-icon">⊡</div><h2>CSV Data</h2><p>Load data from a CSV file to parameterize tests — lists of usernames, passwords, or product IDs.</p><span class="cs-badge">Coming Soon</span></div></section>
         <section id="view-cookies"   class="view hidden"><div class="cs-view"><div class="cs-icon">🍪</div><h2>Cookies</h2><p>Manage cookies sent with requests and shared between requests within a VU session.</p><span class="cs-badge">Coming Soon</span></div></section>
         <section id="view-asserts"   class="view hidden"><div class="cs-view"><div class="cs-icon">✓</div><h2>Assertions</h2><p>Validate responses per request — check status codes, body content, headers, or response time.</p><span class="cs-badge">Coming Soon</span></div></section>

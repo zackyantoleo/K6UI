@@ -4,7 +4,7 @@
 import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { reqCard } from './components/req-card.js';
-import { variableRow } from './components/rows.js';
+import { variableRow, headerRow } from './components/rows.js';
 import { buildFlowView, stageRow } from './components/flow-view.js';
 import { collectConfig, validate } from './config.js';
 import { runTest, stopTest, applyReqFilter, checkK6 } from './runner.js';
@@ -35,9 +35,12 @@ $$('input[name="load-mode"]').forEach(r =>
 
 $('#add-stage').addEventListener('click', () => $('#stages').appendChild(stageRow()));
 
-// ── Global variables ───────────────────────────────────────────
+// ── Global variables & headers ─────────────────────────────────
 $('#add-global-var').addEventListener('click', () =>
   $('#global-vars-list').appendChild(variableRow()));
+
+$('#add-global-header').addEventListener('click', () =>
+  $('#global-headers-list').appendChild(headerRow()));
 
 // ── Script preview ─────────────────────────────────────────────
 async function loadScript() {
@@ -112,6 +115,7 @@ $('#project-file-input').addEventListener('change', e => {
 buildFlowView();
 $('#reqs-main').appendChild(reqCard(0, 'main'));
 $('#global-vars-list').appendChild(variableRow());
+$('#global-headers-list').appendChild(headerRow());
 
 const stagesEl = $('#stages');
 stagesEl.appendChild(stageRow('30s', '10'));

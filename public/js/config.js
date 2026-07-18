@@ -87,11 +87,12 @@ export function collectConfig() {
     }));
   }
   return {
-    scenario:   { requests: collectReqList('reqs-main') },
-    variables:  readVariableRows(),
+    scenario:      { requests: collectReqList('reqs-main') },
+    variables:     readVariableRows(),
+    globalHeaders: readHeaderRows($('#global-headers-list')),
     load,
-    thresholds: { p95: $('#p95').value, errorRate: $('#errorRate').value },
-    options:    { logRequests: $('#log-requests')?.checked ?? true },
+    thresholds:    { p95: $('#p95').value, errorRate: $('#errorRate').value },
+    options:       { logRequests: $('#log-requests')?.checked ?? true },
   };
 }
 
