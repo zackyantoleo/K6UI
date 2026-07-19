@@ -7,6 +7,7 @@
 //   interpolate.js → {{varName}} interpolation
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
+import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
 import { buildAssertionsCode } from "./assertions.js";
 
 // Global variables must be valid JS identifiers: they are emitted as object
@@ -91,9 +92,14 @@ export function generateScript(config) {
     .map((r) => `${r.preScript || ""}\n${r.postScript || ""}`)
     .join("\n");
 
+  const grpcIndexes = mainReqs
+    .map((r, i) => (r.type === "grpc" ? i : -1))
+    .filter((i) => i !== -1);
+
   let out = "";
   out += `import http from 'k6/http';\n`;
   out += `import { check, sleep } from 'k6';\n`;
+  if (grpcIndexes.length)              out += `import grpc from 'k6/net/grpc';\n`;
   if (/\bcrypto\./.test(allScripts))   out += `import crypto from 'k6/crypto';\n`;
   if (/\bencoding\./.test(allScripts)) out += `import encoding from 'k6/encoding';\n`;
   out += `\n`;
@@ -106,6 +112,13 @@ export function generateScript(config) {
       out += `  ${key}: ${JSON.stringify(value)},\n`;
     }
     out += `};\n`;
+  }
+
+  if (grpcIndexes.length) {
+    out += `\n// gRPC clients — connect with server reflection (no .proto files needed)\n`;
+    for (const i of grpcIndexes) {
+      out += `const grpc_client_${i} = new grpc.Client();\n`;
+    }
   }
 
   out += `\nexport default function() {\n`;
@@ -146,12 +159,18 @@ export function generateScript(config) {
       out += "\n" + buildProcessorBlock(preScript, `Pre-processor: request ${i + 1}`, null);
     }
 
-    // ── Main request ─────────────────────────────────────────
-    out += "\n" + buildRequestCode(withGlobalHeaders(req), i, "main", ctx, null, logRequests);
+    // ── Main request (HTTP or gRPC) ──────────────────────────
+    const isGrpc = req.type === "grpc";
+    if (isGrpc) {
+      validateGrpcRequest(req, `Request ${i + 1}`);
+      out += "\n" + buildGrpcRequestCode(withGlobalHeaders(req), i, "main", ctx, logRequests);
+    } else {
+      out += "\n" + buildRequestCode(withGlobalHeaders(req), i, "main", ctx, null, logRequests);
+    }
     out += "\n";
 
     // ── Assertions ───────────────────────────────────────────
-    const assertCode = buildAssertionsCode(req.assertions, `res_main_${i}`);
+    const assertCode = buildAssertionsCode(req.assertions, `res_main_${i}`, isGrpc ? "grpc" : "http");
     if (assertCode) out += assertCode;
 
     // ── Post-processor ───────────────────────────────────────

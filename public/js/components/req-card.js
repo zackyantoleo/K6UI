@@ -181,6 +181,14 @@ export function reqCard(index, context) {
   const numEl = document.createElement('span');
   numEl.className = 'req-num'; numEl.textContent = `#${index + 1}`;
 
+  const protoSel = document.createElement('select');
+  protoSel.className = 'protocol';
+  [{ v: 'http', l: 'HTTP' }, { v: 'grpc', l: 'gRPC' }].forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.v; o.textContent = p.l;
+    protoSel.appendChild(o);
+  });
+
   const methodSel = document.createElement('select');
   methodSel.className = 'method';
   METHODS.forEach(m => { const o = document.createElement('option'); o.value = o.textContent = m; methodSel.appendChild(o); });
@@ -206,7 +214,33 @@ export function reqCard(index, context) {
   delBtn.textContent = '✕';
 
   actions.append(curlBtn, colBtn, delBtn);
-  head.append(numEl, methodSel, urlInput, actions);
+  head.append(numEl, protoSel, methodSel, urlInput, actions);
+
+  // gRPC settings — visible only when the protocol is gRPC. The card then
+  // maps onto gRPC as: url = host:port, body = request message (JSON),
+  // headers = metadata.
+  const grpcRow = document.createElement('div');
+  grpcRow.className = 'grpc-row hidden';
+  grpcRow.innerHTML = `
+    <span class="grpc-label">gRPC</span>
+    <input type="text" class="grpc-method"
+      placeholder="package.Service/Method — e.g. hello.HelloService/SayHello"
+      title="Full method name. The server must support gRPC reflection." />
+    <label class="opt-label">
+      <input type="checkbox" class="grpc-plaintext" />
+      Plaintext (no TLS)
+    </label>`;
+
+  function syncProtocol() {
+    const isGrpc = protoSel.value === 'grpc';
+    methodSel.classList.toggle('hidden', isGrpc);
+    grpcRow.classList.toggle('hidden', !isGrpc);
+    urlInput.placeholder = isGrpc
+      ? 'host:port — e.g. localhost:50051'
+      : 'https://api.example.com/endpoint';
+  }
+  protoSel.addEventListener('change', syncProtocol);
+  protoSel.addEventListener('click', e => e.stopPropagation());
 
   const preSection = buildSubReqSection('pre');
 
@@ -310,7 +344,7 @@ export function reqCard(index, context) {
 
   const postSection = buildSubReqSection('post');
 
-  card.append(head, preSection, body, postSection);
+  card.append(head, grpcRow, preSection, body, postSection);
 
   colBtn.addEventListener('click', e => { e.stopPropagation(); card.classList.toggle('collapsed'); });
   delBtn.addEventListener('click', () => { card.remove(); renumberMain(); });

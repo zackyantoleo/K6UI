@@ -35,6 +35,12 @@ function fillSubReq(section, req) {
 }
 
 function fillCard(card, req) {
+  const protoSel = card.querySelector('.protocol');
+  protoSel.value = req.type === 'grpc' ? 'grpc' : 'http';
+  card.querySelector('.grpc-method').value      = req.grpcMethod || '';
+  card.querySelector('.grpc-plaintext').checked = !!req.grpcPlaintext;
+  protoSel.dispatchEvent(new Event('change'));
+
   card.querySelector('.method').value = req.method || 'GET';
   card.querySelector('.url').value    = req.url    || '';
   card.querySelector('.body').value   = req.body   || '';

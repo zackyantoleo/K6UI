@@ -89,8 +89,13 @@ Shape of one request:
 
 ```jsonc
 {
+  "type": "http",                // "http" (default) or "grpc"
   "method": "GET",
   "url": "https://api.example.com/{{id}}",
+  // gRPC requests: url = "host:port", body = request message JSON,
+  // headers = metadata, plus:
+  "grpcMethod": "",              // "package.Service/Method"
+  "grpcPlaintext": false,        // true = connect without TLS
   "headers": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
   "body": "",                    // only used for POST/PUT/PATCH/DELETE
   "checkStatus": true,           // add the automatic 2xx status check
@@ -107,6 +112,7 @@ Shape of one request:
 
 - `{{varName}}` interpolation in url/headers/body uses global variables, values extracted by earlier requests, and `vars.<name>` assignments made by earlier pre/post-processor scripts (precedence: extracted > processor > global); unknown names are left as literal text.
 - Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Referencing `crypto.` or `encoding.` in a script auto-adds the `k6/crypto` / `k6/encoding` import. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
+- gRPC requests (`type: "grpc"`) generate `k6/net/grpc` unary calls with server reflection (`reflect: true` — the target server must support it; .proto upload is not implemented). The automatic check compares against `grpc.StatusOK`; extractions read the decoded `res.message`; assertions are remapped for gRPC (statuses = gRPC codes, body = `JSON.stringify(message)`, `duration-lt` is skipped). Pre/post sub-requests stay HTTP.
 - Assertion type list: `ASSERT_TYPES` in `public/js/components/req-card.js` — **must stay in sync** with the switch in `server/generator/assertions.js`.
 
 ## Conventions

@@ -49,8 +49,11 @@ function collectReqList(containerId) {
   return $$(`#${containerId} .req-card`).map(card => {
     const body = card.querySelector('.req-card-body');
     return {
+      type:        card.querySelector('.protocol').value,   // 'http' | 'grpc'
       method:      card.querySelector('.method').value,
       url:         card.querySelector('.url').value.trim(),
+      grpcMethod:    card.querySelector('.grpc-method').value.trim(),
+      grpcPlaintext: card.querySelector('.grpc-plaintext').checked,
       headers:     readHeaderRows(body.querySelector('.headers-list')),
       body:        card.querySelector('.body').value,
       checkStatus: card.querySelector('.check-status').checked,
@@ -101,6 +104,11 @@ export function collectConfig() {
 export function validate(config) {
   if (!config.scenario.requests.filter(r => r.url).length)
     return 'Add at least one request with a URL in the Main Scenario.';
+  const reqs = config.scenario.requests;
+  for (let i = 0; i < reqs.length; i++) {
+    if (reqs[i].url && reqs[i].type === 'grpc' && !reqs[i].grpcMethod)
+      return `Request ${i + 1}: enter the gRPC method (package.Service/Method).`;
+  }
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
       return 'Add at least one valid stage in the Load Profile.';
