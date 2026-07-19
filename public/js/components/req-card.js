@@ -2,7 +2,7 @@
 // Options tabs, plus optional "Before" and "After" sub-requests.
 import { $$ } from '../dom.js';
 import { headerRow, extractionRow } from './rows.js';
-import { updateExtCount, updateAssertCount, renumberMain } from './counts.js';
+import { updateExtCount, updateAssertCount, updateScriptCount, renumberMain } from './counts.js';
 
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
@@ -214,6 +214,7 @@ export function reqCard(index, context) {
     { id: 'body',       label: 'Body' },
     { id: 'extractions',label: 'Extract',    badge: 'tab-count-ext' },
     { id: 'assertions', label: 'Assertions', badge: 'tab-count-assert' },
+    { id: 'scripts',    label: 'Scripts',    badge: 'tab-count-script' },
     { id: 'options',    label: 'Options' },
   ].forEach((def, i) => {
     const btn = document.createElement('button');
@@ -263,6 +264,27 @@ export function reqCard(index, context) {
   assertList.addEventListener('change', e => { if (e.target.classList.contains('assert-type')) updateAssertCount(card); });
   pAssert.append(assertHint, assertList, addAssertBtn);
 
+  const pScripts = document.createElement('div');
+  pScripts.className = 'req-tab-panel hidden'; pScripts.dataset.panel = 'scripts';
+  const scriptsHint = document.createElement('p');
+  scriptsHint.className = 'ext-hint';
+  scriptsHint.innerHTML =
+    'Custom JavaScript around this request. Assign <code>vars.name = ...</code> in a script, then use <code>{{name}}</code> in any URL, header, or body.';
+  const preScrLabel = document.createElement('label');
+  preScrLabel.className = 'script-label';
+  preScrLabel.textContent = 'Pre-processor — runs before the request';
+  const preScrTA = document.createElement('textarea');
+  preScrTA.className = 'pre-script';
+  preScrTA.placeholder = "vars.timestamp = Date.now();\nvars.trace_id = 'trace-' + __VU + '-' + __ITER;";
+  const postScrLabel = document.createElement('label');
+  postScrLabel.className = 'script-label';
+  postScrLabel.textContent = 'Post-processor — runs after the response (as "res")';
+  const postScrTA = document.createElement('textarea');
+  postScrTA.className = 'post-script';
+  postScrTA.placeholder = '// "res" is this request\'s response\nconst data = JSON.parse(res.body);\nvars.first_id = data.items[0].id;';
+  [preScrTA, postScrTA].forEach(t => t.addEventListener('input', () => updateScriptCount(card)));
+  pScripts.append(scriptsHint, preScrLabel, preScrTA, postScrLabel, postScrTA);
+
   const pOpts = document.createElement('div');
   pOpts.className = 'req-tab-panel hidden'; pOpts.dataset.panel = 'options';
   pOpts.innerHTML = `
@@ -277,7 +299,7 @@ export function reqCard(index, context) {
       </label>
     </div>`;
 
-  body.append(tabs, pHeaders, pBody, pExt, pAssert, pOpts);
+  body.append(tabs, pHeaders, pBody, pExt, pAssert, pScripts, pOpts);
 
   const postSection = buildSubReqSection('post');
 

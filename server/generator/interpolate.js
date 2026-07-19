@@ -1,16 +1,18 @@
 // {{varName}} variable interpolation into JS expressions.
 // Turns "https://api/{{userId}}" into the template literal `https://api/${userId}`.
-// localVars  → accessed directly as varName (extracted in the main function)
-// globalVars → accessed as GLOBALS.varName (global variables declared at the top
-//              of the script). Local variables take precedence, so a value
-//              extracted from a response overrides a global with the same name.
+// The ctx object holds the known variable names; resolution order
+// (first match wins):
+//   localVars     → varName          (extracted from an earlier response)
+//   processorVars → vars.varName     (assigned by a pre/post-processor script)
+//   globalVars    → GLOBALS.varName  (global variables)
 // Unknown names are left as-is as literal {{...}} text.
 
-export function interpolate(str, localVars, globalVars) {
+export function interpolate(str, ctx) {
   if (str == null) return '""';
   const s = String(str);
   if (!s.includes("{{")) return JSON.stringify(s);
 
+  const { localVars, processorVars, globalVars } = ctx || {};
   const pattern = /\{\{(\w+)\}\}/g;
   let result = "`";
   let last = 0;
@@ -27,6 +29,8 @@ export function interpolate(str, localVars, globalVars) {
     const name = m[1];
     if (localVars && localVars.has(name)) {
       result += `\${${name}}`;
+    } else if (processorVars && processorVars.has(name)) {
+      result += `\${vars.${name}}`;
     } else if (globalVars && globalVars.has(name)) {
       result += `\${GLOBALS.${name}}`;
     } else {

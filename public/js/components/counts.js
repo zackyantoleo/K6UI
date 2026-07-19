@@ -21,6 +21,16 @@ export function updateAssertCount(card) {
   badge.classList.toggle('visible', n > 0);
 }
 
+export function updateScriptCount(card) {
+  const pre  = card.querySelector('.pre-script');
+  const post = card.querySelector('.post-script');
+  const n = (pre?.value.trim() ? 1 : 0) + (post?.value.trim() ? 1 : 0);
+  const badge = card.querySelector('.tab-count-script');
+  if (!badge) return;
+  badge.textContent = n || '';
+  badge.classList.toggle('visible', n > 0);
+}
+
 export function renumberMain() {
   $$('#reqs-main .req-card').forEach((c, i) => {
     const n = c.querySelector('.req-num');

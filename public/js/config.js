@@ -57,6 +57,8 @@ function collectReqList(containerId) {
       sleepAfter:  card.querySelector('.sleep').value,
       extractions: readExtractionRows(body.querySelector('.extractions-list')),
       assertions:  readAssertionRows(body.querySelector('.assertions-list')),
+      preScript:   card.querySelector('.pre-script').value,
+      postScript:  card.querySelector('.post-script').value,
       pre:         collectSubReq(card, 'pre'),
       post:        collectSubReq(card, 'post'),
     };

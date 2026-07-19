@@ -4,7 +4,7 @@ import { $ } from './dom.js';
 import { navigate } from './nav.js';
 import { headerRow, extractionRow, variableRow } from './components/rows.js';
 import { reqCard, assertionRow } from './components/req-card.js';
-import { updateExtCount, updateAssertCount, renumberMain } from './components/counts.js';
+import { updateExtCount, updateAssertCount, updateScriptCount, renumberMain } from './components/counts.js';
 import { stageRow } from './components/flow-view.js';
 import { collectConfig } from './config.js';
 
@@ -59,6 +59,10 @@ function fillCard(card, req) {
   const assertList = card.querySelector('.assertions-list');
   for (const a of req.assertions || []) assertList.appendChild(assertionRow(a.type, a.value, a.value2));
   updateAssertCount(card);
+
+  card.querySelector('.pre-script').value  = req.preScript  || '';
+  card.querySelector('.post-script').value = req.postScript || '';
+  updateScriptCount(card);
 
   if (req.pre)  fillSubReq(card.querySelector('.subreq-pre'),  req.pre);
   if (req.post) fillSubReq(card.querySelector('.subreq-post'), req.post);
