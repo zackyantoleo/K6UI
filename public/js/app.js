@@ -9,6 +9,7 @@ import { buildFlowView, stageRow } from './components/flow-view.js';
 import { collectConfig, validate } from './config.js';
 import { runTest, stopTest, applyReqFilter, checkK6 } from './runner.js';
 import { saveProject, applyConfig } from './project-io.js';
+import { initCurlImport } from './curl-import.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -122,5 +123,6 @@ stagesEl.appendChild(stageRow('30s', '10'));
 stagesEl.appendChild(stageRow('1m',  '20'));
 stagesEl.appendChild(stageRow('30s', '0'));
 
+initCurlImport();
 navigate('flow');
 checkK6();
