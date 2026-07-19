@@ -1,10 +1,13 @@
 // Codegen for extracting variables from a response (JSON path / header / regex).
 import { buildJsonAccessor, buildRegex } from "./helpers.js";
 
+// mode = 'http' → JSON source parses res.body; regex matches res.body.
+// mode = 'grpc' → JSON source reads the already-decoded res.message; regex
+//                 matches JSON.stringify(res.message).
 // targetPrefix = 'data' → data.varName = ...  (for setup, stored on the return value)
 // targetPrefix = null   → let varName = ...   (for the main function/teardown)
 // localVarSet prevents a double `let` for the same variable name.
-export function buildExtractionLines(extractions, resVar, targetPrefix, localVarSet) {
+export function buildExtractionLines(extractions, resVar, targetPrefix, localVarSet, mode = "http") {
   if (!Array.isArray(extractions)) return "";
   const lines = [];
 
@@ -14,11 +17,14 @@ export function buildExtractionLines(extractions, resVar, targetPrefix, localVar
     let rhs;
     const sel = e.selector || "";
     if (e.source === "json") {
-      rhs = `JSON.parse(${resVar}.body)${buildJsonAccessor(sel)}`;
+      rhs = mode === "grpc"
+        ? `${resVar}.message${buildJsonAccessor(sel)}`
+        : `JSON.parse(${resVar}.body)${buildJsonAccessor(sel)}`;
     } else if (e.source === "header") {
       rhs = `${resVar}.headers[${JSON.stringify(sel)}]`;
     } else if (e.source === "regex") {
-      rhs = `(${resVar}.body.match(${buildRegex(sel)}) || [])[1] || ""`;
+      const subject = mode === "grpc" ? `JSON.stringify(${resVar}.message || {})` : `${resVar}.body`;
+      rhs = `(${subject}.match(${buildRegex(sel)}) || [])[1] || ""`;
     } else {
       continue;
     }
