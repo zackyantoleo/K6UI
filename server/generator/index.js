@@ -85,9 +85,18 @@ export function generateScript(config) {
 
   const mainReqs = (scenario.requests || []).filter((r) => r && String(r.url || "").trim());
 
+  // Auto-import the k6 utility modules a processor script refers to, so
+  // e.g. crypto.sha256(...) works in a pre/post-processor out of the box.
+  const allScripts = mainReqs
+    .map((r) => `${r.preScript || ""}\n${r.postScript || ""}`)
+    .join("\n");
+
   let out = "";
   out += `import http from 'k6/http';\n`;
-  out += `import { check, sleep } from 'k6';\n\n`;
+  out += `import { check, sleep } from 'k6';\n`;
+  if (/\bcrypto\./.test(allScripts))   out += `import crypto from 'k6/crypto';\n`;
+  if (/\bencoding\./.test(allScripts)) out += `import encoding from 'k6/encoding';\n`;
+  out += `\n`;
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
 
   if (globals.size > 0) {

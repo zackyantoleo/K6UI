@@ -106,7 +106,7 @@ Shape of one request:
 ```
 
 - `{{varName}}` interpolation in url/headers/body uses global variables, values extracted by earlier requests, and `vars.<name>` assignments made by earlier pre/post-processor scripts (precedence: extracted > processor > global); unknown names are left as literal text.
-- Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
+- Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Referencing `crypto.` or `encoding.` in a script auto-adds the `k6/crypto` / `k6/encoding` import. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
 - Assertion type list: `ASSERT_TYPES` in `public/js/components/req-card.js` — **must stay in sync** with the switch in `server/generator/assertions.js`.
 
 ## Conventions

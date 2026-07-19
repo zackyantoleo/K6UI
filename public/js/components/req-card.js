@@ -275,7 +275,8 @@ export function reqCard(index, context) {
   const scriptsHint = document.createElement('p');
   scriptsHint.className = 'ext-hint';
   scriptsHint.innerHTML =
-    'Custom JavaScript around this request. Assign <code>vars.name = ...</code> in a script, then use <code>{{name}}</code> in any URL, header, or body.';
+    'Custom JavaScript around this request. Assign <code>vars.name = ...</code> in a script, then use <code>{{name}}</code> in any URL, header, or body. ' +
+    'The k6 modules <code>crypto</code> (e.g. <code>crypto.sha256(s, \'hex\')</code>) and <code>encoding</code> (<code>encoding.b64encode(s)</code>) are imported automatically when used.';
   const preScrLabel = document.createElement('label');
   preScrLabel.className = 'script-label';
   preScrLabel.textContent = 'Pre-processor — runs before the request';
