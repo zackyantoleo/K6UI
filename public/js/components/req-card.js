@@ -3,6 +3,7 @@
 import { $$ } from '../dom.js';
 import { headerRow, extractionRow } from './rows.js';
 import { updateExtCount, updateAssertCount, updateScriptCount, renumberMain } from './counts.js';
+import { openCurlImport } from '../curl-import.js';
 
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
@@ -191,6 +192,11 @@ export function reqCard(index, context) {
   const actions = document.createElement('div');
   actions.className = 'req-card-actions';
 
+  const curlBtn = document.createElement('button');
+  curlBtn.className = 'req-action-btn curl'; curlBtn.title = 'Import from cURL';
+  curlBtn.textContent = 'cURL';
+  curlBtn.addEventListener('click', e => { e.stopPropagation(); openCurlImport(card); });
+
   const colBtn = document.createElement('button');
   colBtn.className = 'req-action-btn'; colBtn.title = 'Expand / Collapse';
   colBtn.innerHTML = '<span class="chevron">▾</span>';
@@ -199,7 +205,7 @@ export function reqCard(index, context) {
   delBtn.className = 'req-action-btn del'; delBtn.title = 'Remove request';
   delBtn.textContent = '✕';
 
-  actions.append(colBtn, delBtn);
+  actions.append(curlBtn, colBtn, delBtn);
   head.append(numEl, methodSel, urlInput, actions);
 
   const preSection = buildSubReqSection('pre');

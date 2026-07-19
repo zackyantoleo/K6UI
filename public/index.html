@@ -309,6 +309,24 @@
     </div>
   </div>
 </div>
+
+<!-- ── cURL import modal ────────────────────────────────────── -->
+<div id="curl-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>Import from cURL</h3>
+    <p class="note">
+      Paste a cURL command — e.g. from your browser's DevTools ("Copy as cURL")
+      or an API doc. The method, URL, headers, and body will replace this
+      request's current values.
+    </p>
+    <textarea id="curl-input" placeholder="curl 'https://api.example.com/users' -H 'Accept: application/json'"></textarea>
+    <div id="curl-error" class="curl-error hidden"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost sm" id="curl-cancel">Cancel</button>
+      <button type="button" class="btn primary sm" id="curl-apply">Import</button>
+    </div>
+  </div>
+</div>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

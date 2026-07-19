@@ -36,6 +36,8 @@ public/                 Static frontend (ES modules, no bundler)
     ├── nav.js          View switching
     ├── dom.js          $ / $$ helpers
     ├── config.js       Read the form → config object + validation
+    ├── curl-parse.js   Parse a cURL command → { method, url, headers, body }
+    ├── curl-import.js  "Import from cURL" modal: parse + fill a request card
     ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics
     ├── project-io.js   Save/load projects (JSON file = config object)
     └── components/
