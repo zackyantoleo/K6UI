@@ -82,19 +82,55 @@ function resetReqLog() {
   $('#req-log-count').textContent = '0';
 }
 
+// ── Live log (buffered + capped) ───────────────────────────────
+// Appending every SSE line straight to textContent re-serializes the whole
+// log, getting quadratically slower as it grows — a script that errors on
+// each iteration could freeze the tab. Lines are buffered and flushed on a
+// short timer, and only the newest MAX_LOG_LINES lines are kept.
+const MAX_LOG_LINES  = 1500;
+const LOG_TRIM_SLACK = 500;  // rebuild the DOM only once per this many extra lines
+const LOG_FLUSH_MS   = 80;
+
+let logLines   = [];   // capped history for the current run
+let pendingLog = [];   // lines received since the last flush
+let logTimer   = null;
+
+function resetLiveLog() {
+  logLines = []; pendingLog = [];
+  if (logTimer) { clearTimeout(logTimer); logTimer = null; }
+  $('#log-output').textContent = '';
+}
+
+function appendLog(text) {
+  logLines.push(text);
+  pendingLog.push(text);
+  if (!logTimer) logTimer = setTimeout(flushLog, LOG_FLUSH_MS);
+}
+
+function flushLog() {
+  logTimer = null;
+  const logEl = $('#log-output');
+  if (logLines.length > MAX_LOG_LINES + LOG_TRIM_SLACK) {
+    logLines = logLines.slice(-MAX_LOG_LINES);
+    logEl.textContent = `… older lines hidden — showing the most recent ones …\n` + logLines.join('');
+  } else if (pendingLog.length) {
+    logEl.append(pendingLog.join(''));
+  }
+  pendingLog = [];
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
 // ── SSE handler ────────────────────────────────────────────────
 function handleSSE(event, data) {
-  const logEl   = $('#log-output');
   const stateEl = $('#run-state');
   const dot     = $('#nav-run-dot');
 
   if (event === 'log') {
-    logEl.textContent += data.line;
-    logEl.scrollTop = logEl.scrollHeight;
+    appendLog(data.line);
   } else if (event === 'status') {
-    logEl.textContent += `[${data.message}]\n`;
+    appendLog(`[${data.message}]\n`);
   } else if (event === 'error') {
-    logEl.textContent += `\n[ERROR] ${data.message}\n`;
+    appendLog(`\n[ERROR] ${data.message}\n`);
     stateEl.textContent = 'FAILED'; stateEl.className = 'run-state-badge fail';
   } else if (event === 'req-log') {
     reqLogs.push(data);
@@ -156,10 +192,9 @@ export async function runTest() {
   if (err) { alert(err); return; }
 
   navigate('results');
-  const logEl   = $('#log-output');
   const stateEl = $('#run-state');
 
-  logEl.textContent = '';
+  resetLiveLog();
   $('#run-metrics').classList.add('hidden');
   $('#run-metrics').innerHTML = '';
   stateEl.textContent = 'RUNNING';
@@ -204,7 +239,7 @@ export async function runTest() {
     }
   } catch (e) {
     if (e.name !== 'AbortError') {
-      logEl.textContent += `\n[ERROR] ${e.message}\n`;
+      appendLog(`\n[ERROR] ${e.message}\n`);
       stateEl.textContent = 'FAILED';
       stateEl.className   = 'run-state-badge fail';
     }
