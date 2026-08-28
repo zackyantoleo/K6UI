@@ -118,15 +118,16 @@
 
         <!-- VIEW: Load Profile -->
         <section id="view-load" class="view hidden">
-          <p class="view-hint">Set the number of virtual users (VUs) and the load pattern for the duration of the test.</p>
+          <p class="view-hint">Choose a safe starter pattern, then customize it only when you need finer control.</p>
           <div class="preset-strip" aria-label="Starter load presets">
             <span>Quick start:</span>
-            <button type="button" class="preset-btn" data-preset="smoke">Smoke <small>1 VU · 30s</small></button>
-            <button type="button" class="preset-btn" data-preset="load">Load <small>10 VUs · 5m</small></button>
-            <button type="button" class="preset-btn" data-preset="stress">Stress <small>50 VUs · 5m</small></button>
+            <button type="button" class="preset-btn" data-preset="smoke" aria-pressed="false">Smoke <small>1 VU · 30s</small></button>
+            <button type="button" class="preset-btn" data-preset="load" aria-pressed="false">Load <small>up to 10 VUs · 5m</small></button>
+            <button type="button" class="preset-btn" data-preset="stress" aria-pressed="false">Stress <small>up to 50 VUs · 6m</small></button>
+            <button type="button" id="customize-load" class="btn ghost sm" aria-expanded="false" aria-controls="load-custom-editor">Customize</button>
           </div>
           <div class="page-cols">
-            <div class="form-card">
+            <div id="load-custom-editor" class="form-card hidden">
               <h3>Load Mode</h3>
               <div class="radio-group">
                 <label class="radio-card">
@@ -160,10 +161,17 @@
                 <div id="stages"></div>
                 <button type="button" id="add-stage" class="btn ghost sm">+ Add Stage</button>
               </div>
+              <div class="load-guidance" aria-label="Load terminology guide">
+                <p><strong>VUs</strong> simulate concurrent users running your request flow.</p>
+                <p><strong>Duration</strong> is how long each fixed period or ramp stage runs.</p>
+              </div>
             </div>
 
             <div class="form-card info-card">
-              <h3>Duration Guide</h3>
+              <h3>What these terms mean</h3>
+              <p class="note"><strong>VUs simulate concurrent users.</strong> One VU repeatedly runs the complete request flow.</p>
+              <p class="note"><strong>Duration is how long</strong> the load remains fixed or ramps toward its target.</p>
+              <h4>Duration examples</h4>
               <table class="ref-table">
                 <tr><td><code>30s</code></td><td>30 seconds</td></tr>
                 <tr><td><code>5m</code></td><td>5 minutes</td></tr>
@@ -184,12 +192,12 @@
               <div class="field">
                 <label>Max p95 response time <span class="muted-label">(ms)</span></label>
                 <input type="number" id="p95" min="0" placeholder="e.g. 500" />
-                <span class="field-note">95% of requests must finish below this value.</span>
+                <span class="field-note">p95 means 95% of requests must finish below this response time.</span>
               </div>
               <div class="field">
                 <label>Max error rate <span class="muted-label">(%)</span></label>
                 <input type="number" id="errorRate" min="0" max="100" step="0.1" placeholder="e.g. 1" />
-                <span class="field-note">Percentage of requests allowed to fail.</span>
+                <span class="field-note">Error rate is the percentage of HTTP requests allowed to fail.</span>
               </div>
             </div>
 

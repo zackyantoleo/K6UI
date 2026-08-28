@@ -121,5 +121,6 @@ export function applyConfig(cfg) {
   if (logReqEl) logReqEl.checked = cfg.options?.logRequests ?? true;
 
   restoreZone(cfg.scenario?.requests || []);
+  window.dispatchEvent(new CustomEvent('k6ui:project-applied'));
   navigate('flow');
 }
