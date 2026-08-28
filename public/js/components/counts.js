@@ -37,3 +37,11 @@ export function renumberMain() {
     if (n) n.textContent = `#${i + 1}`;
   });
 }
+
+export function refreshFlowEmptyState() {
+  const container = document.querySelector('#reqs-main');
+  document.querySelector('#flow-empty-state')?.classList.toggle(
+    'hidden',
+    Boolean(container?.children.length),
+  );
+}

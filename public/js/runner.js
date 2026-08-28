@@ -194,6 +194,7 @@ export async function runTest() {
   navigate('results');
   const stateEl = $('#run-state');
 
+  $('#results-empty-state').classList.add('hidden');
   resetLiveLog();
   $('#run-metrics').classList.add('hidden');
   $('#run-metrics').innerHTML = '';

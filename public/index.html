@@ -15,93 +15,57 @@
       <span class="brand-logo">k6</span>
       <span class="brand-name">K6UI</span>
     </div>
-    <div id="k6-status" class="k6-pill checking">Checking k6…</div>
+    <div id="k6-status" class="k6-pill checking" role="status" aria-live="polite">Checking k6…</div>
   </header>
 
   <div class="app-body">
 
-    <!-- ── Sidebar ───────────────────────────────────────────── -->
-    <nav class="sidebar">
-      <div class="nav-group">
-        <div class="nav-group-title">PROJECT</div>
-        <a class="nav-link" href="#" id="save-project-btn">
-          <span class="nav-ic">↓</span><span>Save</span>
-        </a>
-        <a class="nav-link" href="#" id="open-project-btn">
-          <span class="nav-ic">↑</span><span>Open</span>
-        </a>
+    <!-- ── Four-step beginner navigation ─────────────────────── -->
+    <nav class="sidebar" aria-label="Test builder steps">
+      <div class="project-actions" aria-label="Project file actions">
+        <button type="button" class="project-action" id="save-project-btn">↓ Save</button>
+        <button type="button" class="project-action" id="open-project-btn">↑ Open</button>
       </div>
-      <input type="file" id="project-file-input" accept=".json" style="display:none" />
+      <input type="file" id="project-file-input" accept=".json,application/json" hidden />
 
-      <div class="nav-group">
-        <div class="nav-group-title">SCENARIO</div>
-        <a class="nav-link active" data-view="flow" href="#">
-          <span class="nav-ic">⇄</span><span>Request Flow</span>
-        </a>
-      </div>
-
-      <div class="nav-group">
-        <div class="nav-group-title">CONFIGURATION</div>
-        <a class="nav-link" data-view="vars" href="#">
-          <span class="nav-ic">$</span><span>Global Variables</span>
-        </a>
-        <a class="nav-link" data-view="headers" href="#">
-          <span class="nav-ic">#</span><span>Global Headers</span>
-        </a>
-        <a class="nav-link soon" href="#">
-          <span class="nav-ic">⊡</span><span>CSV Data</span>
-          <span class="badge-soon">Soon</span>
-        </a>
-        <a class="nav-link soon" href="#">
-          <span class="nav-ic">🍪</span><span>Cookies</span>
-          <span class="badge-soon">Soon</span>
-        </a>
-      </div>
-
-      <div class="nav-group">
-        <div class="nav-group-title">LOAD &amp; VALIDATION</div>
-        <a class="nav-link" data-view="load" href="#">
-          <span class="nav-ic">⊕</span><span>Load Profile</span>
-        </a>
-        <a class="nav-link soon" href="#">
-          <span class="nav-ic">✓</span><span>Assertions</span>
-          <span class="badge-soon">Soon</span>
-        </a>
-        <a class="nav-link soon" href="#">
-          <span class="nav-ic">⏱</span><span>Timers</span>
-          <span class="badge-soon">Soon</span>
-        </a>
-        <a class="nav-link soon" href="#">
-          <span class="nav-ic">⊞</span><span>Multi Scenario</span>
-          <span class="badge-soon">Soon</span>
-        </a>
-        <a class="nav-link" data-view="sla" href="#">
-          <span class="nav-ic">◎</span><span>Thresholds / SLA</span>
-        </a>
-      </div>
-
-      <div class="nav-group">
-        <div class="nav-group-title">RESULTS</div>
-        <a class="nav-link" data-view="script" href="#">
-          <span class="nav-ic">&lt;/&gt;</span><span>k6 Script</span>
-        </a>
-        <a class="nav-link" data-view="results" href="#">
-          <span class="nav-ic">▶</span>
-          <span>Run &amp; Monitor</span>
-          <span class="run-dot hidden" id="nav-run-dot"></span>
-        </a>
-      </div>
+      <ol class="step-list">
+        <li>
+          <button type="button" class="nav-link active" data-step="1" data-view="flow" aria-current="step">
+            <span class="step-number" aria-hidden="true">1</span>
+            <span><strong>Build Flow</strong><small>Add and order requests</small></span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="nav-link" data-step="2" data-view="data">
+            <span class="step-number" aria-hidden="true">2</span>
+            <span><strong>Data &amp; Rules</strong><small>Variables, headers, targets</small></span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="nav-link" data-step="3" data-view="load">
+            <span class="step-number" aria-hidden="true">3</span>
+            <span><strong>Load</strong><small>Users and duration</small></span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="nav-link" data-step="4" data-view="results">
+            <span class="step-number" aria-hidden="true">4</span>
+            <span><strong>Run &amp; Results</strong><small>Execute and inspect</small></span>
+            <span class="run-dot hidden" id="nav-run-dot" aria-hidden="true"></span>
+          </button>
+        </li>
+      </ol>
 
       <div class="sidebar-footer">
-        <button class="btn-run" id="run-btn">▶ Run Test</button>
-        <button class="btn-stop hidden" id="stop-btn">■ Stop</button>
+        <button type="button" class="btn-run" id="run-btn">▶ Run Test</button>
+        <button type="button" class="btn-stop hidden" id="stop-btn">■ Stop</button>
       </div>
     </nav>
 
     <!-- ── Workspace ─────────────────────────────────────────── -->
     <div class="workspace">
       <div class="ws-header">
-        <h2 id="page-title">Request Flow</h2>
+        <h2 id="page-title" tabindex="-1">Build Flow</h2>
         <div class="ws-actions">
           <button class="btn ghost sm" id="preview-btn">&lt;/&gt; View Script</button>
         </div>
@@ -116,12 +80,51 @@
             <code>{{variable_name}}</code> in a URL, header, or body
             to insert global variables or values extracted from previous responses.
           </p>
+          <div id="flow-empty-state" class="flow-empty-state" role="status">
+            <div class="empty-state-mark" aria-hidden="true">⇄</div>
+            <div>
+              <h3>Start with your first request</h3>
+              <p>Add a blank HTTP request or import a cURL command from DevTools or your API documentation.</p>
+            </div>
+            <div class="empty-state-actions">
+              <button id="empty-add-request" type="button" class="btn primary">+ Add Request</button>
+              <button id="empty-import-curl" type="button" class="btn ghost">Import cURL</button>
+            </div>
+          </div>
           <!-- Populated by app.js -->
+        </section>
+
+        <!-- VIEW: Data & Rules -->
+        <section id="view-data" class="view hidden">
+          <p class="view-hint">Configure reusable test data and pass/fail targets. Request-specific headers, checks, extraction, scripts, and pacing stay inside each request.</p>
+          <div class="data-rule-grid">
+            <button type="button" class="data-rule-card" data-view="vars">
+              <span class="data-rule-icon" aria-hidden="true">$</span>
+              <span><strong>Global Variables</strong><small>Reuse base URLs, tokens, and environment values.</small></span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" class="data-rule-card" data-view="headers">
+              <span class="data-rule-icon" aria-hidden="true">#</span>
+              <span><strong>Global Headers</strong><small>Apply common headers to every HTTP request.</small></span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" class="data-rule-card" data-view="sla">
+              <span class="data-rule-icon" aria-hidden="true">◎</span>
+              <span><strong>Performance Targets</strong><small>Set p95 response-time and error-rate limits.</small></span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
         </section>
 
         <!-- VIEW: Load Profile -->
         <section id="view-load" class="view hidden">
           <p class="view-hint">Set the number of virtual users (VUs) and the load pattern for the duration of the test.</p>
+          <div class="preset-strip" aria-label="Starter load presets">
+            <span>Quick start:</span>
+            <button type="button" class="preset-btn" data-preset="smoke">Smoke <small>1 VU · 30s</small></button>
+            <button type="button" class="preset-btn" data-preset="load">Load <small>10 VUs · 5m</small></button>
+            <button type="button" class="preset-btn" data-preset="stress">Stress <small>50 VUs · 5m</small></button>
+          </div>
           <div class="page-cols">
             <div class="form-card">
               <h3>Load Mode</h3>
@@ -210,6 +213,14 @@
 
         <!-- VIEW: Run & Monitor -->
         <section id="view-results" class="view hidden">
+          <div id="results-empty-state" class="results-empty-state" role="status">
+            <div class="empty-state-mark" aria-hidden="true">▶</div>
+            <div>
+              <h3>Ready when your flow is ready</h3>
+              <p>Run the test to see live output, request details, and key performance metrics here.</p>
+            </div>
+            <button type="button" class="btn primary" id="results-run-btn">Run Test</button>
+          </div>
           <div id="run-metrics" class="metrics-grid hidden"></div>
 
           <div class="results-tabs">
@@ -220,7 +231,7 @@
               <input type="checkbox" id="log-requests" checked />
               Record requests
             </label>
-            <span id="run-state" class="run-state-badge"></span>
+            <span id="run-state" class="run-state-badge" role="status" aria-live="polite"></span>
           </div>
 
           <div id="tab-live" class="results-tab-panel">
@@ -298,13 +309,6 @@
           </div>
         </section>
 
-        <!-- ── Coming Soon views ────────────────────────────── -->
-        <section id="view-csv"       class="view hidden"><div class="cs-view"><div class="cs-icon">⊡</div><h2>CSV Data</h2><p>Load data from a CSV file to parameterize tests — lists of usernames, passwords, or product IDs.</p><span class="cs-badge">Coming Soon</span></div></section>
-        <section id="view-cookies"   class="view hidden"><div class="cs-view"><div class="cs-icon">🍪</div><h2>Cookies</h2><p>Manage cookies sent with requests and shared between requests within a VU session.</p><span class="cs-badge">Coming Soon</span></div></section>
-        <section id="view-asserts"   class="view hidden"><div class="cs-view"><div class="cs-icon">✓</div><h2>Assertions</h2><p>Validate responses per request — check status codes, body content, headers, or response time.</p><span class="cs-badge">Coming Soon</span></div></section>
-        <section id="view-timers"    class="view hidden"><div class="cs-view"><div class="cs-icon">⏱</div><h2>Timers</h2><p>Add dynamic delays between requests — constant timers, random timers, or throughput pacing.</p><span class="cs-badge">Coming Soon</span></div></section>
-        <section id="view-multiscen" class="view hidden"><div class="cs-view"><div class="cs-icon">⊞</div><h2>Multi Scenario</h2><p>Run several different load patterns at once — like browser users and API users in parallel.</p><span class="cs-badge">Coming Soon</span></div></section>
-
       </div>
     </div>
   </div>
@@ -312,8 +316,8 @@
 
 <!-- ── cURL import modal ────────────────────────────────────── -->
 <div id="curl-modal" class="modal-overlay hidden">
-  <div class="modal">
-    <h3>Import from cURL</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="curl-modal-title">
+    <h3 id="curl-modal-title">Import from cURL</h3>
     <p class="note">
       Paste a cURL command — e.g. from your browser's DevTools ("Copy as cURL")
       or an API doc. The method, URL, headers, and body will replace this

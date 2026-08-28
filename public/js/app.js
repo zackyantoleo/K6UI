@@ -3,9 +3,8 @@
 // of every file).
 import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
-import { reqCard } from './components/req-card.js';
 import { variableRow, headerRow } from './components/rows.js';
-import { buildFlowView, stageRow } from './components/flow-view.js';
+import { addRequest, buildFlowView, stageRow } from './components/flow-view.js';
 import { collectConfig, validate } from './config.js';
 import { runTest, stopTest, applyReqFilter, checkK6 } from './runner.js';
 import { saveProject, applyConfig } from './project-io.js';
@@ -13,18 +12,11 @@ import { initCurlImport } from './curl-import.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
-  link.addEventListener('click', e => { e.preventDefault(); navigate(link.dataset.view); });
+  link.addEventListener('click', () => navigate(link.dataset.view));
 });
 
-$$('.nav-link.soon').forEach(link => {
-  link.addEventListener('click', e => {
-    e.preventDefault();
-    link.classList.remove('shake');
-    void link.offsetWidth;
-    link.classList.add('shake');
-    setTimeout(() => link.classList.remove('shake'), 350);
-  });
-});
+$$('.data-rule-card[data-view]').forEach(card =>
+  card.addEventListener('click', () => navigate(card.dataset.view)));
 
 // ── Load mode toggle ───────────────────────────────────────────
 $$('input[name="load-mode"]').forEach(r =>
@@ -35,6 +27,25 @@ $$('input[name="load-mode"]').forEach(r =>
   }));
 
 $('#add-stage').addEventListener('click', () => $('#stages').appendChild(stageRow()));
+
+const LOAD_PRESETS = {
+  smoke:  { vus: '1',  duration: '30s' },
+  load:   { vus: '10', duration: '5m' },
+  stress: { vus: '50', duration: '5m' },
+};
+
+$$('.preset-btn[data-preset]').forEach(button => {
+  button.addEventListener('click', () => {
+    const preset = LOAD_PRESETS[button.dataset.preset];
+    $('input[name="load-mode"][value="simple"]').checked = true;
+    $('#load-simple').classList.remove('hidden');
+    $('#load-stages').classList.add('hidden');
+    $('#vus').value = preset.vus;
+    $('#duration').value = preset.duration;
+    $$('.preset-btn[data-preset]').forEach(item =>
+      item.classList.toggle('selected', item === button));
+  });
+});
 
 // ── Global variables & headers ─────────────────────────────────
 $('#add-global-var').addEventListener('click', () =>
@@ -87,6 +98,7 @@ $('#filter-url')?.addEventListener('input', applyReqFilter);
 
 // ── Run / Stop ─────────────────────────────────────────────────
 $('#run-btn').addEventListener('click', runTest);
+$('#results-run-btn').addEventListener('click', runTest);
 $('#stop-btn').addEventListener('click', stopTest);
 
 // ── Save / Open project ────────────────────────────────────────
@@ -114,7 +126,8 @@ $('#project-file-input').addEventListener('change', e => {
 
 // ── Init ───────────────────────────────────────────────────────
 buildFlowView();
-$('#reqs-main').appendChild(reqCard(0, 'main'));
+$('#empty-add-request').addEventListener('click', () => addRequest());
+$('#empty-import-curl').addEventListener('click', () => addRequest({ openCurl: true }));
 $('#global-vars-list').appendChild(variableRow());
 $('#global-headers-list').appendChild(headerRow());
 
@@ -124,5 +137,5 @@ stagesEl.appendChild(stageRow('1m',  '20'));
 stagesEl.appendChild(stageRow('30s', '0'));
 
 initCurlImport();
-navigate('flow');
+navigate('flow', { focusHeading: false });
 checkK6();

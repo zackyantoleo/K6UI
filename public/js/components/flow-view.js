@@ -2,6 +2,17 @@
 // for the staged load profile.
 import { $ } from '../dom.js';
 import { reqCard } from './req-card.js';
+import { refreshFlowEmptyState } from './counts.js';
+
+export function addRequest({ openCurl = false } = {}) {
+  const container = $('#reqs-main');
+  const card = reqCard(container.children.length, 'main');
+  container.appendChild(card);
+  refreshFlowEmptyState();
+  if (openCurl) card.querySelector('.req-action-btn.curl').click();
+  else card.querySelector('.url').focus();
+  return card;
+}
 
 export function stageRow(dur = '30s', tgt = '20') {
   const row = document.createElement('div');
@@ -48,8 +59,8 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
 
   const addBtn = document.createElement('button');
   addBtn.className = 'add-req-btn'; addBtn.textContent = '+ Add Request';
-  addBtn.addEventListener('click', () =>
-    reqCont.appendChild(reqCard(reqCont.children.length, ctx)));
+  addBtn.type = 'button';
+  addBtn.addEventListener('click', () => addRequest());
 
   zBody.append(reqCont, addBtn);
   zone.append(zHead, zDesc, zBody);

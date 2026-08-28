@@ -2,7 +2,13 @@
 // Options tabs, plus optional "Before" and "After" sub-requests.
 import { $$ } from '../dom.js';
 import { headerRow, extractionRow } from './rows.js';
-import { updateExtCount, updateAssertCount, updateScriptCount, renumberMain } from './counts.js';
+import {
+  updateExtCount,
+  updateAssertCount,
+  updateScriptCount,
+  renumberMain,
+  refreshFlowEmptyState,
+} from './counts.js';
 import { openCurlImport } from '../curl-import.js';
 
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -183,6 +189,7 @@ export function reqCard(index, context) {
 
   const protoSel = document.createElement('select');
   protoSel.className = 'protocol';
+  protoSel.setAttribute('aria-label', `Request ${index + 1} protocol`);
   [{ v: 'http', l: 'HTTP' }, { v: 'grpc', l: 'gRPC' }].forEach(p => {
     const o = document.createElement('option');
     o.value = p.v; o.textContent = p.l;
@@ -191,26 +198,34 @@ export function reqCard(index, context) {
 
   const methodSel = document.createElement('select');
   methodSel.className = 'method';
+  methodSel.setAttribute('aria-label', `Request ${index + 1} method`);
   METHODS.forEach(m => { const o = document.createElement('option'); o.value = o.textContent = m; methodSel.appendChild(o); });
 
   const urlInput = document.createElement('input');
   urlInput.type = 'text'; urlInput.className = 'url';
   urlInput.placeholder = 'https://api.example.com/endpoint';
+  urlInput.setAttribute('aria-label', `Request ${index + 1} URL`);
 
   const actions = document.createElement('div');
   actions.className = 'req-card-actions';
 
   const curlBtn = document.createElement('button');
+  curlBtn.type = 'button';
   curlBtn.className = 'req-action-btn curl'; curlBtn.title = 'Import from cURL';
+  curlBtn.setAttribute('aria-label', `Import cURL into request ${index + 1}`);
   curlBtn.textContent = 'cURL';
   curlBtn.addEventListener('click', e => { e.stopPropagation(); openCurlImport(card); });
 
   const colBtn = document.createElement('button');
+  colBtn.type = 'button';
   colBtn.className = 'req-action-btn'; colBtn.title = 'Expand / Collapse';
+  colBtn.setAttribute('aria-label', `Expand or collapse request ${index + 1}`);
   colBtn.innerHTML = '<span class="chevron">▾</span>';
 
   const delBtn = document.createElement('button');
+  delBtn.type = 'button';
   delBtn.className = 'req-action-btn del'; delBtn.title = 'Remove request';
+  delBtn.setAttribute('aria-label', `Remove request ${index + 1}`);
   delBtn.textContent = '✕';
 
   actions.append(curlBtn, colBtn, delBtn);
@@ -347,7 +362,11 @@ export function reqCard(index, context) {
   card.append(head, grpcRow, preSection, body, postSection);
 
   colBtn.addEventListener('click', e => { e.stopPropagation(); card.classList.toggle('collapsed'); });
-  delBtn.addEventListener('click', () => { card.remove(); renumberMain(); });
+  delBtn.addEventListener('click', () => {
+    card.remove();
+    renumberMain();
+    refreshFlowEmptyState();
+  });
 
   return card;
 }
