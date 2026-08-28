@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js"
+    "dev": "node --watch server/index.js",
+    "test": "node --test",
+    "measure:baseline": "node scripts/measure-baseline.mjs"
   },
   "engines": {
     "node": ">=18"

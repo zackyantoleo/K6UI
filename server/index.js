@@ -6,13 +6,30 @@ import { fileURLToPath } from "node:url";
 import { apiRouter } from "./routes.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const app = express();
-const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: "1mb" }));
-app.use(express.static(join(__dirname, "..", "public")));
-app.use("/api", apiRouter);
+export function createApp() {
+  const app = express();
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.static(join(__dirname, "..", "public")));
+  app.use("/api", apiRouter);
+  return app;
+}
 
-app.listen(PORT, () => {
-  console.log(`K6UI running at http://localhost:${PORT}`);
-});
+export function createServer({
+  port = process.env.PORT || 3000,
+  host,
+  onListening,
+} = {}) {
+  const app = createApp();
+  const server = app.listen(port, host, () => {
+    const address = server.address();
+    const boundPort = address && typeof address === "object" ? address.port : port;
+    console.log(`K6UI running at http://${host || "localhost"}:${boundPort}`);
+    onListening?.();
+  });
+  return server;
+}
+
+const entryPath = process.argv[1] ? join(process.cwd(), process.argv[1]) : '';
+const isEntryPoint = entryPath && fileURLToPath(import.meta.url) === entryPath;
+if (isEntryPoint) createServer();
