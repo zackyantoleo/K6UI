@@ -54,25 +54,34 @@ async function startupStats() {
     env: { ...process.env, PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  const samples = [];
+  let stderr = '';
+  let exit = null;
+  child.stderr.on('data', chunk => { stderr += chunk; });
+  child.once('exit', (code, signal) => { exit = { code, signal }; });
+
+  const deadline = started + 15_000;
   try {
-    for (let attempt = 0; attempt < 200; attempt += 1) {
+    while (performance.now() < deadline) {
+      if (exit) {
+        throw new Error(
+          `Server exited before readiness (code=${exit.code}, signal=${exit.signal})${stderr ? `: ${stderr.trim()}` : ''}`,
+        );
+      }
       const requestStart = performance.now();
       try {
         const response = await fetch(`http://127.0.0.1:${port}/api/k6-status`);
         if (response.ok) {
-          samples.push(performance.now() - requestStart);
           return {
             readiness_ms: Number((performance.now() - started).toFixed(2)),
-            status_response_ms: Number(samples[0].toFixed(2)),
+            status_response_ms: Number((performance.now() - requestStart).toFixed(2)),
           };
         }
       } catch {}
-      await new Promise(resolve => setTimeout(resolve, 5));
+      await new Promise(resolve => setTimeout(resolve, 10));
     }
-    throw new Error('Server did not become ready within the measurement window');
+    throw new Error(`Server did not become ready within 15 seconds${stderr ? `: ${stderr.trim()}` : ''}`);
   } finally {
-    child.kill('SIGTERM');
+    if (!exit) child.kill('SIGTERM');
   }
 }
 

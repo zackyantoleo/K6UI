@@ -1,6 +1,6 @@
 // Server entry point: set up Express, serve the static frontend, mount the API.
 import express from "express";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { apiRouter } from "./routes.js";
@@ -30,6 +30,6 @@ export function createServer({
   return server;
 }
 
-const entryPath = process.argv[1] ? join(process.cwd(), process.argv[1]) : '';
+const entryPath = process.argv[1] ? resolve(process.argv[1]) : '';
 const isEntryPoint = entryPath && fileURLToPath(import.meta.url) === entryPath;
 if (isEntryPoint) createServer();
