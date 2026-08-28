@@ -68,7 +68,7 @@ export function createChecksPanel(onCountChange = () => {}) {
   const panel = document.createElement('div');
   const hint = document.createElement('p');
   hint.className = 'ext-hint';
-  hint.textContent = 'Validate the response — if an assertion fails, k6 marks the request as failed.';
+  hint.textContent = 'Validate the response — if an assertion fails, k6 records a failed check that you can enforce with thresholds.';
   const list = document.createElement('div');
   list.className = 'assertions-list';
   const templates = document.createElement('div');

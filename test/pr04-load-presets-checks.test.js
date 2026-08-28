@@ -49,10 +49,13 @@ test('checks expose four plain-language starter templates while advanced types r
   assert.match(checks, /value:\s*'expected text'/);
   assert.match(checks, /aria-label.*Check type/i);
   assert.match(checks, /aria-label.*Expected value/i);
+  assert.match(checks, /k6 records a failed check/i);
 });
 
 test('new controls have visible focus and selected-state styling', () => {
   assert.match(css, /\.check-template-btn:focus-visible/);
   assert.match(css, /\.preset-btn\[aria-pressed="true"\]/);
   assert.match(css, /\.load-guidance/);
+  assert.match(css, /@media \(max-width: 700px\)[\s\S]*\.assertion-row/);
+  assert.match(css, /\.assertion-row[\s\S]*flex-wrap:\s*wrap/);
 });

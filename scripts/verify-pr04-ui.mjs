@@ -65,6 +65,17 @@ assert.deepEqual(await inputValues(card.locator('.assert-type')), [
   'status-2xx', 'status-eq', 'body-contains', 'duration-lt',
 ]);
 assert.deepEqual(await inputValues(card.locator('.assert-val')), ['', '200', 'expected text', '500']);
+for (const field of ['.assert-type', '.assert-val']) {
+  assert.ok(await card.locator(field).first().getAttribute('aria-label'), `${field} has an accessible name`);
+}
+
+await page.setViewportSize({ width: 390, height: 844 });
+const assertionBox = await card.locator('.assertion-row').last().evaluate(row => ({
+  clientWidth: row.clientWidth,
+  scrollWidth: row.scrollWidth,
+}));
+assert.ok(assertionBox.scrollWidth <= assertionBox.clientWidth + 1, 'check row does not overflow at 390px');
+await page.setViewportSize({ width: 1280, height: 850 });
 
 await page.locator('#preview-btn').click();
 await page.locator('#view-script:not(.hidden)').waitFor();
