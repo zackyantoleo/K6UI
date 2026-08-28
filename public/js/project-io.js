@@ -3,8 +3,8 @@
 import { $ } from './dom.js';
 import { navigate } from './nav.js';
 import { headerRow, extractionRow, variableRow } from './components/rows.js';
-import { reqCard, assertionRow } from './components/req-card.js';
-import { updateExtCount, updateAssertCount, updateScriptCount, renumberMain } from './components/counts.js';
+import { reqCard, refreshRequestSummary, setRequestExpanded } from './components/req-card.js';
+import { renumberMain } from './components/counts.js';
 import { stageRow } from './components/flow-view.js';
 import { refreshFlowEmptyState } from './components/counts.js';
 import { collectConfig } from './config.js';
@@ -36,43 +36,26 @@ function fillSubReq(section, req) {
   }
 }
 
-function fillCard(card, req) {
+export function hydrateRequestCard(card, req) {
+  card.dataset.requestId = req.id || card.dataset.requestId;
+  card.requestState = req;
+  card.querySelector('.request-name').value = req.name || '';
+  const enabled = card.querySelector('.request-enabled');
+  enabled.checked = req.enabled !== false;
+  enabled.dispatchEvent(new Event('change'));
+
   const protoSel = card.querySelector('.protocol');
   protoSel.value = req.type === 'grpc' ? 'grpc' : 'http';
-  card.querySelector('.grpc-method').value      = req.grpcMethod || '';
+  card.querySelector('.grpc-method').value = req.grpcMethod || '';
   card.querySelector('.grpc-plaintext').checked = !!req.grpcPlaintext;
   protoSel.dispatchEvent(new Event('change'));
 
   card.querySelector('.method').value = req.method || 'GET';
-  card.querySelector('.url').value    = req.url    || '';
-  card.querySelector('.body').value   = req.body   || '';
-  card.querySelector('.check-status').checked = req.checkStatus !== false;
-  card.querySelector('.sleep').value = req.sleepAfter ?? 1;
-
-  const hList = card.querySelector('.req-card-body .headers-list');
-  for (const h of req.headers || []) { if (h.key) hList.appendChild(headerRow(h.key, h.value)); }
-
-  const extList = card.querySelector('.req-card-body .extractions-list');
-  for (const e of req.extractions || []) {
-    if (!e.varName) continue;
-    const row = extractionRow();
-    row.querySelector('.ext-name').value     = e.varName;
-    row.querySelector('.ext-source').value   = e.source   || 'json';
-    row.querySelector('.ext-selector').value = e.selector || '';
-    row.querySelector('.ext-source').dispatchEvent(new Event('change'));
-    extList.appendChild(row);
-  }
-  updateExtCount(card);
-
-  const assertList = card.querySelector('.assertions-list');
-  for (const a of req.assertions || []) assertList.appendChild(assertionRow(a.type, a.value, a.value2));
-  updateAssertCount(card);
-
-  card.querySelector('.pre-script').value  = req.preScript  || '';
-  card.querySelector('.post-script').value = req.postScript || '';
-  updateScriptCount(card);
-
-  if (req.pre)  fillSubReq(card.querySelector('.subreq-pre'),  req.pre);
+  const url = card.querySelector('.url');
+  url.value = req.url || '';
+  url.dispatchEvent(new Event('input'));
+  refreshRequestSummary(card);
+  if (req.pre) fillSubReq(card.querySelector('.subreq-pre'), req.pre);
   if (req.post) fillSubReq(card.querySelector('.subreq-post'), req.post);
 }
 
@@ -81,9 +64,10 @@ function restoreZone(requests) {
   container.innerHTML = '';
   for (let i = 0; i < requests.length; i++) {
     const card = reqCard(i, 'main', requests[i].id);
-    fillCard(card, requests[i]);
+    hydrateRequestCard(card, requests[i]);
     container.appendChild(card);
   }
+  if (container.firstElementChild) setRequestExpanded(container.firstElementChild, true);
   renumberMain();
   refreshFlowEmptyState();
 }

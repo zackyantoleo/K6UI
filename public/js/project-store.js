@@ -58,6 +58,8 @@ function normalizeRequest(rawRequest, index, used) {
   const request = clone(rawRequest);
   request.id = uniqueRequestId(request, index, used);
   used.add(request.id);
+  request.name = typeof request.name === 'string' ? request.name.trim().slice(0, 120) : '';
+  request.enabled = request.enabled !== false;
   if (!request.type) request.type = 'http';
   return request;
 }

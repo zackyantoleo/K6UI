@@ -1,7 +1,7 @@
 // Builds the "Request Flow" view (main scenario zone) and the stage rows
 // for the staged load profile.
 import { $ } from '../dom.js';
-import { reqCard } from './req-card.js';
+import { reqCard, setRequestExpanded } from './req-card.js';
 import { refreshFlowEmptyState } from './counts.js';
 import { createRequestId } from '../project-store.js';
 
@@ -10,6 +10,7 @@ export function addRequest({ openCurl = false } = {}) {
   const card = reqCard(container.children.length, 'main', createRequestId());
   container.appendChild(card);
   refreshFlowEmptyState();
+  setRequestExpanded(card, true);
   if (openCurl) card.querySelector('.req-action-btn.curl').click();
   else card.querySelector('.url').focus();
   return card;
@@ -18,15 +19,29 @@ export function addRequest({ openCurl = false } = {}) {
 export function stageRow(dur = '30s', tgt = '20') {
   const row = document.createElement('div');
   row.className = 'stage-row';
-  row.innerHTML = `
-    <span class="lbl">For</span>
-    <input class="stage-dur" placeholder="e.g. 30s" />
-    <span class="lbl">ramp to</span>
-    <input class="stage-target" type="number" min="0" placeholder="VUs" />
-    <button class="btn-remove-sm">&times;</button>`;
-  row.querySelector('.stage-dur').value    = dur;
-  row.querySelector('.stage-target').value = tgt;
-  row.querySelector('.btn-remove-sm').addEventListener('click', () => row.remove());
+  const forLabel = document.createElement('span');
+  forLabel.className = 'lbl';
+  forLabel.textContent = 'For';
+  const duration = document.createElement('input');
+  duration.className = 'stage-dur';
+  duration.placeholder = 'e.g. 30s';
+  duration.value = dur;
+  const targetLabel = document.createElement('span');
+  targetLabel.className = 'lbl';
+  targetLabel.textContent = 'ramp to';
+  const target = document.createElement('input');
+  target.className = 'stage-target';
+  target.type = 'number';
+  target.min = '0';
+  target.placeholder = 'VUs';
+  target.value = tgt;
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'btn-remove-sm';
+  remove.setAttribute('aria-label', 'Remove stage');
+  remove.textContent = '×';
+  remove.addEventListener('click', () => row.remove());
+  row.append(forLabel, duration, targetLabel, target, remove);
   return row;
 }
 
@@ -43,13 +58,31 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
 
   const zHead = document.createElement('div');
   zHead.className = 'zone-header';
-  zHead.innerHTML = `<div class="zone-title-group">
-    <span class="zone-title">${title}</span>
-    <span class="zone-badge ${badgeClass}">${badgeText}</span>
-  </div>`;
+  const titleGroup = document.createElement('div');
+  titleGroup.className = 'zone-title-group';
+  const titleElement = document.createElement('span');
+  titleElement.className = 'zone-title';
+  titleElement.textContent = title;
+  const badge = document.createElement('span');
+  badge.className = `zone-badge ${badgeClass}`;
+  badge.textContent = badgeText;
+  titleGroup.append(titleElement, badge);
+  const keepOpenLabel = document.createElement('label');
+  keepOpenLabel.className = 'keep-open-label';
+  const keepOpen = document.createElement('input');
+  keepOpen.type = 'checkbox';
+  keepOpen.className = 'keep-request-editors-open';
+  keepOpenLabel.append(keepOpen, ' Keep editors open');
+  keepOpen.addEventListener('change', () => {
+    if (keepOpen.checked) return;
+    const expanded = [...zone.querySelectorAll('.req-card.expanded')];
+    expanded.slice(0, -1).forEach(card => setRequestExpanded(card, false, { exclusive: false }));
+  });
+  zHead.append(titleGroup, keepOpenLabel);
 
   const zDesc = document.createElement('div');
-  zDesc.className = 'zone-desc'; zDesc.innerHTML = descHTML;
+  zDesc.className = 'zone-desc';
+  zDesc.textContent = descHTML.replace(/<[^>]+>/g, '');
 
   const zBody = document.createElement('div');
   zBody.className = 'zone-body';

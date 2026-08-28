@@ -1,6 +1,4 @@
-// Request card: main row (method + URL), Headers/Body/Extract/Assertions/
-// Options tabs, plus optional "Before" and "After" sub-requests.
-import { $$ } from '../dom.js';
+// Compact request card with one-at-a-time expansion and lazy feature panels.
 import { headerRow, extractionRow } from './rows.js';
 import {
   updateExtCount,
@@ -10,364 +8,504 @@ import {
   refreshFlowEmptyState,
 } from './counts.js';
 import { openCurlImport } from '../curl-import.js';
+import { createBasicFields } from './request-editor/basic.js';
+import { createHeadersPanel } from './request-editor/headers.js';
+import { createBodyPanel } from './request-editor/body.js';
+import { assertionRow, createChecksPanel } from './request-editor/checks.js';
+import { createExtractPanel } from './request-editor/extract.js';
+import { createScriptsPanel } from './request-editor/scripts.js';
+import { createAdvancedPanel } from './request-editor/advanced.js';
+import { createRequestId } from '../project-store.js';
 
+export { assertionRow };
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
-// ── Tab helpers ────────────────────────────────────────────────
-function activateTab(card, tabId) {
-  $$('.req-tab',       card).forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
-  $$('.req-tab-panel', card).forEach(p => p.classList.toggle('hidden', p.dataset.panel !== tabId));
+function button(label, className, text) {
+  const control = document.createElement('button');
+  control.type = 'button';
+  control.className = className;
+  control.setAttribute('aria-label', label);
+  control.title = label;
+  control.textContent = text;
+  return control;
 }
 
-// ── Assertion row ──────────────────────────────────────────────
-// The `value` here must match the types recognized by
-// server/generator/assertions.js.
-const ASSERT_TYPES = [
-  { value: 'status-2xx',        label: 'Status success (2xx)',   hasVal: false },
-  { value: 'status-eq',         label: 'Status code ==',         hasVal: true, numVal: true,  ph: '200' },
-  { value: 'status-ne',         label: 'Status code !=',         hasVal: true, numVal: true,  ph: '404' },
-  { value: 'status-lt',         label: 'Status code <',          hasVal: true, numVal: true,  ph: '500' },
-  { value: 'body-contains',     label: 'Body contains',          hasVal: true, ph: 'expected text' },
-  { value: 'body-not-contains', label: 'Body does not contain',  hasVal: true, ph: 'unwanted text' },
-  { value: 'body-matches',      label: 'Body matches regex',     hasVal: true, ph: '"key":"(\\w+)"' },
-  { value: 'header-exists',     label: 'Header exists',          hasVal: true, ph: 'Authorization' },
-  { value: 'header-eq',         label: 'Header == value',        hasVal: true, dualVal: true, ph: 'Header-Name', ph2: 'Expected value' },
-  { value: 'duration-lt',       label: 'Response < X ms',        hasVal: true, numVal: true,  ph: '500' },
-];
-
-export function assertionRow(type = 'status-2xx', value = '', value2 = '') {
-  const row = document.createElement('div');
-  row.className = 'assertion-row';
-
-  const typeSel = document.createElement('select');
-  typeSel.className = 'assert-type';
-  ASSERT_TYPES.forEach(t => {
-    const o = document.createElement('option');
-    o.value = t.value; o.textContent = t.label;
-    typeSel.appendChild(o);
-  });
-  typeSel.value = type;
-
-  const valInput  = document.createElement('input'); valInput.className  = 'assert-val';
-  const val2Input = document.createElement('input'); val2Input.className = 'assert-val2 hidden';
-
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button'; removeBtn.className = 'row-remove';
-  removeBtn.title = 'Remove'; removeBtn.innerHTML = '&times;';
-  removeBtn.addEventListener('click', () => {
-    const card = row.closest('.req-card');
-    row.remove();
-    if (card) updateAssertCount(card);
-  });
-
-  function syncInputs() {
-    const def = ASSERT_TYPES.find(t => t.value === typeSel.value);
-    if (!def) return;
-    valInput.classList.toggle('hidden', !def.hasVal);
-    val2Input.classList.toggle('hidden', !(def.hasVal && def.dualVal));
-    if (def.hasVal) { valInput.type = def.numVal ? 'number' : 'text'; valInput.placeholder = def.ph || ''; }
-    if (def.dualVal) val2Input.placeholder = def.ph2 || '';
-  }
-
-  typeSel.addEventListener('change', syncInputs);
-  valInput.value = value; val2Input.value = value2;
-  syncInputs();
-
-  row.append(typeSel, valInput, val2Input, removeBtn);
-  return row;
-}
-
-// ── Sub-request section ────────────────────────────────────────
 function buildSubReqSection(position) {
-  const isPost  = position === 'post';
-  const label   = isPost ? 'After' : 'Before';
-  const btnText = isPost ? '+ After Request' : '+ Before Request';
-
+  const isPost = position === 'post';
   const wrapper = document.createElement('div');
   wrapper.className = `subreq-section subreq-${position}`;
-
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button'; addBtn.className = 'add-subreq-btn';
-  addBtn.textContent = btnText;
-
+  const addButton = button(`Add ${isPost ? 'after' : 'before'} request`, 'add-subreq-btn', `+ ${isPost ? 'After' : 'Before'} request`);
   const form = document.createElement('div');
   form.className = 'subreq-form hidden';
 
-  const formHead = document.createElement('div');
-  formHead.className = 'subreq-form-head';
+  const mainRow = document.createElement('div');
+  mainRow.className = 'subreq-main-row';
+  const method = document.createElement('select');
+  method.className = 'sr-method';
+  for (const value of METHODS) {
+    const option = document.createElement('option');
+    option.value = option.textContent = value;
+    method.appendChild(option);
+  }
+  const url = document.createElement('input');
+  url.className = 'sr-url';
+  url.placeholder = isPost ? 'Cleanup / logout URL' : 'Setup / authentication URL';
+  const remove = button(`Remove ${isPost ? 'after' : 'before'} request`, 'row-remove', '×');
+  mainRow.append(method, url, remove);
 
-  const labelEl = document.createElement('span');
-  labelEl.className = 'subreq-label'; labelEl.textContent = label;
+  const detailsButton = button(`Show ${isPost ? 'after' : 'before'} request details`, 'subreq-expand', 'Headers, body & extraction');
+  detailsButton.setAttribute('aria-expanded', 'false');
+  const details = document.createElement('div');
+  details.className = 'subreq-details hidden';
+  const headers = document.createElement('div');
+  headers.className = 'sr-headers-list';
+  const addHeader = button('Add sub-request header', 'add-row-btn', '+ Header');
+  addHeader.addEventListener('click', () => headers.appendChild(headerRow()));
+  const body = document.createElement('textarea');
+  body.className = 'sr-body';
+  body.placeholder = 'Optional request body';
+  const extracts = document.createElement('div');
+  extracts.className = 'sr-extractions-list';
+  const addExtract = button('Add sub-request extraction', 'add-row-btn', '+ Extract Variable');
+  addExtract.addEventListener('click', () => extracts.appendChild(extractionRow()));
+  details.append(headers, addHeader, body, extracts, addExtract);
+  form.append(mainRow, detailsButton, details);
+  wrapper.append(addButton, form);
 
-  const srMethod = document.createElement('select');
-  srMethod.className = 'sr-method';
-  METHODS.forEach(m => { const o = document.createElement('option'); o.value = o.textContent = m; srMethod.appendChild(o); });
-
-  const srUrl = document.createElement('input');
-  srUrl.type = 'text'; srUrl.className = 'sr-url'; srUrl.placeholder = 'https://...';
-
-  const expandBtn = document.createElement('button');
-  expandBtn.type = 'button'; expandBtn.className = 'subreq-expand-btn';
-  expandBtn.title = 'Headers / Body / Extract'; expandBtn.textContent = '⚙';
-
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button'; removeBtn.className = 'subreq-remove-btn'; removeBtn.textContent = '✕';
-
-  formHead.append(labelEl, srMethod, srUrl, expandBtn, removeBtn);
-
-  const formDetails = document.createElement('div');
-  formDetails.className = 'subreq-form-details hidden';
-
-  const srTabs = document.createElement('div');
-  srTabs.className = 'sr-tabs';
-  [{ id: 'headers', label: 'Headers' }, { id: 'body', label: 'Body' }, { id: 'ext', label: 'Extract' }]
-    .forEach((def, i) => {
-      const btn = document.createElement('button');
-      btn.type = 'button'; btn.className = 'sr-tab' + (i === 0 ? ' active' : '');
-      btn.dataset.tab = def.id; btn.textContent = def.label;
-      btn.addEventListener('click', () => {
-        $$('.sr-tab',   formDetails).forEach(t => t.classList.toggle('active',  t.dataset.tab  === def.id));
-        $$('.sr-panel', formDetails).forEach(p => p.classList.toggle('hidden', p.dataset.panel !== def.id));
-      });
-      srTabs.appendChild(btn);
-    });
-
-  const srPH = document.createElement('div');
-  srPH.className = 'sr-panel'; srPH.dataset.panel = 'headers';
-  const srHList = document.createElement('div'); srHList.className = 'sr-headers-list';
-  const srAddH  = document.createElement('button');
-  srAddH.type = 'button'; srAddH.className = 'add-row-btn'; srAddH.textContent = '+ Header';
-  srAddH.addEventListener('click', () => srHList.appendChild(headerRow()));
-  srPH.append(srHList, srAddH);
-
-  const srPB = document.createElement('div');
-  srPB.className = 'sr-panel hidden'; srPB.dataset.panel = 'body';
-  const srBodyTA = document.createElement('textarea');
-  srBodyTA.className = 'sr-body'; srBodyTA.placeholder = '{"key":"value"}';
-  srPB.appendChild(srBodyTA);
-
-  const srPE = document.createElement('div');
-  srPE.className = 'sr-panel hidden'; srPE.dataset.panel = 'ext';
-  const srExtList = document.createElement('div'); srExtList.className = 'sr-extractions-list';
-  const srAddExt  = document.createElement('button');
-  srAddExt.type = 'button'; srAddExt.className = 'add-row-btn'; srAddExt.textContent = '+ Extract Variable';
-  srAddExt.addEventListener('click', () => srExtList.appendChild(extractionRow()));
-  srPE.append(srExtList, srAddExt);
-
-  formDetails.append(srTabs, srPH, srPB, srPE);
-  form.append(formHead, formDetails);
-  wrapper.append(addBtn, form);
-
-  addBtn.addEventListener('click', () => { addBtn.classList.add('hidden'); form.classList.remove('hidden'); });
-
-  expandBtn.addEventListener('click', () => {
-    const open = !formDetails.classList.toggle('hidden');
-    expandBtn.classList.toggle('active', open);
+  addButton.addEventListener('click', () => {
+    addButton.classList.add('hidden');
+    form.classList.remove('hidden');
+    url.focus();
   });
-
-  removeBtn.addEventListener('click', () => {
-    form.classList.add('hidden'); addBtn.classList.remove('hidden');
-    srMethod.value = 'GET'; srUrl.value = ''; srHList.innerHTML = '';
-    srBodyTA.value = ''; srExtList.innerHTML = '';
-    formDetails.classList.add('hidden'); expandBtn.classList.remove('active');
+  detailsButton.addEventListener('click', () => {
+    const expanded = details.classList.toggle('hidden') === false;
+    detailsButton.classList.toggle('active', expanded);
+    detailsButton.setAttribute('aria-expanded', String(expanded));
   });
-
+  remove.addEventListener('click', () => {
+    method.value = 'GET';
+    url.value = '';
+    headers.replaceChildren();
+    body.value = '';
+    extracts.replaceChildren();
+    details.classList.add('hidden');
+    detailsButton.classList.remove('active');
+    detailsButton.setAttribute('aria-expanded', 'false');
+    form.classList.add('hidden');
+    addButton.classList.remove('hidden');
+  });
   return wrapper;
 }
 
-// ── Request card ───────────────────────────────────────────────
+function updateExpandedState(card, expanded) {
+  card.classList.toggle('collapsed', !expanded);
+  card.classList.toggle('expanded', expanded);
+  const toggle = card.querySelector('.request-expand');
+  toggle?.setAttribute('aria-expanded', String(expanded));
+  if (expanded) ensureRequestPanel(card, card.dataset.activePanel || 'headers');
+}
+
+export function setRequestExpanded(card, expanded, { exclusive = true } = {}) {
+  const container = card.parentElement;
+  const keepOpen = container?.closest('.flow-zone')?.querySelector('.keep-request-editors-open')?.checked;
+  if (expanded && exclusive && !keepOpen) {
+    container?.querySelectorAll('.req-card.expanded').forEach(other => {
+      if (other !== card) updateExpandedState(other, false);
+    });
+  }
+  updateExpandedState(card, expanded);
+}
+
+export function refreshRequestSummary(card) {
+  card.querySelector('.request-name')?.dispatchEvent(new Event('input'));
+}
+
+function activateTab(card, panelId, { focus = false } = {}) {
+  card.dataset.activePanel = panelId;
+  let activeTab = null;
+  card.querySelectorAll('.req-tab').forEach(tab => {
+    const active = tab.dataset.tab === panelId;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+    tab.tabIndex = active ? 0 : -1;
+    if (active) activeTab = tab;
+  });
+  card.querySelectorAll('.req-tab-panel').forEach(panel => {
+    panel.classList.toggle('hidden', panel.dataset.panel !== panelId);
+  });
+  ensureRequestPanel(card, panelId);
+  if (focus) activeTab?.focus();
+}
+
+function handleTabKeydown(card, event) {
+  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+  const tabs = [...card.querySelectorAll('.req-tab')];
+  const current = tabs.indexOf(event.currentTarget);
+  if (current === -1) return;
+  event.preventDefault();
+  let next = current;
+  if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
+  if (event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+  if (event.key === 'Home') next = 0;
+  if (event.key === 'End') next = tabs.length - 1;
+  activateTab(card, tabs[next].dataset.tab, { focus: true });
+}
+
+function panelContent(factory, card) {
+  return factory({
+    onExtCount: () => updateExtCount(card),
+    onAssertCount: () => updateAssertCount(card),
+    onScriptCount: () => updateScriptCount(card),
+  });
+}
+
+const lazyPanelFactories = {
+  headers: () => createHeadersPanel(),
+  body: () => createBodyPanel(),
+  extractions: ({ onExtCount }) => createExtractPanel(onExtCount),
+  assertions: ({ onAssertCount }) => createChecksPanel(onAssertCount),
+  scripts: ({ onScriptCount }) => createScriptsPanel(onScriptCount),
+  options: () => createAdvancedPanel(),
+};
+
+export function ensureRequestPanel(card, panelId) {
+  const panel = card.querySelector(`.req-tab-panel[data-panel="${panelId}"]`);
+  if (!panel || panel.dataset.panelReady === 'true') return panel;
+  const factory = lazyPanelFactories[panelId];
+  if (!factory) return panel;
+  panel.appendChild(panelContent(factory, card));
+  panel.dataset.panelReady = 'true';
+  const request = card.requestState;
+  if (request) {
+    if (panelId === 'headers') {
+      const list = panel.querySelector('.headers-list');
+      for (const header of request.headers || []) {
+        if (header.key) list.appendChild(headerRow(header.key, header.value));
+      }
+    } else if (panelId === 'body') {
+      panel.querySelector('.body').value = request.body || '';
+    } else if (panelId === 'extractions') {
+      const list = panel.querySelector('.extractions-list');
+      for (const extraction of request.extractions || []) {
+        if (!extraction.varName) continue;
+        const row = extractionRow();
+        row.querySelector('.ext-name').value = extraction.varName;
+        row.querySelector('.ext-source').value = extraction.source || 'json';
+        row.querySelector('.ext-selector').value = extraction.selector || '';
+        row.querySelector('.ext-source').dispatchEvent(new Event('change'));
+        list.appendChild(row);
+      }
+      updateExtCount(card);
+    } else if (panelId === 'assertions') {
+      const list = panel.querySelector('.assertions-list');
+      for (const check of request.assertions || []) {
+        list.appendChild(assertionRow(check.type, check.value, check.value2, () => updateAssertCount(card)));
+      }
+      updateAssertCount(card);
+    } else if (panelId === 'scripts') {
+      panel.querySelector('.pre-script').value = request.preScript || '';
+      panel.querySelector('.post-script').value = request.postScript || '';
+      updateScriptCount(card);
+    } else if (panelId === 'options') {
+      panel.querySelector('.check-status').checked = request.checkStatus !== false;
+      panel.querySelector('.sleep').value = request.sleepAfter ?? 1;
+    }
+  }
+  return panel;
+}
+
+function requestSnapshot(card) {
+  const snapshot = {};
+  const selectors = [
+    '.request-name', '.protocol', '.method', '.url', '.grpc-method', '.grpc-plaintext',
+    '.body', '.check-status', '.sleep', '.pre-script', '.post-script', '.request-enabled',
+  ];
+  for (const selector of selectors) {
+    const field = card.querySelector(selector);
+    if (field) snapshot[selector] = field.type === 'checkbox' ? field.checked : field.value;
+  }
+  snapshot.headers = [...card.querySelectorAll('.req-card-body .header-row')].map(row => [
+    row.querySelector('.h-key').value,
+    row.querySelector('.h-val').value,
+  ]);
+  snapshot.extractions = [...card.querySelectorAll('.req-card-body .extraction-row')].map(row => [
+    row.querySelector('.ext-name').value,
+    row.querySelector('.ext-source').value,
+    row.querySelector('.ext-selector').value,
+  ]);
+  snapshot.assertions = [...card.querySelectorAll('.req-card-body .assertion-row')].map(row => [
+    row.querySelector('.assert-type').value,
+    row.querySelector('.assert-val').value,
+    row.querySelector('.assert-val2').value,
+  ]);
+  snapshot.subRequests = {};
+  for (const position of ['pre', 'post']) {
+    const form = card.querySelector(`.subreq-${position} .subreq-form`);
+    if (!form || form.classList.contains('hidden')) continue;
+    snapshot.subRequests[position] = {
+      method: form.querySelector('.sr-method').value,
+      url: form.querySelector('.sr-url').value,
+      body: form.querySelector('.sr-body').value,
+      headers: [...form.querySelectorAll('.header-row')].map(row => [
+        row.querySelector('.h-key').value,
+        row.querySelector('.h-val').value,
+      ]),
+      extractions: [...form.querySelectorAll('.extraction-row')].map(row => [
+        row.querySelector('.ext-name').value,
+        row.querySelector('.ext-source').value,
+        row.querySelector('.ext-selector').value,
+      ]),
+    };
+  }
+  return snapshot;
+}
+
+function applySubRequestSnapshot(card, position, snapshot) {
+  if (!snapshot) return;
+  const section = card.querySelector(`.subreq-${position}`);
+  section.querySelector('.add-subreq-btn').classList.add('hidden');
+  const form = section.querySelector('.subreq-form');
+  form.classList.remove('hidden');
+  form.querySelector('.sr-method').value = snapshot.method;
+  form.querySelector('.sr-url').value = snapshot.url;
+  form.querySelector('.sr-body').value = snapshot.body;
+  const headers = form.querySelector('.sr-headers-list');
+  for (const [key, value] of snapshot.headers) headers.appendChild(headerRow(key, value));
+  const extracts = form.querySelector('.sr-extractions-list');
+  for (const [name, source, selector] of snapshot.extractions) {
+    const row = extractionRow();
+    row.querySelector('.ext-name').value = name;
+    row.querySelector('.ext-source').value = source;
+    row.querySelector('.ext-selector').value = selector;
+    row.querySelector('.ext-source').dispatchEvent(new Event('change'));
+    extracts.appendChild(row);
+  }
+}
+
+function applySnapshot(card, snapshot) {
+  const requiredPanels = {
+    '.body': 'body',
+    '.check-status': 'options',
+    '.sleep': 'options',
+    '.pre-script': 'scripts',
+    '.post-script': 'scripts',
+  };
+  for (const [selector, panelId] of Object.entries(requiredPanels)) {
+    if (Object.hasOwn(snapshot, selector)) ensureRequestPanel(card, panelId);
+  }
+  for (const [selector, value] of Object.entries(snapshot)) {
+    if (!selector.startsWith('.')) continue;
+    const field = card.querySelector(selector);
+    if (!field) continue;
+    if (field.type === 'checkbox') field.checked = value;
+    else field.value = value;
+  }
+  for (const [key, value] of snapshot.headers) {
+    ensureRequestPanel(card, 'headers').querySelector('.headers-list').appendChild(headerRow(key, value));
+  }
+  for (const [name, source, selector] of snapshot.extractions) {
+    const row = extractionRow();
+    row.querySelector('.ext-name').value = name;
+    row.querySelector('.ext-source').value = source;
+    row.querySelector('.ext-selector').value = selector;
+    row.querySelector('.ext-source').dispatchEvent(new Event('change'));
+    ensureRequestPanel(card, 'extractions').querySelector('.extractions-list').appendChild(row);
+  }
+  for (const [type, value, value2] of snapshot.assertions) {
+    ensureRequestPanel(card, 'assertions').querySelector('.assertions-list')
+      .appendChild(assertionRow(type, value, value2, () => updateAssertCount(card)));
+  }
+  applySubRequestSnapshot(card, 'pre', snapshot.subRequests.pre);
+  applySubRequestSnapshot(card, 'post', snapshot.subRequests.post);
+  card.querySelector('.protocol').dispatchEvent(new Event('change'));
+  card.querySelector('.url').dispatchEvent(new Event('input'));
+  updateExtCount(card);
+  updateAssertCount(card);
+  updateScriptCount(card);
+}
+
 export function reqCard(index, context, requestId = '') {
-  const card = document.createElement('div');
-  card.className = 'req-card';
+  const card = document.createElement('article');
+  card.className = 'req-card collapsed';
   card.dataset.context = context;
-  card.dataset.requestId = requestId;
+  card.dataset.requestId = requestId || createRequestId();
+  card.dataset.activePanel = 'headers';
 
   const head = document.createElement('div');
   head.className = 'req-card-head';
-
-  const numEl = document.createElement('span');
-  numEl.className = 'req-num'; numEl.textContent = `#${index + 1}`;
-
-  const protoSel = document.createElement('select');
-  protoSel.className = 'protocol';
-  protoSel.setAttribute('aria-label', `Request ${index + 1} protocol`);
-  [{ v: 'http', l: 'HTTP' }, { v: 'grpc', l: 'gRPC' }].forEach(p => {
-    const o = document.createElement('option');
-    o.value = p.v; o.textContent = p.l;
-    protoSel.appendChild(o);
-  });
-
-  const methodSel = document.createElement('select');
-  methodSel.className = 'method';
-  methodSel.setAttribute('aria-label', `Request ${index + 1} method`);
-  METHODS.forEach(m => { const o = document.createElement('option'); o.value = o.textContent = m; methodSel.appendChild(o); });
-
-  const urlInput = document.createElement('input');
-  urlInput.type = 'text'; urlInput.className = 'url';
-  urlInput.placeholder = 'https://api.example.com/endpoint';
-  urlInput.setAttribute('aria-label', `Request ${index + 1} URL`);
-
+  const num = document.createElement('span');
+  num.className = 'req-num';
+  num.textContent = `#${index + 1}`;
+  const { nameInput } = createBasicFields(index);
+  const namePreview = document.createElement('strong');
+  namePreview.className = 'request-name-preview';
+  namePreview.textContent = `Request ${index + 1}`;
+  namePreview.setAttribute('aria-hidden', 'true');
+  const protocol = document.createElement('select');
+  protocol.className = 'protocol';
+  protocol.setAttribute('aria-label', `Request ${index + 1} protocol`);
+  for (const [value, label] of [['http', 'HTTP'], ['grpc', 'gRPC']]) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    protocol.appendChild(option);
+  }
+  const method = document.createElement('select');
+  method.className = 'method';
+  method.setAttribute('aria-label', `Request ${index + 1} method`);
+  for (const value of METHODS) {
+    const option = document.createElement('option');
+    option.value = option.textContent = value;
+    method.appendChild(option);
+  }
+  const methodPreview = document.createElement('span');
+  methodPreview.className = 'method-badge request-method-preview m-GET';
+  methodPreview.textContent = 'GET';
+  methodPreview.setAttribute('aria-hidden', 'true');
+  const url = document.createElement('input');
+  url.className = 'url';
+  url.placeholder = 'https://api.example.com/endpoint';
+  url.setAttribute('aria-label', `Request ${index + 1} URL`);
+  const preview = document.createElement('span');
+  preview.className = 'req-url-preview empty';
+  preview.textContent = 'No URL yet';
+  const enabledLabel = document.createElement('label');
+  enabledLabel.className = 'request-enabled-label';
+  const enabled = document.createElement('input');
+  enabled.type = 'checkbox';
+  enabled.className = 'request-enabled';
+  enabled.checked = true;
+  enabledLabel.append(enabled, ' Enabled');
   const actions = document.createElement('div');
   actions.className = 'req-card-actions';
+  const moveUp = button(`Move request ${index + 1} up`, 'req-action-btn request-move-up', '↑');
+  const moveDown = button(`Move request ${index + 1} down`, 'req-action-btn request-move-down', '↓');
+  const duplicate = button(`Duplicate request ${index + 1}`, 'req-action-btn request-duplicate', 'Duplicate');
+  const curl = button(`Import cURL into request ${index + 1}`, 'req-action-btn curl', 'cURL');
+  const expand = button(`Expand request ${index + 1}`, 'req-action-btn request-expand', '▾');
+  expand.setAttribute('aria-expanded', 'false');
+  const remove = button(`Remove request ${index + 1}`, 'req-action-btn del', '✕');
+  actions.append(moveUp, moveDown, duplicate, curl, expand, remove);
+  head.append(num, namePreview, methodPreview, nameInput, protocol, method, url, preview, enabledLabel, actions);
 
-  const curlBtn = document.createElement('button');
-  curlBtn.type = 'button';
-  curlBtn.className = 'req-action-btn curl'; curlBtn.title = 'Import from cURL';
-  curlBtn.setAttribute('aria-label', `Import cURL into request ${index + 1}`);
-  curlBtn.textContent = 'cURL';
-  curlBtn.addEventListener('click', e => { e.stopPropagation(); openCurlImport(card); });
-
-  const colBtn = document.createElement('button');
-  colBtn.type = 'button';
-  colBtn.className = 'req-action-btn'; colBtn.title = 'Expand / Collapse';
-  colBtn.setAttribute('aria-label', `Expand or collapse request ${index + 1}`);
-  colBtn.innerHTML = '<span class="chevron">▾</span>';
-
-  const delBtn = document.createElement('button');
-  delBtn.type = 'button';
-  delBtn.className = 'req-action-btn del'; delBtn.title = 'Remove request';
-  delBtn.setAttribute('aria-label', `Remove request ${index + 1}`);
-  delBtn.textContent = '✕';
-
-  actions.append(curlBtn, colBtn, delBtn);
-  head.append(numEl, protoSel, methodSel, urlInput, actions);
-
-  // gRPC settings — visible only when the protocol is gRPC. The card then
-  // maps onto gRPC as: url = host:port, body = request message (JSON),
-  // headers = metadata.
   const grpcRow = document.createElement('div');
   grpcRow.className = 'grpc-row hidden';
-  grpcRow.innerHTML = `
-    <span class="grpc-label">gRPC</span>
-    <input type="text" class="grpc-method"
-      placeholder="package.Service/Method — e.g. hello.HelloService/SayHello"
-      title="Full method name. The server must support gRPC reflection." />
-    <label class="opt-label">
-      <input type="checkbox" class="grpc-plaintext" />
-      Plaintext (no TLS)
-    </label>`;
-
-  function syncProtocol() {
-    const isGrpc = protoSel.value === 'grpc';
-    methodSel.classList.toggle('hidden', isGrpc);
-    grpcRow.classList.toggle('hidden', !isGrpc);
-    urlInput.placeholder = isGrpc
-      ? 'host:port — e.g. localhost:50051'
-      : 'https://api.example.com/endpoint';
-  }
-  protoSel.addEventListener('change', syncProtocol);
-  protoSel.addEventListener('click', e => e.stopPropagation());
+  const grpcLabel = document.createElement('span');
+  grpcLabel.className = 'grpc-label';
+  grpcLabel.textContent = 'gRPC';
+  const grpcMethod = document.createElement('input');
+  grpcMethod.className = 'grpc-method';
+  grpcMethod.placeholder = 'package.Service/Method';
+  const plaintextLabel = document.createElement('label');
+  plaintextLabel.className = 'opt-label';
+  const plaintext = document.createElement('input');
+  plaintext.type = 'checkbox';
+  plaintext.className = 'grpc-plaintext';
+  plaintextLabel.append(plaintext, ' Plaintext (no TLS)');
+  grpcRow.append(grpcLabel, grpcMethod, plaintextLabel);
 
   const preSection = buildSubReqSection('pre');
-
   const body = document.createElement('div');
   body.className = 'req-card-body';
-
   const tabs = document.createElement('div');
   tabs.className = 'req-tabs';
-  [
-    { id: 'headers',    label: 'Headers' },
-    { id: 'body',       label: 'Body' },
-    { id: 'extractions',label: 'Extract',    badge: 'tab-count-ext' },
-    { id: 'assertions', label: 'Assertions', badge: 'tab-count-assert' },
-    { id: 'scripts',    label: 'Scripts',    badge: 'tab-count-script' },
-    { id: 'options',    label: 'Options' },
-  ].forEach((def, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'req-tab' + (i === 0 ? ' active' : '');
-    btn.dataset.tab = def.id; btn.textContent = def.label;
-    if (def.badge) { const cnt = document.createElement('span'); cnt.className = `tab-count ${def.badge}`; btn.append(' ', cnt); }
-    btn.addEventListener('click', () => activateTab(card, def.id));
-    tabs.appendChild(btn);
-  });
-
-  const pHeaders = document.createElement('div');
-  pHeaders.className = 'req-tab-panel'; pHeaders.dataset.panel = 'headers';
-  const hList = document.createElement('div'); hList.className = 'headers-list';
-  const addHBtn = document.createElement('button');
-  addHBtn.className = 'add-row-btn'; addHBtn.textContent = '+ Header';
-  addHBtn.addEventListener('click', () => hList.appendChild(headerRow()));
-  pHeaders.append(hList, addHBtn);
-
-  const pBody = document.createElement('div');
-  pBody.className = 'req-tab-panel hidden'; pBody.dataset.panel = 'body';
-  const bodyTA = document.createElement('textarea');
-  bodyTA.className = 'body';
-  bodyTA.placeholder = '{"key":"value"}\n\nFor POST/PUT/PATCH/DELETE. Use {{variable_name}} to insert values.';
-  pBody.appendChild(bodyTA);
-
-  const pExt = document.createElement('div');
-  pExt.className = 'req-tab-panel hidden'; pExt.dataset.panel = 'extractions';
-  const extHintEl = document.createElement('p');
-  extHintEl.className = 'ext-hint';
-  extHintEl.innerHTML = 'Extract values from the response, then use <code>{{variable_name}}</code> in later requests.';
-  const extList = document.createElement('div'); extList.className = 'extractions-list';
-  const addExtBtn = document.createElement('button');
-  addExtBtn.className = 'add-row-btn'; addExtBtn.textContent = '+ Extract Variable';
-  addExtBtn.addEventListener('click', () => { extList.appendChild(extractionRow()); updateExtCount(card); });
-  extList.addEventListener('input', e => { if (e.target.classList.contains('ext-name')) updateExtCount(card); });
-  pExt.append(extHintEl, extList, addExtBtn);
-
-  const pAssert = document.createElement('div');
-  pAssert.className = 'req-tab-panel hidden'; pAssert.dataset.panel = 'assertions';
-  const assertHint = document.createElement('p');
-  assertHint.className = 'ext-hint';
-  assertHint.textContent = 'Validate the response — if an assertion fails, k6 marks the request as failed.';
-  const assertList = document.createElement('div'); assertList.className = 'assertions-list';
-  const addAssertBtn = document.createElement('button');
-  addAssertBtn.className = 'add-row-btn'; addAssertBtn.textContent = '+ Add Assertion';
-  addAssertBtn.addEventListener('click', () => { assertList.appendChild(assertionRow()); updateAssertCount(card); });
-  assertList.addEventListener('change', e => { if (e.target.classList.contains('assert-type')) updateAssertCount(card); });
-  pAssert.append(assertHint, assertList, addAssertBtn);
-
-  const pScripts = document.createElement('div');
-  pScripts.className = 'req-tab-panel hidden'; pScripts.dataset.panel = 'scripts';
-  const scriptsHint = document.createElement('p');
-  scriptsHint.className = 'ext-hint';
-  scriptsHint.innerHTML =
-    'Custom JavaScript around this request. Assign <code>vars.name = ...</code> in a script, then use <code>{{name}}</code> in any URL, header, or body. ' +
-    'The k6 modules <code>crypto</code> (e.g. <code>crypto.sha256(s, \'hex\')</code>) and <code>encoding</code> (<code>encoding.b64encode(s)</code>) are imported automatically when used.';
-  const preScrLabel = document.createElement('label');
-  preScrLabel.className = 'script-label';
-  preScrLabel.textContent = 'Pre-processor — runs before the request';
-  const preScrTA = document.createElement('textarea');
-  preScrTA.className = 'pre-script';
-  preScrTA.placeholder = "vars.timestamp = Date.now();\nvars.trace_id = 'trace-' + __VU + '-' + __ITER;";
-  const postScrLabel = document.createElement('label');
-  postScrLabel.className = 'script-label';
-  postScrLabel.textContent = 'Post-processor — runs after the response (as "res")';
-  const postScrTA = document.createElement('textarea');
-  postScrTA.className = 'post-script';
-  postScrTA.placeholder = '// "res" is this request\'s response\nconst data = JSON.parse(res.body);\nvars.first_id = data.items[0].id;';
-  [preScrTA, postScrTA].forEach(t => t.addEventListener('input', () => updateScriptCount(card)));
-  pScripts.append(scriptsHint, preScrLabel, preScrTA, postScrLabel, postScrTA);
-
-  const pOpts = document.createElement('div');
-  pOpts.className = 'req-tab-panel hidden'; pOpts.dataset.panel = 'options';
-  pOpts.innerHTML = `
-    <div class="options-row">
-      <label class="opt-label">
-        <input type="checkbox" class="check-status" checked />
-        Check success status (2xx)
-      </label>
-      <label class="opt-label">
-        Pause after request (seconds):
-        <input type="number" class="sleep" min="0" step="0.5" value="1" />
-      </label>
-    </div>`;
-
-  body.append(tabs, pHeaders, pBody, pExt, pAssert, pScripts, pOpts);
-
+  tabs.setAttribute('role', 'tablist');
+  const definitions = [
+    ['headers', 'Headers'], ['body', 'Body'], ['extractions', 'Extract'],
+    ['assertions', 'Checks'], ['scripts', 'Scripts'], ['options', 'Advanced'],
+  ];
+  for (const [panelId, label] of definitions) {
+    const tab = button(`${label} settings`, `req-tab${panelId === 'headers' ? ' active' : ''}`, label);
+    const idBase = `${card.dataset.requestId}-${panelId}`;
+    tab.dataset.tab = panelId;
+    tab.id = `${idBase}-tab`;
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', String(panelId === 'headers'));
+    tab.setAttribute('aria-controls', `${idBase}-panel`);
+    tab.tabIndex = panelId === 'headers' ? 0 : -1;
+    if (panelId === 'extractions' || panelId === 'assertions' || panelId === 'scripts') {
+      const count = document.createElement('span');
+      count.className = `tab-count tab-count-${panelId === 'extractions' ? 'ext' : panelId === 'assertions' ? 'assert' : 'script'}`;
+      tab.append(' ', count);
+    }
+    tab.addEventListener('click', () => activateTab(card, panelId));
+    tab.addEventListener('keydown', event => handleTabKeydown(card, event));
+    tabs.appendChild(tab);
+    const panel = document.createElement('div');
+    panel.className = `req-tab-panel${panelId === 'headers' ? '' : ' hidden'}`;
+    panel.dataset.panel = panelId;
+    panel.id = `${idBase}-panel`;
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', tab.id);
+    body.appendChild(panel);
+  }
+  body.prepend(tabs);
   const postSection = buildSubReqSection('post');
-
   card.append(head, grpcRow, preSection, body, postSection);
+  card.ensureRequestPanel = panelId => ensureRequestPanel(card, panelId);
 
-  colBtn.addEventListener('click', e => { e.stopPropagation(); card.classList.toggle('collapsed'); });
-  delBtn.addEventListener('click', () => {
+  function syncProtocol() {
+    const grpc = protocol.value === 'grpc';
+    method.classList.toggle('hidden', grpc);
+    grpcRow.classList.toggle('hidden', !grpc);
+    url.placeholder = grpc ? 'host:port — e.g. localhost:50051' : 'https://api.example.com/endpoint';
+  }
+  function syncPreview() {
+    const position = card.parentElement ? [...card.parentElement.children].indexOf(card) + 1 : index + 1;
+    namePreview.textContent = nameInput.value.trim() || `Request ${position}`;
+    const summaryMethod = protocol.value === 'grpc' ? 'gRPC' : method.value;
+    methodPreview.textContent = summaryMethod;
+    methodPreview.className = `method-badge request-method-preview m-${protocol.value === 'grpc' ? 'POST' : method.value}`;
+    preview.textContent = url.value.trim() || 'No URL yet';
+    preview.classList.toggle('empty', !url.value.trim());
+  }
+  function syncEnabled() {
+    card.classList.toggle('request-disabled', !enabled.checked);
+    enabledLabel.title = enabled.checked ? 'Included when the test runs' : 'Saved but skipped when the test runs';
+  }
+  protocol.addEventListener('change', syncProtocol);
+  protocol.addEventListener('change', syncPreview);
+  method.addEventListener('change', syncPreview);
+  nameInput.addEventListener('input', syncPreview);
+  url.addEventListener('input', syncPreview);
+  enabled.addEventListener('change', syncEnabled);
+  curl.addEventListener('click', event => { event.stopPropagation(); openCurlImport(card); });
+  expand.addEventListener('click', event => {
+    event.stopPropagation();
+    setRequestExpanded(card, !card.classList.contains('expanded'));
+  });
+  head.addEventListener('dblclick', event => {
+    if (!event.target.closest('button, input, select, label')) setRequestExpanded(card, !card.classList.contains('expanded'));
+  });
+  moveUp.addEventListener('click', () => {
+    const previous = card.previousElementSibling;
+    if (previous) card.parentElement.insertBefore(card, previous);
+    renumberMain();
+    card.parentElement.querySelectorAll('.req-card').forEach(refreshRequestSummary);
+  });
+  moveDown.addEventListener('click', () => {
+    const next = card.nextElementSibling;
+    if (next) card.parentElement.insertBefore(next, card);
+    renumberMain();
+    card.parentElement.querySelectorAll('.req-card').forEach(refreshRequestSummary);
+  });
+  duplicate.addEventListener('click', () => {
+    const clone = reqCard([...card.parentElement.children].indexOf(card) + 1, context, '');
+    for (const panelId of Object.keys(lazyPanelFactories)) ensureRequestPanel(card, panelId);
+    for (const panelId of Object.keys(lazyPanelFactories)) ensureRequestPanel(clone, panelId);
+    applySnapshot(clone, requestSnapshot(card));
+    card.after(clone);
+    renumberMain();
+    refreshFlowEmptyState();
+    setRequestExpanded(clone, true);
+  });
+  remove.addEventListener('click', () => {
     card.remove();
     renumberMain();
     refreshFlowEmptyState();
   });
-
+  syncProtocol();
+  syncPreview();
+  syncEnabled();
   return card;
 }

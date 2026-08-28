@@ -27,12 +27,14 @@ function closeModal() {
 }
 
 function fillCard(card, req) {
+  card.ensureRequestPanel?.('headers');
+  card.ensureRequestPanel?.('body');
   const methodSel = card.querySelector('.method');
   methodSel.value = [...methodSel.options].some(o => o.value === req.method) ? req.method : 'GET';
   card.querySelector('.url').value  = req.url;
   card.querySelector('.body').value = req.body || '';
   const hList = card.querySelector('.req-card-body .headers-list');
-  hList.innerHTML = '';
+  hList.replaceChildren();
   for (const h of req.headers) hList.appendChild(headerRow(h.key, h.value));
 }
 

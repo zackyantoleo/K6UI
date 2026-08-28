@@ -84,7 +84,8 @@ export function generateScript(config) {
   const withGlobalHeaders = (req) =>
     globalHeaders.length ? { ...req, headers: mergeHeaders(globalHeaders, req.headers) } : req;
 
-  const mainReqs = (scenario.requests || []).filter((r) => r && String(r.url || "").trim());
+  const mainReqs = (scenario.requests || [])
+    .filter((r) => r && r.enabled !== false && String(r.url || "").trim());
 
   // Auto-import the k6 utility modules a processor script refers to, so
   // e.g. crypto.sha256(...) works in a pre/post-processor out of the box.

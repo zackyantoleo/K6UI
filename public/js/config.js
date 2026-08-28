@@ -48,9 +48,15 @@ function collectSubReq(card, position) {
 
 function collectReqList(containerId) {
   return $$(`#${containerId} .req-card`).map(card => {
+    for (const panelId of ['headers', 'body', 'extractions', 'assertions', 'scripts', 'options']) {
+      card.ensureRequestPanel?.(panelId);
+    }
     const body = card.querySelector('.req-card-body');
+    if (!card.dataset.requestId) card.dataset.requestId = createRequestId();
     return {
-      id:          card.dataset.requestId || createRequestId(),
+      id:          card.dataset.requestId,
+      name:        card.querySelector('.request-name')?.value.trim() || '',
+      enabled:     card.querySelector('.request-enabled')?.checked !== false,
       type:        card.querySelector('.protocol').value,   // 'http' | 'grpc'
       method:      card.querySelector('.method').value,
       url:         card.querySelector('.url').value.trim(),
@@ -105,9 +111,9 @@ export function collectConfig() {
 }
 
 export function validate(config) {
-  if (!config.scenario.requests.filter(r => r.url).length)
+  if (!config.scenario.requests.filter(r => r.enabled !== false && r.url).length)
     return 'Add at least one request with a URL in the Main Scenario.';
-  const reqs = config.scenario.requests;
+  const reqs = config.scenario.requests.filter(r => r.enabled !== false);
   for (let i = 0; i < reqs.length; i++) {
     if (reqs[i].url && reqs[i].type === 'grpc' && !reqs[i].grpcMethod)
       return `Request ${i + 1}: enter the gRPC method (package.Service/Method).`;
