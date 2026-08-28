@@ -117,8 +117,8 @@ $('#project-file-input').addEventListener('change', e => {
   reader.onload = ev => {
     try {
       applyConfig(JSON.parse(ev.target.result));
-    } catch {
-      alert('Invalid file. Make sure it was saved from K6UI.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Invalid project file.');
     }
   };
   reader.readAsText(file);

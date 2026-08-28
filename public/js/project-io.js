@@ -8,6 +8,7 @@ import { updateExtCount, updateAssertCount, updateScriptCount, renumberMain } fr
 import { stageRow } from './components/flow-view.js';
 import { refreshFlowEmptyState } from './components/counts.js';
 import { collectConfig } from './config.js';
+import { migrateProject, projectStore, serializeProject } from './project-store.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 function fillSubReq(section, req) {
@@ -79,7 +80,7 @@ function restoreZone(requests) {
   const container = $('#reqs-main');
   container.innerHTML = '';
   for (let i = 0; i < requests.length; i++) {
-    const card = reqCard(i, 'main');
+    const card = reqCard(i, 'main', requests[i].id);
     fillCard(card, requests[i]);
     container.appendChild(card);
   }
@@ -90,7 +91,7 @@ function restoreZone(requests) {
 // ── Public API ─────────────────────────────────────────────────
 export function saveProject() {
   const cfg  = collectConfig();
-  const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+  const blob = new Blob([serializeProject(cfg)], { type: 'application/json' });
   const a    = Object.assign(document.createElement('a'), {
     href:     URL.createObjectURL(blob),
     download: 'k6-project.json',
@@ -100,6 +101,7 @@ export function saveProject() {
 }
 
 export function applyConfig(cfg) {
+  cfg = projectStore.replace(migrateProject(cfg));
   const mode = cfg.load?.mode || 'simple';
   const modeRadio = $(`input[name="load-mode"][value="${mode}"]`);
   if (modeRadio) modeRadio.checked = true;

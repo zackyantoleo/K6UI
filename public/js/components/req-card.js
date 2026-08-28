@@ -176,10 +176,11 @@ function buildSubReqSection(position) {
 }
 
 // ── Request card ───────────────────────────────────────────────
-export function reqCard(index, context) {
+export function reqCard(index, context, requestId = '') {
   const card = document.createElement('div');
   card.className = 'req-card';
   card.dataset.context = context;
+  card.dataset.requestId = requestId;
 
   const head = document.createElement('div');
   head.className = 'req-card-head';

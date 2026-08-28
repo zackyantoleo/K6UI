@@ -3,10 +3,11 @@
 import { $ } from '../dom.js';
 import { reqCard } from './req-card.js';
 import { refreshFlowEmptyState } from './counts.js';
+import { createRequestId } from '../project-store.js';
 
 export function addRequest({ openCurl = false } = {}) {
   const container = $('#reqs-main');
-  const card = reqCard(container.children.length, 'main');
+  const card = reqCard(container.children.length, 'main', createRequestId());
   container.appendChild(card);
   refreshFlowEmptyState();
   if (openCurl) card.querySelector('.req-action-btn.curl').click();
