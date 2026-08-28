@@ -857,12 +857,3 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
   max-height: 200px; overflow-y: auto; border-left: 3px solid var(--accent);
 }
 
-/* ── Responsive ──────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  :root { --sidebar-w: 52px; }
-  .nav-group-title, .nav-link span:not(.badge-soon), .badge-soon { display: none; }
-  .nav-link { justify-content: center; padding: 10px; }
-  .nav-ic { width: auto; font-size: 16px; }
-  .sidebar-footer .btn-run { font-size: 0; }
-  .sidebar-footer .btn-run::before { content: "▶"; font-size: 14px; }
-}
