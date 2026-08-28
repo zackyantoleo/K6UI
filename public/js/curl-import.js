@@ -6,11 +6,13 @@ import { headerRow } from './components/rows.js';
 import { parseCurl } from './curl-parse.js';
 
 let targetCard = null;
+let returnFocus = null;
 
 function modal() { return $('#curl-modal'); }
 
 export function openCurlImport(card) {
   targetCard = card;
+  returnFocus = document.activeElement;
   $('#curl-input').value = '';
   $('#curl-error').classList.add('hidden');
   modal().classList.remove('hidden');
@@ -20,6 +22,8 @@ export function openCurlImport(card) {
 function closeModal() {
   modal().classList.add('hidden');
   targetCard = null;
+  returnFocus?.focus();
+  returnFocus = null;
 }
 
 function fillCard(card, req) {

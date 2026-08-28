@@ -6,6 +6,7 @@ import { headerRow, extractionRow, variableRow } from './components/rows.js';
 import { reqCard, assertionRow } from './components/req-card.js';
 import { updateExtCount, updateAssertCount, updateScriptCount, renumberMain } from './components/counts.js';
 import { stageRow } from './components/flow-view.js';
+import { refreshFlowEmptyState } from './components/counts.js';
 import { collectConfig } from './config.js';
 
 // ── Internal helpers ───────────────────────────────────────────
@@ -83,6 +84,7 @@ function restoreZone(requests) {
     container.appendChild(card);
   }
   renumberMain();
+  refreshFlowEmptyState();
 }
 
 // ── Public API ─────────────────────────────────────────────────

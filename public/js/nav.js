@@ -2,22 +2,37 @@
 import { $, $$ } from './dom.js';
 
 const NAV_TITLES = {
-  flow:      'Request Flow',
-  load:      'Load Profile',
+  flow:      'Build Flow',
+  data:      'Data & Rules',
+  load:      'Load',
   sla:       'Thresholds / SLA',
   script:    'k6 Script',
-  results:   'Run & Monitor',
+  results:   'Run & Results',
   vars:      'Global Variables',
   headers:   'Global Headers',
-  csv:       'CSV Data',
-  cookies:   'Cookies',
-  asserts:   'Assertions',
-  timers:    'Timers',
-  multiscen: 'Multi Scenario',
 };
 
-export function navigate(viewId) {
+const STEP_BY_VIEW = {
+  flow: 'flow',
+  data: 'data',
+  vars: 'data',
+  headers: 'data',
+  sla: 'data',
+  load: 'load',
+  script: 'results',
+  results: 'results',
+};
+
+export function navigate(viewId, { focusHeading = true } = {}) {
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== `view-${viewId}`));
-  $$('.nav-link[data-view]').forEach(l => l.classList.toggle('active', l.dataset.view === viewId));
-  $('#page-title').textContent = NAV_TITLES[viewId] || viewId;
+  const activeStep = STEP_BY_VIEW[viewId] || viewId;
+  $$('.nav-link[data-view]').forEach(link => {
+    const active = link.dataset.view === activeStep;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'step');
+    else link.removeAttribute('aria-current');
+  });
+  const heading = $('#page-title');
+  heading.textContent = NAV_TITLES[viewId] || viewId;
+  if (focusHeading) heading.focus({ preventScroll: true });
 }
