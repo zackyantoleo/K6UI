@@ -2,6 +2,7 @@
 // This object is sent to POST /api/generate and /api/run, and is also the
 // save-file format for projects (see the schema in CLAUDE.md).
 import { $, $$ } from './dom.js';
+import { createRequestId, projectStore } from './project-store.js';
 
 // ── Row readers — used by main cards & sub-requests ────────────
 function readHeaderRows(scope) {
@@ -49,6 +50,7 @@ function collectReqList(containerId) {
   return $$(`#${containerId} .req-card`).map(card => {
     const body = card.querySelector('.req-card-body');
     return {
+      id:          card.dataset.requestId || createRequestId(),
       type:        card.querySelector('.protocol').value,   // 'http' | 'grpc'
       method:      card.querySelector('.method').value,
       url:         card.querySelector('.url').value.trim(),
@@ -91,7 +93,7 @@ export function collectConfig() {
       target:   s.querySelector('.stage-target').value,
     }));
   }
-  return {
+  const config = {
     scenario:      { requests: collectReqList('reqs-main') },
     variables:     readVariableRows(),
     globalHeaders: readHeaderRows($('#global-headers-list')),
@@ -99,6 +101,7 @@ export function collectConfig() {
     thresholds:    { p95: $('#p95').value, errorRate: $('#errorRate').value },
     options:       { logRequests: $('#log-requests')?.checked ?? true },
   };
+  return projectStore.replace(config);
 }
 
 export function validate(config) {

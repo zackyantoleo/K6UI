@@ -11,10 +11,10 @@ async function source(path) {
   return readFile(join(root, path), 'utf8');
 }
 
-test('project save persists collectConfig as readable JSON', async () => {
+test('project save persists normalized collectConfig as readable versioned JSON', async () => {
   const js = await source('public/js/project-io.js');
   assert.match(js, /const cfg\s*=\s*collectConfig\(\)/);
-  assert.match(js, /JSON\.stringify\(cfg, null, 2\)/);
+  assert.match(js, /serializeProject\(cfg\)/);
   assert.match(js, /type:\s*'application\/json'/);
   assert.match(js, /download:\s*'k6-project\.json'/);
 });
