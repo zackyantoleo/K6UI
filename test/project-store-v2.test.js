@@ -30,7 +30,7 @@ test('v1 migration adds schemaVersion and deterministic unique request IDs witho
   assert.equal(migratedA.schemaVersion, 2);
   assert.equal(migratedA.scenario.requests.length, 2);
   assert.deepEqual(
-    migratedA.scenario.requests.map(({ id: _id, ...request }) => request),
+    migratedA.scenario.requests.map(({ id: _id, name: _name, enabled: _enabled, ...request }) => request),
     legacyV1.scenario.requests,
   );
   assert.deepEqual(
@@ -80,6 +80,14 @@ test('project store owns normalized immutable state and round-trips v2 JSON', ()
 
   const json = serializeProject(store.getState());
   assert.deepEqual(migrateProject(JSON.parse(json)), store.getState());
+});
+
+test('request names and disabled state survive project normalization', () => {
+  const migrated = migrateProject({
+    scenario: { requests: [{ name: ' Login ', enabled: false, method: 'POST', url: '/login' }] },
+  });
+  assert.equal(migrated.scenario.requests[0].name, 'Login');
+  assert.equal(migrated.scenario.requests[0].enabled, false);
 });
 
 test('defaults make partial legacy projects safe to apply', () => {
