@@ -4,12 +4,18 @@ import { $ } from '../dom.js';
 import { reqCard, setRequestExpanded } from './req-card.js';
 import { refreshFlowEmptyState } from './counts.js';
 import { createRequestId } from '../project-store.js';
+import {
+  applyRequestGroupVisibility,
+  createRequestGroup,
+  refreshRequestGroupOptions,
+} from './request-groups.js';
 
 export function addRequest({ openCurl = false } = {}) {
   const container = $('#reqs-main');
   const card = reqCard(container.children.length, 'main', createRequestId());
   container.appendChild(card);
   refreshFlowEmptyState();
+  refreshRequestGroupOptions();
   setRequestExpanded(card, true);
   if (openCurl) card.querySelector('.req-action-btn.curl').click();
   else card.querySelector('.url').focus();
@@ -84,6 +90,32 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   zDesc.className = 'zone-desc';
   zDesc.textContent = descHTML.replace(/<[^>]+>/g, '');
 
+  const groupsPanel = document.createElement('section');
+  groupsPanel.className = 'request-groups-panel';
+  groupsPanel.setAttribute('aria-label', 'Request groups');
+  const groupsHead = document.createElement('div');
+  groupsHead.className = 'request-groups-head';
+  const groupsIntro = document.createElement('div');
+  const groupsTitle = document.createElement('strong');
+  groupsTitle.textContent = 'Request groups';
+  const groupsHint = document.createElement('small');
+  groupsHint.textContent = 'Optional one-level organization and shared header defaults.';
+  groupsIntro.append(groupsTitle, groupsHint);
+  const addGroup = document.createElement('button');
+  addGroup.type = 'button';
+  addGroup.className = 'btn-secondary add-request-group';
+  addGroup.textContent = '+ Add Group';
+  const groupsContainer = document.createElement('div');
+  groupsContainer.id = 'request-groups';
+  addGroup.addEventListener('click', () => {
+    const group = createRequestGroup();
+    groupsContainer.appendChild(group);
+    refreshRequestGroupOptions();
+    group.querySelector('.request-group-name').focus();
+  });
+  groupsHead.append(groupsIntro, addGroup);
+  groupsPanel.append(groupsHead, groupsContainer);
+
   const zBody = document.createElement('div');
   zBody.className = 'zone-body';
   zBody.id = `zone-body-${ctx}`;
@@ -97,6 +129,7 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   addBtn.addEventListener('click', () => addRequest());
 
   zBody.append(reqCont, addBtn);
-  zone.append(zHead, zDesc, zBody);
+  zone.append(zHead, zDesc, groupsPanel, zBody);
+  window.addEventListener('k6ui:project-applied', applyRequestGroupVisibility);
   return zone;
 }

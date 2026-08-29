@@ -84,10 +84,9 @@ function buildProcessorBlock(code, label, resVar) {
   return lines.join("\n") + "\n";
 }
 
-// Global headers are merged into every request (including pre/post
-// sub-requests) at codegen time, so their values go through the normal
-// {{var}} interpolation. A request-level header with the same name
-// (case-insensitive, as HTTP headers are) overrides the global one.
+// Headers are merged global → group → request (including pre/post
+// sub-requests) at codegen time. Later levels override earlier levels using
+// case-insensitive HTTP header names.
 function mergeHeaders(globalHeaders, reqHeaders) {
   const out = [];
   const byName = new Map(); // lowercase name → index in out
@@ -110,11 +109,33 @@ export function generateScript(config) {
 
   const globalHeaders = (Array.isArray(config.globalHeaders) ? config.globalHeaders : [])
     .filter((h) => h && h.key && String(h.key).trim());
-  const withGlobalHeaders = (req) =>
-    globalHeaders.length ? { ...req, headers: mergeHeaders(globalHeaders, req.headers) } : req;
+  const groups = new Map(
+    (Array.isArray(scenario.groups) ? scenario.groups : [])
+      .filter((group) => group && group.id)
+      .map((group) => [group.id, group])
+  );
+  const withInheritedHeaders = (req) => {
+    const group = req && groups.get(req.groupId);
+    const groupHeaders = group?.headers || [];
+    const grouped = group
+      ? {
+          ...req,
+          headers: mergeHeaders(groupHeaders, req.headers),
+          _groupName: group.name || "Request group",
+          _groupHeaders: groupHeaders,
+        }
+      : { ...req, _groupHeaders: [] };
+    return globalHeaders.length
+      ? { ...grouped, headers: mergeHeaders(globalHeaders, grouped.headers) }
+      : grouped;
+  };
 
   const mainReqs = (scenario.requests || [])
-    .filter((r) => r && r.enabled !== false && String(r.url || "").trim());
+    .filter((r) => {
+      const group = r && groups.get(r.groupId);
+      return r && r.enabled !== false && (!group || group.enabled !== false) && String(r.url || "").trim();
+    })
+    .map(withInheritedHeaders);
 
   // Auto-import the k6 utility modules a processor script refers to, so
   // e.g. crypto.sha256(...) works in a pre/post-processor out of the box.
@@ -172,11 +193,16 @@ export function generateScript(config) {
     const preScript  = String(req.preScript  || "").trim();
     const postScript = String(req.postScript || "").trim();
 
+    if (req._groupName) {
+      out += `\n  // Group: ${String(req._groupName).replace(/[\r\n]+/g, " ")}\n`;
+    }
+
     // ── Pre sub-request ──────────────────────────────────────
     const preReq = req.pre && String(req.pre.url || "").trim() ? req.pre : null;
     if (preReq) {
       out += `\n  // Pre: request ${i + 1}\n`;
-      out += buildRequestCode(withGlobalHeaders(preReq), i, `pre${i}`, ctx, null, false);
+      const preHeaders = mergeHeaders(globalHeaders, mergeHeaders(req._groupHeaders, preReq.headers));
+      out += buildRequestCode({ ...preReq, headers: preHeaders }, i, `pre${i}`, ctx, null, false);
       out += "\n";
       for (const e of preReq.extractions || []) {
         if (e && e.varName) declaredVars.add(e.varName);
@@ -194,9 +220,9 @@ export function generateScript(config) {
     const isGrpc = req.type === "grpc";
     if (isGrpc) {
       validateGrpcRequest(req, `Request ${i + 1}`);
-      out += "\n" + buildGrpcRequestCode(withGlobalHeaders(req), i, "main", ctx, logRequests);
+      out += "\n" + buildGrpcRequestCode(req, i, "main", ctx, logRequests);
     } else {
-      out += "\n" + buildRequestCode(withGlobalHeaders(req), i, "main", ctx, null, logRequests);
+      out += "\n" + buildRequestCode(req, i, "main", ctx, null, logRequests);
     }
     out += "\n";
 
@@ -215,7 +241,8 @@ export function generateScript(config) {
     const postReq = req.post && String(req.post.url || "").trim() ? req.post : null;
     if (postReq) {
       out += `\n  // Post: request ${i + 1}\n`;
-      out += buildRequestCode(withGlobalHeaders(postReq), i, `post${i}`, ctx, null, false);
+      const postHeaders = mergeHeaders(globalHeaders, mergeHeaders(req._groupHeaders, postReq.headers));
+      out += buildRequestCode({ ...postReq, headers: postHeaders }, i, `post${i}`, ctx, null, false);
       out += "\n";
       for (const e of postReq.extractions || []) {
         if (e && e.varName) declaredVars.add(e.varName);

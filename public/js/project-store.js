@@ -3,10 +3,11 @@
 export const CURRENT_SCHEMA_VERSION = 2;
 
 const REQUEST_ID_PATTERN = /^req_[a-z0-9_-]+$/;
+const GROUP_ID_PATTERN = /^grp_[a-z0-9_-]+$/;
 
 const DEFAULT_PROJECT = Object.freeze({
   schemaVersion: CURRENT_SCHEMA_VERSION,
-  scenario: { requests: [] },
+  scenario: { groups: [], requests: [] },
   variables: [],
   globalHeaders: [],
   load: { mode: 'simple', vus: 10, duration: '30s', stages: [] },
@@ -25,8 +26,8 @@ function deepFreeze(value) {
   return value;
 }
 
-function hashRequest(request, index) {
-  const source = `${index}:${JSON.stringify(request)}`;
+function hashItem(item, index) {
+  const source = `${index}:${JSON.stringify(item)}`;
   let hash = 2166136261;
   for (let i = 0; i < source.length; i += 1) {
     hash ^= source.charCodeAt(i);
@@ -35,13 +36,13 @@ function hashRequest(request, index) {
   return (hash >>> 0).toString(36);
 }
 
-function uniqueRequestId(request, index, used) {
-  const existing = typeof request.id === 'string' ? request.id.trim().toLowerCase() : '';
-  if (REQUEST_ID_PATTERN.test(existing) && !used.has(existing)) return existing;
+function uniqueItemId(item, index, used, prefix, pattern) {
+  const existing = typeof item.id === 'string' ? item.id.trim().toLowerCase() : '';
+  if (pattern.test(existing) && !used.has(existing)) return existing;
 
-  const withoutId = { ...request };
+  const withoutId = { ...item };
   delete withoutId.id;
-  const base = `req_${hashRequest(withoutId, index)}`;
+  const base = `${prefix}_${hashItem(withoutId, index)}`;
   let id = base;
   let suffix = 2;
   while (used.has(id)) {
@@ -51,15 +52,41 @@ function uniqueRequestId(request, index, used) {
   return id;
 }
 
-function normalizeRequest(rawRequest, index, used) {
+function normalizeGroup(rawGroup, index, used) {
+  if (!rawGroup || typeof rawGroup !== 'object' || Array.isArray(rawGroup)) {
+    throw new TypeError(`Request group ${index + 1} must be an object.`);
+  }
+  const group = clone(rawGroup);
+  group.id = uniqueItemId(group, index, used, 'grp', GROUP_ID_PATTERN);
+  used.add(group.id);
+  group.name = typeof group.name === 'string' ? group.name.trim().slice(0, 120) : '';
+  group.enabled = group.enabled !== false;
+  group.collapsed = group.collapsed === true;
+  group.headers = Array.isArray(group.headers)
+    ? group.headers
+      .filter(header => header && typeof header === 'object' && String(header.key || '').trim())
+      .map(header => ({ key: String(header.key).trim(), value: String(header.value ?? '') }))
+    : [];
+  // Request groups are deliberately flat. Hierarchy-shaped fields are dropped
+  // instead of allowing imported projects to grow a JMeter-like tree.
+  delete group.parentId;
+  delete group.parentGroupId;
+  delete group.children;
+  delete group.groups;
+  delete group.nestedGroups;
+  return group;
+}
+
+function normalizeRequest(rawRequest, index, used, validGroupIds) {
   if (!rawRequest || typeof rawRequest !== 'object' || Array.isArray(rawRequest)) {
     throw new TypeError(`Request ${index + 1} must be an object.`);
   }
   const request = clone(rawRequest);
-  request.id = uniqueRequestId(request, index, used);
+  request.id = uniqueItemId(request, index, used, 'req', REQUEST_ID_PATTERN);
   used.add(request.id);
   request.name = typeof request.name === 'string' ? request.name.trim().slice(0, 120) : '';
   request.enabled = request.enabled !== false;
+  request.groupId = validGroupIds.has(request.groupId) ? request.groupId : '';
   if (!request.type) request.type = 'http';
   return request;
 }
@@ -74,14 +101,22 @@ function normalizeProject(rawProject) {
   if (requests !== undefined && !Array.isArray(requests)) {
     throw new TypeError('Project scenario.requests must be an array.');
   }
+  const groups = source.scenario?.groups;
+  if (groups !== undefined && !Array.isArray(groups)) {
+    throw new TypeError('Project scenario.groups must be an array.');
+  }
 
-  const used = new Set();
+  const usedGroupIds = new Set();
+  const normalizedGroups = (groups || []).map((group, index) => normalizeGroup(group, index, usedGroupIds));
+  const usedRequestIds = new Set();
   return {
     ...source,
     schemaVersion: CURRENT_SCHEMA_VERSION,
     scenario: {
       ...(source.scenario || {}),
-      requests: (requests || []).map((request, index) => normalizeRequest(request, index, used)),
+      groups: normalizedGroups,
+      requests: (requests || []).map((request, index) =>
+        normalizeRequest(request, index, usedRequestIds, usedGroupIds)),
     },
     variables: Array.isArray(source.variables) ? source.variables : [],
     globalHeaders: Array.isArray(source.globalHeaders) ? source.globalHeaders : [],
@@ -110,6 +145,11 @@ export function migrateProject(rawProject) {
 export function createRequestId() {
   if (globalThis.crypto?.randomUUID) return `req_${globalThis.crypto.randomUUID().replaceAll('-', '')}`;
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createRequestGroupId() {
+  if (globalThis.crypto?.randomUUID) return `grp_${globalThis.crypto.randomUUID().replaceAll('-', '')}`;
+  return `grp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function createProjectStore(initialProject = DEFAULT_PROJECT) {

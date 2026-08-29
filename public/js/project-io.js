@@ -9,6 +9,7 @@ import { stageRow } from './components/flow-view.js';
 import { refreshFlowEmptyState } from './components/counts.js';
 import { collectConfig } from './config.js';
 import { migrateProject, projectStore, serializeProject } from './project-store.js';
+import { refreshRequestGroupOptions, restoreGroups } from './components/request-groups.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 function fillSubReq(section, req) {
@@ -40,6 +41,7 @@ export function hydrateRequestCard(card, req) {
   card.dataset.requestId = req.id || card.dataset.requestId;
   card.requestState = req;
   card.querySelector('.request-name').value = req.name || '';
+  refreshRequestGroupOptions(new Map([[card, req.groupId || '']]));
   const enabled = card.querySelector('.request-enabled');
   enabled.checked = req.enabled !== false;
   enabled.dispatchEvent(new Event('change'));
@@ -64,8 +66,8 @@ function restoreZone(requests) {
   container.innerHTML = '';
   for (let i = 0; i < requests.length; i++) {
     const card = reqCard(i, 'main', requests[i].id);
-    hydrateRequestCard(card, requests[i]);
     container.appendChild(card);
+    hydrateRequestCard(card, requests[i]);
   }
   if (container.firstElementChild) setRequestExpanded(container.firstElementChild, true);
   renumberMain();
@@ -120,6 +122,7 @@ export function applyConfig(cfg) {
   const logReqEl = $('#log-requests');
   if (logReqEl) logReqEl.checked = cfg.options?.logRequests ?? false;
 
+  restoreGroups(cfg.scenario?.groups || []);
   restoreZone(cfg.scenario?.requests || []);
   window.dispatchEvent(new CustomEvent('k6ui:project-applied'));
   navigate('flow');

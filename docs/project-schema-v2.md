@@ -8,6 +8,8 @@ PR-02 introduces a lightweight, versioned project state without adding a tree or
 - Saving always emits `schemaVersion: 2`.
 - Existing valid request IDs are preserved.
 - Missing or duplicate request IDs are assigned deterministic, unique `req_*` IDs.
+- Request groups remain one level deep, use stable `grp_*` IDs, and requests
+  reference them through `groupId` without changing global execution order.
 - Unknown schema versions fail with an actionable compatibility error instead of being applied partially.
 - Imported objects are cloned; migration does not mutate caller-owned data.
 
@@ -17,9 +19,21 @@ PR-02 introduces a lightweight, versioned project state without adding a tree or
 {
   "schemaVersion": 2,
   "scenario": {
+    "groups": [
+      {
+        "id": "grp_auth",
+        "name": "Auth flow",
+        "enabled": true,
+        "collapsed": false,
+        "headers": [
+          { "key": "X-Service", "value": "auth" }
+        ]
+      }
+    ],
     "requests": [
       {
         "id": "req_login",
+        "groupId": "grp_auth",
         "type": "http",
         "method": "POST",
         "url": "https://example.test/login"
@@ -40,6 +54,8 @@ PR-02 introduces a lightweight, versioned project state without adding a tree or
 ```
 
 Additional existing request fields remain supported and pass through migration unchanged.
+Group header defaults are applied during generation with precedence
+`global < group < request`; disabling a group skips its member requests.
 
 ## State boundary
 

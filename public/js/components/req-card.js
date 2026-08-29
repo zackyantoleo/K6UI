@@ -219,6 +219,7 @@ function requestSnapshot(card) {
   const selectors = [
     '.request-name', '.protocol', '.method', '.url', '.grpc-method', '.grpc-plaintext',
     '.body', '.check-status', '.sleep', '.pre-script', '.post-script', '.request-enabled',
+    '.request-group-select',
   ];
   for (const selector of selectors) {
     const field = card.querySelector(selector);
@@ -362,6 +363,13 @@ export function reqCard(index, context, requestId = '') {
   methodPreview.className = 'method-badge request-method-preview m-GET';
   methodPreview.textContent = 'GET';
   methodPreview.setAttribute('aria-hidden', 'true');
+  const groupSelect = document.createElement('select');
+  groupSelect.className = 'request-group-select';
+  groupSelect.setAttribute('aria-label', `Request ${index + 1} group`);
+  const ungroupedOption = document.createElement('option');
+  ungroupedOption.value = '';
+  ungroupedOption.textContent = 'No group';
+  groupSelect.appendChild(ungroupedOption);
   const url = document.createElement('input');
   url.className = 'url';
   url.placeholder = 'https://api.example.com/endpoint';
@@ -386,7 +394,7 @@ export function reqCard(index, context, requestId = '') {
   expand.setAttribute('aria-expanded', 'false');
   const remove = button(`Remove request ${index + 1}`, 'req-action-btn del', '✕');
   actions.append(moveUp, moveDown, duplicate, curl, expand, remove);
-  head.append(num, namePreview, methodPreview, nameInput, protocol, method, url, preview, enabledLabel, actions);
+  head.append(num, namePreview, methodPreview, nameInput, protocol, method, url, preview, groupSelect, enabledLabel, actions);
 
   const grpcRow = document.createElement('div');
   grpcRow.className = 'grpc-row hidden';
@@ -469,6 +477,9 @@ export function reqCard(index, context, requestId = '') {
   nameInput.addEventListener('input', syncPreview);
   url.addEventListener('input', syncPreview);
   enabled.addEventListener('change', syncEnabled);
+  groupSelect.addEventListener('change', () => {
+    window.dispatchEvent(new CustomEvent('k6ui:request-group-changed'));
+  });
   curl.addEventListener('click', event => { event.stopPropagation(); openCurlImport(card); });
   expand.addEventListener('click', event => {
     event.stopPropagation();
@@ -493,8 +504,12 @@ export function reqCard(index, context, requestId = '') {
     const clone = reqCard([...card.parentElement.children].indexOf(card) + 1, context, '');
     for (const panelId of Object.keys(lazyPanelFactories)) ensureRequestPanel(card, panelId);
     for (const panelId of Object.keys(lazyPanelFactories)) ensureRequestPanel(clone, panelId);
-    applySnapshot(clone, requestSnapshot(card));
+    const snapshot = requestSnapshot(card);
+    applySnapshot(clone, snapshot);
     card.after(clone);
+    window.dispatchEvent(new CustomEvent('k6ui:refresh-request-groups', {
+      detail: { preferredGroups: new Map([[clone, snapshot['.request-group-select'] || '']]) },
+    }));
     renumberMain();
     refreshFlowEmptyState();
     setRequestExpanded(clone, true);
