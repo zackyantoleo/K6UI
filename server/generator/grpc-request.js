@@ -68,7 +68,7 @@ export function buildGrpcRequestCode(req, index, prefix, ctx, logRequests) {
   // Same {__r:1,...} JSON shape as HTTP requests → "Request Details" table.
   if (logRequests) {
     lines.push(
-      `  try { console.log(JSON.stringify({__r:1,vu:__VU,it:__ITER,i:${index},m:"GRPC",url:String(${addrCode})+"/"+String(${methodCode}),s:${resVar}.status,d:d_${prefix}_${index},ok:${resVar}.status===grpc.StatusOK,rb:JSON.stringify(${resVar}.message||{}).slice(0,500)})); } catch(e) {}`
+      `  try { console.log(JSON.stringify({__r:1,vu:__VU,it:__ITER,i:${index},m:"gRPC",url:redactRequestUrl(String(${addrCode})+"/"+String(${methodCode})),s:${resVar}.status,d:+(${resVar}.timings.duration.toFixed(1)),ok:${resVar}.status===0,rb:redactResponseSample(JSON.stringify(${resVar}.message||{}))})); } catch(e) {}`
     );
   }
 

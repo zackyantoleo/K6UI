@@ -60,7 +60,7 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
   // (k6-runner.js) into req-log events for the "Request Details" table.
   if (logRequests) {
     lines.push(
-      `  try { console.log(JSON.stringify({__r:1,vu:__VU,it:__ITER,i:${index},m:${JSON.stringify(method)},url:String(${urlCode}),s:${resVar}.status,d:+(${resVar}.timings.duration.toFixed(1)),ok:${resVar}.status>=200&&${resVar}.status<400,rb:String(${resVar}.body||'').slice(0,500)})); } catch(e) {}`
+      `  try { console.log(JSON.stringify({__r:1,vu:__VU,it:__ITER,i:${index},m:${JSON.stringify(method)},url:redactRequestUrl(String(${urlCode})),s:${resVar}.status,d:+(${resVar}.timings.duration.toFixed(1)),ok:${resVar}.status>=200&&${resVar}.status<400,rb:redactResponseSample(${resVar}.body)})); } catch(e) {}`
     );
   }
 

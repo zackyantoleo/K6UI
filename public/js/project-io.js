@@ -118,7 +118,7 @@ export function applyConfig(cfg) {
   $('#p95').value       = cfg.thresholds?.p95       ?? '';
   $('#errorRate').value = cfg.thresholds?.errorRate ?? '';
   const logReqEl = $('#log-requests');
-  if (logReqEl) logReqEl.checked = cfg.options?.logRequests ?? true;
+  if (logReqEl) logReqEl.checked = cfg.options?.logRequests ?? false;
 
   restoreZone(cfg.scenario?.requests || []);
   window.dispatchEvent(new CustomEvent('k6ui:project-applied'));

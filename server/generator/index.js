@@ -10,6 +10,35 @@ import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
 import { buildAssertionsCode } from "./assertions.js";
 
+// Request logging is opt-in because URLs and response samples can contain
+// credentials or personal data. This helper runs inside the generated k6
+// script before a response sample is emitted to K6UI.
+const RESPONSE_REDACTOR_SOURCE = `
+function redactResponseSample(value) {
+  let text = String(value == null ? '' : value).slice(0, 500);
+  text = text.replace(/(["']?(?:authorization|proxy-authorization|token|access_token|refresh_token|api[_-]?key|password|passwd|secret)["']?\\s*[:=]\\s*)["']?[^,"'&\\s}]+/gi, '$1[REDACTED]');
+  text = text.replace(/(Bearer\\s+)[A-Za-z0-9._~+\\/-]+=*/gi, '$1[REDACTED]');
+  return text;
+}
+
+function redactRequestUrl(value) {
+  const text = redactResponseSample(value);
+  const queryStart = text.indexOf('?');
+  if (queryStart < 0) return text;
+  return text.slice(0, queryStart + 1) + text.slice(queryStart + 1)
+    .split('&')
+    .map(function (part) {
+      const separator = part.indexOf('=');
+      if (separator < 0) return part;
+      const key = part.slice(0, separator);
+      const decodedKey = decodeURIComponent(key.replace(/\\+/g, ' '));
+      return /(?:authorization|token|api[_-]?key|password|passwd|secret)/i.test(decodedKey)
+        ? key + '=[REDACTED]'
+        : part;
+    })
+    .join('&');
+}`;
+
 // Global variables must be valid JS identifiers: they are emitted as object
 // keys on GLOBALS and referenced via dot access ({{name}} → GLOBALS.name).
 const VALID_VAR_NAME = /^[A-Za-z_]\w*$/;
@@ -99,7 +128,8 @@ export function generateScript(config) {
 
   let out = "";
   out += `import http from 'k6/http';\n`;
-  out += `import { check, sleep } from 'k6';\n`;
+  out += `import { sleep, check } from 'k6';\n\n`;
+  if (logRequests) out += `${RESPONSE_REDACTOR_SOURCE}\n\n`;
   if (grpcIndexes.length)              out += `import grpc from 'k6/net/grpc';\n`;
   if (/\bcrypto\./.test(allScripts))   out += `import crypto from 'k6/crypto';\n`;
   if (/\bencoding\./.test(allScripts)) out += `import encoding from 'k6/encoding';\n`;
