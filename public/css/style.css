@@ -331,6 +331,39 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
 .zone-main { border-top: 3px solid var(--accent-2); }
 .zone-post { border-top: 3px solid var(--accent-3); }
 
+.request-groups-panel {
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.request-groups-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.request-groups-head strong { display: block; font-size: 13px; }
+.request-groups-head small { display: block; margin-top: 2px; color: var(--text-muted); }
+#request-groups { display: grid; gap: 8px; margin-top: 10px; }
+#request-groups:empty { display: none; }
+.request-group {
+  border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+  background: var(--surface-3); overflow: hidden;
+}
+.request-group-head { display: flex; align-items: center; gap: 9px; padding: 8px 10px; }
+.request-group-name { flex: 1; min-width: 150px; font-weight: 600; }
+.request-group-collapse, .request-group-remove {
+  background: none; border: 1px solid var(--border-2); color: var(--text-muted);
+  border-radius: 6px; cursor: pointer; padding: 5px 8px;
+}
+.request-group-enabled-label { display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; }
+.request-group-enabled-label input { width: auto; accent-color: var(--accent); }
+.request-group-body { padding: 0 10px 10px 47px; }
+.request-group-body p { color: var(--text-muted); font-size: 11.5px; margin-bottom: 7px; }
+.request-group.collapsed .request-group-body { display: none; }
+.request-group.collapsed .request-group-collapse { transform: rotate(-90deg); }
+.request-group-disabled { opacity: .62; }
+.group-collapsed-hidden { display: none; }
+.request-group-select { width: 120px; min-width: 105px; font-size: 11px; }
+
 .zone-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: 14px 16px 10px;
@@ -474,10 +507,14 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
 }
 
 @media (max-width: 640px) {
+  .request-groups-head, .request-group-head { align-items: stretch; flex-direction: column; }
+  .request-group-name, .request-group-select { width: 100%; }
+  .request-group-body { padding-left: 10px; }
   .req-card-head { grid-template-columns: auto minmax(0, 1fr); }
   .req-card-head .protocol,
   .req-card-head .method,
-  .request-enabled-label { grid-column: 2; }
+  .request-enabled-label,
+  .request-group-select { grid-column: 2; }
   .req-card-head .url,
   .req-url-preview,
   .req-card-actions { grid-column: 1 / -1; }

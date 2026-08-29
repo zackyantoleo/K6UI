@@ -3,6 +3,7 @@
 // save-file format for projects (see the schema in CLAUDE.md).
 import { $, $$ } from './dom.js';
 import { createRequestId, projectStore } from './project-store.js';
+import { collectRequestGroups } from './components/request-groups.js';
 
 // ── Row readers — used by main cards & sub-requests ────────────
 function readHeaderRows(scope) {
@@ -57,6 +58,7 @@ function collectReqList(containerId) {
       id:          card.dataset.requestId,
       name:        card.querySelector('.request-name')?.value.trim() || '',
       enabled:     card.querySelector('.request-enabled')?.checked !== false,
+      groupId:     card.querySelector('.request-group-select')?.value || '',
       type:        card.querySelector('.protocol').value,   // 'http' | 'grpc'
       method:      card.querySelector('.method').value,
       url:         card.querySelector('.url').value.trim(),
@@ -100,7 +102,7 @@ export function collectConfig() {
     }));
   }
   const config = {
-    scenario:      { requests: collectReqList('reqs-main') },
+    scenario:      { groups: collectRequestGroups(), requests: collectReqList('reqs-main') },
     variables:     readVariableRows(),
     globalHeaders: readHeaderRows($('#global-headers-list')),
     load,

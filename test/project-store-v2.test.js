@@ -30,7 +30,7 @@ test('v1 migration adds schemaVersion and deterministic unique request IDs witho
   assert.equal(migratedA.schemaVersion, 2);
   assert.equal(migratedA.scenario.requests.length, 2);
   assert.deepEqual(
-    migratedA.scenario.requests.map(({ id: _id, name: _name, enabled: _enabled, ...request }) => request),
+    migratedA.scenario.requests.map(({ id: _id, name: _name, enabled: _enabled, groupId: _groupId, ...request }) => request),
     legacyV1.scenario.requests,
   );
   assert.deepEqual(
