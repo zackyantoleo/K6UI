@@ -102,7 +102,8 @@ export async function startK6Run(script, { onEvent, onEnd }) {
     } catch {
       // the summary may be missing if the test failed very early
     }
-    onEvent("done", { code, summary });
+    const outcome = code === 0 ? "passed" : code === 99 ? "threshold-failed" : "failed";
+    onEvent("done", { code, outcome, summary });
     await cleanup();
     onEnd();
   });

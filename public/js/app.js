@@ -6,7 +6,10 @@ import { navigate } from './nav.js';
 import { variableRow, headerRow } from './components/rows.js';
 import { addRequest, buildFlowView, stageRow } from './components/flow-view.js';
 import { collectConfig, validate } from './config.js';
-import { runTest, stopTest, applyReqFilter, checkK6 } from './runner.js';
+import {
+  runTest, stopTest, applyReqFilter, checkK6, activateResultsTab,
+  clearResults, clearLiveLog, clearErrors,
+} from './runner.js';
 import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';
 
@@ -128,23 +131,32 @@ $('#copy-script').addEventListener('click', () => {
   setTimeout(() => ($('#copy-script').textContent = 'Copy'), 1600);
 });
 
-// ── Results tabs ───────────────────────────────────────────────
-$$('.results-tab[data-tab]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    $$('.results-tab[data-tab]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const id = btn.dataset.tab;
-    $('#tab-live').classList.toggle('hidden',     id !== 'live');
-    $('#tab-requests').classList.toggle('hidden', id !== 'requests');
+// ── Results workspace ──────────────────────────────────────────
+const resultsTabs = $$('.results-tab[data-tab]');
+resultsTabs.forEach((tab, index) => {
+  tab.addEventListener('click', () => activateResultsTab(tab.dataset.tab));
+  tab.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    let next = index;
+    if (event.key === 'ArrowLeft') next = (index - 1 + resultsTabs.length) % resultsTabs.length;
+    if (event.key === 'ArrowRight') next = (index + 1) % resultsTabs.length;
+    if (event.key === 'Home') next = 0;
+    if (event.key === 'End') next = resultsTabs.length - 1;
+    activateResultsTab(resultsTabs[next].dataset.tab, { focus: true });
   });
 });
 
 $('#filter-errors-only')?.addEventListener('change', applyReqFilter);
 $('#filter-url')?.addEventListener('input', applyReqFilter);
+$('#clear-results')?.addEventListener('click', clearResults);
+$('#clear-live-log')?.addEventListener('click', clearLiveLog);
+$('#clear-errors')?.addEventListener('click', clearErrors);
 
 // ── Run / Stop ─────────────────────────────────────────────────
 $('#run-btn').addEventListener('click', runTest);
 $('#results-run-btn').addEventListener('click', runTest);
+$('#results-empty-run-btn').addEventListener('click', runTest);
 $('#stop-btn').addEventListener('click', stopTest);
 
 // ── Save / Open project ────────────────────────────────────────
