@@ -10,6 +10,7 @@ const k6Runner = read('../server/k6-runner.js');
 const generator = read('../server/generator/index.js');
 const requestGenerator = read('../server/generator/request.js');
 const grpcGenerator = read('../server/generator/grpc-request.js');
+const css = read('../public/css/style.css');
 
 test('results workspace separates overview, requests, metrics, errors, and optional live log', () => {
   for (const tab of ['overview', 'requests', 'metrics', 'errors', 'live']) {
@@ -88,4 +89,9 @@ test('request logging redacts sensitive values from URLs as well as response sam
   assert.match(requestGenerator, /url:redactRequestUrl\(String\(/);
   assert.match(grpcGenerator, /url:redactRequestUrl\(String\(/);
   assert.match(generator, /decodeURIComponent/);
+});
+
+test('expanded request editor gives the endpoint a full-width row', () => {
+  assert.match(css, /\.req-card\.expanded \.req-card-head\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:/s);
+  assert.match(css, /\.req-card\.expanded \.req-card-head input\.url\s*\{[^}]*grid-column:\s*2\s*\/\s*-1[^}]*min-width:\s*min\(320px,\s*100%\)/s);
 });
