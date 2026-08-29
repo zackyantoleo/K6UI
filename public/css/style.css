@@ -386,6 +386,17 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
   padding: 10px 12px; cursor: pointer;
   user-select: none;
 }
+.req-card.expanded .req-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(128px, .55fr) 82px 104px minmax(0, 1fr) auto;
+}
+.req-card.expanded .req-card-head input.url {
+  grid-column: 2 / -1;
+  min-width: min(320px, 100%);
+  width: 100%;
+}
+.req-card.expanded .req-card-head .request-enabled-label,
+.req-card.expanded .req-card-head .req-card-actions { grid-row: 1; }
 .req-card-head:hover .req-url-preview { color: var(--text); }
 .request-name { width: 128px; min-width: 92px; font-weight: 600; }
 .request-name-preview { display: none; min-width: 88px; color: var(--text); font-size: 12px; }
