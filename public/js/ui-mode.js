@@ -22,6 +22,11 @@ export function initUiMode() {
       nav.hidden = nav.dataset.uiNav !== mode;
     });
     radios.forEach(radio => { radio.checked = radio.value === mode; });
+    // The decorative run indicator keeps one element (runner.js updates it by
+    // ID) and follows the visible nav, so a running test shows in both modes.
+    const dot = document.querySelector('#nav-run-dot');
+    const resultsLink = document.querySelector(`[data-ui-nav="${mode}"] .nav-link[data-view="results"]`);
+    if (dot && resultsLink && dot.parentElement !== resultsLink) resultsLink.appendChild(dot);
     navigate(getCurrentView(), { focusHeading: false });
     window.dispatchEvent(new CustomEvent('k6ui:ui-mode-changed', { detail: { mode } }));
   }

@@ -61,6 +61,9 @@ button, input, select, textarea { font-family: inherit; }
 .ui-mode-switch input:checked + span { color: var(--text); background: var(--accent-lite); border-color: var(--accent); }
 .ui-mode-switch input:focus-visible + span { outline: 3px solid #0ea5e9; outline-offset: 2px; }
 [data-ui-nav][hidden] { display: none !important; }
+/* Presentation-only pieces of one mode; the shared DOM stays in place. */
+html[data-ui-mode="advanced"] [data-ui-only="simple"],
+html[data-ui-mode="simple"] [data-ui-only="advanced"] { display: none !important; }
 .category-list { list-style: none; padding: 4px 10px; display: grid; gap: 5px; }
 .category-list .nav-link { min-height: 44px; }
 .brand { display: flex; align-items: center; gap: 10px; }
@@ -198,6 +201,19 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
   border-radius: 4px; padding: 1px 5px;
   font-family: ui-monospace, monospace; font-size: 12px;
 }
+.advanced-notice {
+  display: grid; gap: 6px; padding: 12px 14px;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  background: var(--accent-lite); font-size: 12.5px; color: var(--text);
+}
+.advanced-notice[hidden], .advanced-notice [hidden] { display: none; }
+.advanced-notice h3 { font-size: 13.5px; }
+.advanced-notice ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.advanced-notice li {
+  padding: 3px 9px; border: 1px solid var(--border-2); border-radius: 999px;
+  background: var(--surface-2); overflow-wrap: anywhere;
+}
+.advanced-notice-skipped, .advanced-notice-foot { color: var(--text-muted); }
 
 .flow-empty-state, .results-empty-state {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
@@ -244,6 +260,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 .preset-btn:focus-visible, .check-template-btn:focus-visible, #customize-load:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
+/* Advanced: the custom load editor is always shown (presentation only); Simple
+   keeps its own Customize disclosure state underneath. */
+html[data-ui-mode="advanced"] #load-custom-editor.hidden { display: block !important; }
+html[data-ui-mode="advanced"] #customize-load { display: none; }
 .load-guidance {
   display: grid; gap: 6px; margin-top: 14px; padding: 12px;
   border-radius: 8px; background: var(--surface-3); color: var(--text-muted);
@@ -852,6 +872,7 @@ html[data-ui-mode="advanced"] #reqs-main > .req-card.expanded .req-card-head .re
 .run-metadata div { padding: 10px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); }
 .run-metadata dt { color: var(--text-muted); font-size: 11px; }
 .run-metadata dd { margin: 4px 0 0; font-size: 13px; font-weight: 650; }
+.result-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
 .logging-control {
   margin-bottom: 10px; padding: 11px 12px; border-radius: 7px;

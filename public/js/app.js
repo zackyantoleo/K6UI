@@ -13,6 +13,7 @@ import {
 } from './runner.js';
 import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';
+import { initAdvancedNotice } from './components/advanced-notice.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -151,6 +152,10 @@ resultsTabs.forEach((tab, index) => {
   });
 });
 
+// Advanced Overview shortcuts open the same shared tabs (no second panel set).
+$$('.result-shortcuts [data-results-tab]').forEach(button =>
+  button.addEventListener('click', () => activateResultsTab(button.dataset.resultsTab, { focus: true })));
+
 $('#filter-errors-only')?.addEventListener('change', applyReqFilter);
 $('#filter-url')?.addEventListener('input', applyReqFilter);
 $('#clear-results')?.addEventListener('click', clearResults);
@@ -199,6 +204,7 @@ stagesEl.appendChild(stageRow('1m',  '20'));
 stagesEl.appendChild(stageRow('30s', '0'));
 
 initCurlImport();
+initAdvancedNotice();
 initUiMode();
 navigate('flow', { focusHeading: false });
 checkK6();

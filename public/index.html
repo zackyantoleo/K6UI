@@ -98,6 +98,13 @@
             <code>{{variable_name}}</code> in a URL, header, or body
             to insert global variables or values extracted from previous responses.
           </p>
+          <section id="advanced-notice" class="advanced-notice" data-ui-only="simple" aria-labelledby="advanced-notice-title" hidden>
+            <h3 id="advanced-notice-title">Advanced settings configured</h3>
+            <p class="advanced-notice-intro"></p>
+            <ul class="advanced-notice-list"></ul>
+            <p class="advanced-notice-skipped" hidden></p>
+            <p class="advanced-notice-foot">Switching between Simple and Advanced changes only the layout, never what runs. Open a request's tabs to review its settings.</p>
+          </section>
           <div id="flow-empty-state" class="flow-empty-state" role="status">
             <div class="empty-state-mark" aria-hidden="true">⇄</div>
             <div>
@@ -136,7 +143,8 @@
 
         <!-- VIEW: Load Profile -->
         <section id="view-load" class="view hidden">
-          <p class="view-hint">Choose a safe starter pattern, then customize it only when you need finer control.</p>
+          <p class="view-hint" data-ui-only="simple">Choose a safe starter pattern, then customize it only when you need finer control.</p>
+          <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, or stages directly. Presets are optional starting points and ask before replacing custom values.</p>
           <div class="preset-strip" aria-label="Starter load presets">
             <span>Quick start:</span>
             <button type="button" class="preset-btn" data-preset="smoke" aria-pressed="false">Smoke <small>1 VU · 30s</small></button>
@@ -283,6 +291,12 @@
               <div><dt>Errors</dt><dd id="run-error-total">0</dd></div>
             </dl>
             <div id="overview-metrics" class="metrics-grid" aria-label="Key performance metrics"></div>
+            <div class="result-shortcuts" data-ui-only="advanced" role="group" aria-label="Result details">
+              <button type="button" class="btn ghost sm" data-results-tab="requests">Inspect requests</button>
+              <button type="button" class="btn ghost sm" data-results-tab="metrics">All metrics</button>
+              <button type="button" class="btn ghost sm" data-results-tab="errors">Review errors</button>
+              <button type="button" class="btn ghost sm" data-results-tab="live">Live log</button>
+            </div>
           </div>
 
           <div id="tab-requests" class="results-tab-panel hidden" role="tabpanel" aria-labelledby="results-tab-requests">

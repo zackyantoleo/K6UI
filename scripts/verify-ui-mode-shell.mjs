@@ -118,7 +118,8 @@ try {
     await active('advanced', view, view);
   }
   await nav('load').click();
-  await page.locator('#customize-load').click();
+  // Stage 4: Advanced always shows the custom load editor (no Customize click).
+  assert.equal(await page.locator('#load-custom-editor').isVisible(), true);
   await page.locator('#vus').fill('7');
   await page.locator('#duration').fill('17s');
   await radio('simple').check();
