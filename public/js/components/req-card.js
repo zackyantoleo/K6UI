@@ -6,6 +6,7 @@ import {
   updateScriptCount,
   renumberMain,
   refreshFlowEmptyState,
+  notifyFlowChanged,
 } from './counts.js';
 import { openCurlImport } from '../curl-import.js';
 import { createBasicFields } from './request-editor/basic.js';
@@ -486,6 +487,8 @@ export function reqCard(index, context, requestId = '') {
     setRequestExpanded(card, !card.classList.contains('expanded'));
   });
   head.addEventListener('dblclick', event => {
+    // Advanced always shows the selected request's editor; collapsing is a Simple presentation.
+    if (document.documentElement.dataset.uiMode === 'advanced') return;
     if (!event.target.closest('button, input, select, label')) setRequestExpanded(card, !card.classList.contains('expanded'));
   });
   moveUp.addEventListener('click', () => {
@@ -493,12 +496,14 @@ export function reqCard(index, context, requestId = '') {
     if (previous) card.parentElement.insertBefore(card, previous);
     renumberMain();
     card.parentElement.querySelectorAll('.req-card').forEach(refreshRequestSummary);
+    notifyFlowChanged();
   });
   moveDown.addEventListener('click', () => {
     const next = card.nextElementSibling;
     if (next) card.parentElement.insertBefore(next, card);
     renumberMain();
     card.parentElement.querySelectorAll('.req-card').forEach(refreshRequestSummary);
+    notifyFlowChanged();
   });
   duplicate.addEventListener('click', () => {
     const clone = reqCard([...card.parentElement.children].indexOf(card) + 1, context, '');
@@ -513,11 +518,13 @@ export function reqCard(index, context, requestId = '') {
     renumberMain();
     refreshFlowEmptyState();
     setRequestExpanded(clone, true);
+    notifyFlowChanged({ kind: 'request', id: clone.dataset.requestId });
   });
   remove.addEventListener('click', () => {
     card.remove();
     renumberMain();
     refreshFlowEmptyState();
+    notifyFlowChanged();
   });
   syncProtocol();
   syncPreview();

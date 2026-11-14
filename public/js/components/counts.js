@@ -38,6 +38,12 @@ export function renumberMain() {
   });
 }
 
+// Lightweight notification for the Advanced outline after structural edits.
+// `select` ({ kind: 'request' | 'group', id }) asks it to select that item.
+export function notifyFlowChanged(select) {
+  window.dispatchEvent(new CustomEvent('k6ui:flow-changed', { detail: { select } }));
+}
+
 export function refreshFlowEmptyState() {
   const container = document.querySelector('#reqs-main');
   document.querySelector('#flow-empty-state')?.classList.toggle(

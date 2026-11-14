@@ -23,16 +23,23 @@ const STEP_BY_VIEW = {
   results: 'results',
 };
 
+let currentView = 'flow';
+export const getCurrentView = () => currentView;
+
 export function navigate(viewId, { focusHeading = true } = {}) {
+  const mode = document.documentElement.dataset.uiMode || 'advanced';
+  if (mode === 'advanced' && viewId === 'data') viewId = 'vars';
+  currentView = viewId;
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== `view-${viewId}`));
-  const activeStep = STEP_BY_VIEW[viewId] || viewId;
+  const activeView = mode === 'simple' ? STEP_BY_VIEW[viewId] || viewId : viewId;
   $$('.nav-link[data-view]').forEach(link => {
-    const active = link.dataset.view === activeStep;
+    const active = link.closest('[data-ui-nav]')?.dataset.uiNav === mode && link.dataset.view === activeView;
     link.classList.toggle('active', active);
-    if (active) link.setAttribute('aria-current', 'step');
+    if (active) link.setAttribute('aria-current', mode === 'simple' ? 'step' : 'page');
     else link.removeAttribute('aria-current');
   });
   const heading = $('#page-title');
-  heading.textContent = NAV_TITLES[viewId] || viewId;
+  const categoryTitles = { flow: 'Request Flow', vars: 'Variables', headers: 'Headers', load: 'Load Profile' };
+  heading.textContent = (mode === 'advanced' && categoryTitles[viewId]) || NAV_TITLES[viewId] || viewId;
   if (focusHeading) heading.focus({ preventScroll: true });
 }

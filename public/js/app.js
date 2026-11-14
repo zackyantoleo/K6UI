@@ -3,6 +3,7 @@
 // of every file).
 import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
+import { initUiMode } from './ui-mode.js';
 import { variableRow, headerRow } from './components/rows.js';
 import { addRequest, buildFlowView, stageRow } from './components/flow-view.js';
 import { collectConfig, validate } from './config.js';
@@ -15,7 +16,10 @@ import { initCurlImport } from './curl-import.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
-  link.addEventListener('click', () => navigate(link.dataset.view));
+  link.addEventListener('click', () => {
+    if (link.dataset.view === 'script') loadScript();
+    else navigate(link.dataset.view);
+  });
 });
 
 $$('.data-rule-card[data-view]').forEach(card =>
@@ -195,5 +199,6 @@ stagesEl.appendChild(stageRow('1m',  '20'));
 stagesEl.appendChild(stageRow('30s', '0'));
 
 initCurlImport();
+initUiMode();
 navigate('flow', { focusHeading: false });
 checkK6();

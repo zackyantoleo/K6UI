@@ -2,6 +2,7 @@
 // defaults. Requests keep their global execution order and reference a group by
 // ID; groups never contain child groups or nested request arrays.
 import { headerRow } from './rows.js';
+import { notifyFlowChanged } from './counts.js';
 import { createRequestGroupId } from '../project-store.js';
 
 function button(label, className, text) {
@@ -98,7 +99,8 @@ export function createRequestGroup(group = {}) {
     collapse.setAttribute('aria-label', collapsed ? 'Expand request group' : 'Collapse request group');
     applyRequestGroupVisibility();
   });
-  name.addEventListener('input', refreshRequestGroupOptions);
+  // Wrapped: passing the listener directly would hand the Event in as `preferredGroups`.
+  name.addEventListener('input', () => refreshRequestGroupOptions());
   enabled.addEventListener('change', () => wrapper.classList.toggle('request-group-disabled', !enabled.checked));
   remove.addEventListener('click', () => {
     const removedId = wrapper.dataset.groupId;
@@ -107,6 +109,7 @@ export function createRequestGroup(group = {}) {
     });
     wrapper.remove();
     refreshRequestGroupOptions();
+    notifyFlowChanged();
   });
   wrapper.classList.toggle('request-group-disabled', !enabled.checked);
   return wrapper;

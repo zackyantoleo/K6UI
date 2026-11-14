@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-ui-mode="advanced">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -15,19 +15,25 @@
       <span class="brand-logo">k6</span>
       <span class="brand-name">K6UI</span>
     </div>
+    <fieldset class="ui-mode-switch">
+      <legend class="sr-only">Interface mode</legend>
+      <label><input type="radio" name="ui-mode" value="simple" /><span>Simple</span></label>
+      <label><input type="radio" name="ui-mode" value="advanced" checked /><span>Advanced</span></label>
+    </fieldset>
     <div id="k6-status" class="k6-pill checking" role="status" aria-live="polite">Checking k6…</div>
   </header>
 
   <div class="app-body">
 
     <!-- ── Four-step beginner navigation ─────────────────────── -->
-    <nav class="sidebar" aria-label="Test builder steps">
+    <aside class="sidebar" aria-label="Test builder">
       <div class="project-actions" aria-label="Project file actions">
         <button type="button" class="project-action" id="save-project-btn">↓ Save</button>
         <button type="button" class="project-action" id="open-project-btn">↑ Open</button>
       </div>
       <input type="file" id="project-file-input" accept=".json,application/json" hidden />
 
+      <nav id="simple-nav" data-ui-nav="simple" aria-label="Test builder steps" hidden>
       <ol class="step-list">
         <li>
           <button type="button" class="nav-link active" data-step="1" data-view="flow" aria-current="step">
@@ -55,12 +61,24 @@
           </button>
         </li>
       </ol>
+      </nav>
+      <nav id="advanced-nav" data-ui-nav="advanced" aria-label="Test builder categories">
+        <ul class="category-list">
+          <li><button type="button" class="nav-link" data-view="flow">Request Flow</button></li>
+          <li><button type="button" class="nav-link" data-view="vars">Variables</button></li>
+          <li><button type="button" class="nav-link" data-view="headers">Headers</button></li>
+          <li><button type="button" class="nav-link" data-view="load">Load Profile</button></li>
+          <li><button type="button" class="nav-link" data-view="sla">Thresholds / SLA</button></li>
+          <li><button type="button" class="nav-link" data-view="script">k6 Script</button></li>
+          <li><button type="button" class="nav-link" data-view="results">Run &amp; Results</button></li>
+        </ul>
+      </nav>
 
       <div class="sidebar-footer">
         <button type="button" class="btn-run" id="run-btn">▶ Run Test</button>
         <button type="button" class="btn-stop hidden" id="stop-btn">■ Stop</button>
       </div>
-    </nav>
+    </aside>
 
     <!-- ── Workspace ─────────────────────────────────────────── -->
     <div class="workspace">
