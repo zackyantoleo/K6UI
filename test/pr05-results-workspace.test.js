@@ -92,6 +92,15 @@ test('request logging redacts sensitive values from URLs as well as response sam
 });
 
 test('expanded request editor gives the endpoint a full-width row', () => {
-  assert.match(css, /\.req-card\.expanded \.req-card-head\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:/s);
-  assert.match(css, /\.req-card\.expanded \.req-card-head input\.url\s*\{[^}]*grid-column:\s*2\s*\/\s*-1[^}]*min-width:\s*min\(320px,\s*100%\)/s);
+  // Same open-card head in both UI modes: the URL owns its row (beside the
+  // method on wide screens, alone on phones). Browser width check:
+  // scripts/verify-ui-modes.mjs ("URL field squeezed").
+  assert.match(css, /#reqs-main > \.req-card\.expanded \.req-card-head\s*\{[^}]*display:\s*grid/s);
+  const head = /#reqs-main > \.req-card\.expanded \.req-card-head\s*\{[^}]*grid-template-areas:([^}]*)\}/gs;
+  const layouts = [...css.matchAll(head)].map(match => match[1]);
+  assert.ok(layouts.some(areas => /"method url url url"/.test(areas)), 'wide: URL spans the row after the method');
+  assert.ok(layouts.some(areas => /"url url"/.test(areas)), 'narrow: URL alone on a full row');
+  assert.match(css, /#reqs-main > \.req-card\.expanded \.req-card-head \.url\s*\{[^}]*grid-area:\s*url;[^}]*width:\s*100%/s);
+  assert.doesNotMatch(css, /html\[data-ui-mode="advanced"\] #reqs-main > \.req-card\.expanded \.req-card-head\s*\{[^}]*grid-template/s,
+    'the layout is not Advanced-only');
 });

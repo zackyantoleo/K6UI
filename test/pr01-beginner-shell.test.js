@@ -9,9 +9,11 @@ function matches(source, pattern) {
   return [...source.matchAll(pattern)];
 }
 
-test('beginner navigation exposes exactly four ordered steps', async () => {
+test('Simple navigation exposes exactly four ordered steps', async () => {
   const html = await read('public/index.html');
-  const steps = matches(html, /data-step="([^"]+)"[^>]*data-view="([^"]+)"/g)
+  const simple = html.match(/<nav[^>]*id="simple-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+  assert.ok(simple, 'Simple has its own navigation');
+  const steps = matches(simple, /data-step="([^"]+)"[^>]*data-view="([^"]+)"/g)
     .map(([, step, view]) => ({ step, view }));
 
   assert.deepEqual(steps, [
@@ -19,6 +21,18 @@ test('beginner navigation exposes exactly four ordered steps', async () => {
     { step: '2', view: 'data' },
     { step: '3', view: 'load' },
     { step: '4', view: 'results' },
+  ]);
+});
+
+test('Advanced navigation exposes seven direct categories', async () => {
+  const html = await read('public/index.html');
+  const advanced = html.match(/<nav[^>]*id="advanced-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+  assert.ok(advanced, 'Advanced has its own navigation');
+  assert.deepEqual(matches(advanced, /data-view="([^"]+)"[^>]*>([^<]+)</g)
+    .map(([, view, label]) => [view, label]), [
+    ['flow', 'Request Flow'], ['vars', 'Variables'], ['headers', 'Headers'],
+    ['load', 'Load Profile'], ['sla', 'Thresholds / SLA'],
+    ['script', 'k6 Script'], ['results', 'Run &amp; Results'],
   ]);
 });
 

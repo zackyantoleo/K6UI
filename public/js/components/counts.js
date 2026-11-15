@@ -38,6 +38,27 @@ export function renumberMain() {
   });
 }
 
+// Lightweight notification for the Advanced outline after structural edits.
+// `select` ({ kind: 'request' | 'group', id }) asks it to select that item.
+export function notifyFlowChanged(select) {
+  window.dispatchEvent(new CustomEvent('k6ui:flow-changed', { detail: { select } }));
+}
+
+// Removing the focused card or group would drop keyboard focus on <body>.
+// Advanced keeps the user in the outline, whose selection already moved to a
+// neighbour; Simple moves to the first visible neighbour's control, else to
+// the matching Add button. Call after notifyFlowChanged().
+export function focusAfterRemoval(hadFocus, neighbours, controlSelector, fallbackSelector) {
+  if (!hadFocus) return;
+  const shown = element => Boolean(element?.getClientRects().length);
+  const target = document.documentElement.dataset.uiMode === 'advanced'
+    ? document.querySelector('#flow-outline .outline-item[aria-current="true"]')
+      || document.querySelector('#outline-add-request')
+    : neighbours.map(item => item?.querySelector(controlSelector)).find(shown)
+      || document.querySelector(fallbackSelector);
+  target?.focus();
+}
+
 export function refreshFlowEmptyState() {
   const container = document.querySelector('#reqs-main');
   document.querySelector('#flow-empty-state')?.classList.toggle(

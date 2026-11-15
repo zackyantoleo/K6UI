@@ -57,6 +57,13 @@ Additional existing request fields remain supported and pass through migration u
 Group header defaults are applied during generation with precedence
 `global < group < request`; disabling a group skips its member requests.
 
+## UI mode is not project data
+
+The Simple / Advanced layout choice is never written to a project file, the
+`/api/generate` or `/api/run` payloads, or `schemaVersion`. It lives only in the
+browser as `localStorage['k6ui.uiMode']`, so the same file opens identically in
+either mode. See [ui-modes.md](ui-modes.md).
+
 ## State boundary
 
 `public/js/project-store.js` owns a normalized, deeply frozen snapshot. `collectConfig()` updates the store from the form, while `applyConfig()` migrates and replaces state before rendering it into the form. Generator and runner payloads continue to use the same configuration semantics.

@@ -2,6 +2,7 @@
 // defaults. Requests keep their global execution order and reference a group by
 // ID; groups never contain child groups or nested request arrays.
 import { headerRow } from './rows.js';
+import { focusAfterRemoval, notifyFlowChanged } from './counts.js';
 import { createRequestGroupId } from '../project-store.js';
 
 function button(label, className, text) {
@@ -87,7 +88,7 @@ export function createRequestGroup(group = {}) {
   for (const header of group.headers || []) {
     if (header?.key) headerList.appendChild(headerRow(header.key, header.value));
   }
-  const addHeader = button('Add group header', 'btn-add-row add-group-header', '+ Add header default');
+  const addHeader = button('Add group header', 'add-row-btn add-group-header', '+ Add header default');
   addHeader.addEventListener('click', () => headerList.appendChild(headerRow()));
   body.append(hint, headerList, addHeader);
   wrapper.append(head, body);
@@ -98,15 +99,20 @@ export function createRequestGroup(group = {}) {
     collapse.setAttribute('aria-label', collapsed ? 'Expand request group' : 'Collapse request group');
     applyRequestGroupVisibility();
   });
-  name.addEventListener('input', refreshRequestGroupOptions);
+  // Wrapped: passing the listener directly would hand the Event in as `preferredGroups`.
+  name.addEventListener('input', () => refreshRequestGroupOptions());
   enabled.addEventListener('change', () => wrapper.classList.toggle('request-group-disabled', !enabled.checked));
   remove.addEventListener('click', () => {
     const removedId = wrapper.dataset.groupId;
     document.querySelectorAll('#reqs-main .request-group-select').forEach(select => {
       if (select.value === removedId) select.value = '';
     });
+    const hadFocus = wrapper.contains(document.activeElement);
+    const neighbours = [wrapper.nextElementSibling, wrapper.previousElementSibling];
     wrapper.remove();
     refreshRequestGroupOptions();
+    notifyFlowChanged();
+    focusAfterRemoval(hadFocus, neighbours, '.request-group-name', '#view-flow .add-request-group');
   });
   wrapper.classList.toggle('request-group-disabled', !enabled.checked);
   return wrapper;

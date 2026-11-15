@@ -44,14 +44,23 @@ apiRouter.post("/run", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders?.();
 
-  const run = await startK6Run(script, {
+  // Kill the k6 process if the client closes the connection (UI Stop, tab
+  // closed). Listen on the response: `req` "close" has already fired once the
+  // JSON body was read, so it never reports a later disconnect. Attached before
+  // the await so a disconnect during start-up is not missed.
+  let run = null;
+  let clientClosed = false;
+  res.on("close", () => {
+    clientClosed = true;
+    run?.stop();
+  });
+
+  run = await startK6Run(script, {
     onEvent: (event, data) => {
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     },
     onEnd: () => res.end(),
   });
-
-  // Kill the k6 process if the client closes the connection.
-  req.on("close", () => run.stop());
+  if (clientClosed) run.stop();
 });

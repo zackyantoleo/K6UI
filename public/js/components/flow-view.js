@@ -2,8 +2,9 @@
 // for the staged load profile.
 import { $ } from '../dom.js';
 import { reqCard, setRequestExpanded } from './req-card.js';
-import { refreshFlowEmptyState } from './counts.js';
+import { notifyFlowChanged, refreshFlowEmptyState } from './counts.js';
 import { createRequestId } from '../project-store.js';
+import { createFlowOutline } from './flow-outline.js';
 import {
   applyRequestGroupVisibility,
   createRequestGroup,
@@ -17,9 +18,19 @@ export function addRequest({ openCurl = false } = {}) {
   refreshFlowEmptyState();
   refreshRequestGroupOptions();
   setRequestExpanded(card, true);
+  notifyFlowChanged({ kind: 'request', id: card.dataset.requestId });
   if (openCurl) card.querySelector('.req-action-btn.curl').click();
   else card.querySelector('.url').focus();
   return card;
+}
+
+export function addRequestGroup() {
+  const group = createRequestGroup();
+  $('#request-groups').appendChild(group);
+  refreshRequestGroupOptions();
+  notifyFlowChanged({ kind: 'group', id: group.dataset.groupId });
+  group.querySelector('.request-group-name').focus();
+  return group;
 }
 
 export function stageRow(dur = '30s', tgt = '20') {
@@ -53,8 +64,14 @@ export function stageRow(dur = '30s', tgt = '20') {
 
 export function buildFlowView() {
   const view = $('#view-flow');
-  view.appendChild(buildZone('main', 'Main Scenario', 'Repeated per VU', 'badge-loop',
-    'Run repeatedly by every virtual user. Each request can have optional <em>Before</em> and <em>After</em> sub-requests.'));
+  // The outline is a sibling of the zone: request cards stay in #reqs-main
+  // and groups in #request-groups, in both UI modes.
+  const layout = document.createElement('div');
+  layout.className = 'flow-layout';
+  const zone = buildZone('main', 'Main Scenario', 'Repeated per VU', 'badge-loop',
+    'Run repeatedly by every virtual user. Each request can have optional <em>Before</em> and <em>After</em> sub-requests.');
+  layout.append(createFlowOutline({ view, onAddRequest: () => addRequest(), onAddGroup: addRequestGroup }), zone);
+  view.appendChild(layout);
 }
 
 function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
@@ -103,16 +120,11 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   groupsIntro.append(groupsTitle, groupsHint);
   const addGroup = document.createElement('button');
   addGroup.type = 'button';
-  addGroup.className = 'btn-secondary add-request-group';
+  addGroup.className = 'btn ghost sm add-request-group';
   addGroup.textContent = '+ Add Group';
   const groupsContainer = document.createElement('div');
   groupsContainer.id = 'request-groups';
-  addGroup.addEventListener('click', () => {
-    const group = createRequestGroup();
-    groupsContainer.appendChild(group);
-    refreshRequestGroupOptions();
-    group.querySelector('.request-group-name').focus();
-  });
+  addGroup.addEventListener('click', () => addRequestGroup());
   groupsHead.append(groupsIntro, addGroup);
   groupsPanel.append(groupsHead, groupsContainer);
 

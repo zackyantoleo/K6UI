@@ -36,6 +36,9 @@ function fillCard(card, req) {
   const hList = card.querySelector('.req-card-body .headers-list');
   hList.replaceChildren();
   for (const h of req.headers) hList.appendChild(headerRow(h.key, h.value));
+  // Same events as typing, so the card summary and the Advanced outline refresh.
+  methodSel.dispatchEvent(new Event('change', { bubbles: true }));
+  card.querySelector('.url').dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function applyImport() {

@@ -6,6 +6,8 @@ import {
   updateScriptCount,
   renumberMain,
   refreshFlowEmptyState,
+  notifyFlowChanged,
+  focusAfterRemoval,
 } from './counts.js';
 import { openCurlImport } from '../curl-import.js';
 import { createBasicFields } from './request-editor/basic.js';
@@ -19,6 +21,14 @@ import { createRequestId } from '../project-store.js';
 
 export { assertionRow };
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+
+// Following cards first, then earlier ones, nearest first.
+function siblingsByDistance(card) {
+  const after = [], before = [];
+  for (let node = card.nextElementSibling; node; node = node.nextElementSibling) after.push(node);
+  for (let node = card.previousElementSibling; node; node = node.previousElementSibling) before.push(node);
+  return [...after, ...before];
+}
 
 function button(label, className, text) {
   const control = document.createElement('button');
@@ -486,6 +496,8 @@ export function reqCard(index, context, requestId = '') {
     setRequestExpanded(card, !card.classList.contains('expanded'));
   });
   head.addEventListener('dblclick', event => {
+    // Advanced always shows the selected request's editor; collapsing is a Simple presentation.
+    if (document.documentElement.dataset.uiMode === 'advanced') return;
     if (!event.target.closest('button, input, select, label')) setRequestExpanded(card, !card.classList.contains('expanded'));
   });
   moveUp.addEventListener('click', () => {
@@ -493,12 +505,14 @@ export function reqCard(index, context, requestId = '') {
     if (previous) card.parentElement.insertBefore(card, previous);
     renumberMain();
     card.parentElement.querySelectorAll('.req-card').forEach(refreshRequestSummary);
+    notifyFlowChanged();
   });
   moveDown.addEventListener('click', () => {
     const next = card.nextElementSibling;
     if (next) card.parentElement.insertBefore(next, card);
     renumberMain();
     card.parentElement.querySelectorAll('.req-card').forEach(refreshRequestSummary);
+    notifyFlowChanged();
   });
   duplicate.addEventListener('click', () => {
     const clone = reqCard([...card.parentElement.children].indexOf(card) + 1, context, '');
@@ -513,11 +527,16 @@ export function reqCard(index, context, requestId = '') {
     renumberMain();
     refreshFlowEmptyState();
     setRequestExpanded(clone, true);
+    notifyFlowChanged({ kind: 'request', id: clone.dataset.requestId });
   });
   remove.addEventListener('click', () => {
+    const hadFocus = card.contains(document.activeElement);
+    const neighbours = siblingsByDistance(card);
     card.remove();
     renumberMain();
     refreshFlowEmptyState();
+    notifyFlowChanged();
+    focusAfterRemoval(hadFocus, neighbours, '.request-expand', '#view-flow .add-req-btn');
   });
   syncProtocol();
   syncPreview();
