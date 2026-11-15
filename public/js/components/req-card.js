@@ -7,6 +7,7 @@ import {
   renumberMain,
   refreshFlowEmptyState,
   notifyFlowChanged,
+  focusAfterRemoval,
 } from './counts.js';
 import { openCurlImport } from '../curl-import.js';
 import { createBasicFields } from './request-editor/basic.js';
@@ -20,6 +21,14 @@ import { createRequestId } from '../project-store.js';
 
 export { assertionRow };
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+
+// Following cards first, then earlier ones, nearest first.
+function siblingsByDistance(card) {
+  const after = [], before = [];
+  for (let node = card.nextElementSibling; node; node = node.nextElementSibling) after.push(node);
+  for (let node = card.previousElementSibling; node; node = node.previousElementSibling) before.push(node);
+  return [...after, ...before];
+}
 
 function button(label, className, text) {
   const control = document.createElement('button');
@@ -521,10 +530,13 @@ export function reqCard(index, context, requestId = '') {
     notifyFlowChanged({ kind: 'request', id: clone.dataset.requestId });
   });
   remove.addEventListener('click', () => {
+    const hadFocus = card.contains(document.activeElement);
+    const neighbours = siblingsByDistance(card);
     card.remove();
     renumberMain();
     refreshFlowEmptyState();
     notifyFlowChanged();
+    focusAfterRemoval(hadFocus, neighbours, '.request-expand', '#view-flow .add-req-btn');
   });
   syncProtocol();
   syncPreview();

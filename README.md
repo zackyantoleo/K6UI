@@ -13,6 +13,15 @@ A simple UI for building and running [k6](https://k6.io) load tests **without wr
 - **Run & monitor** — k6 runs on the server; live log streaming, a per-request detail table (filter by errors/URL), and an automatic metrics summary.
 - **Save / open projects** — the configuration is saved as a JSON file and can be loaded back.
 
+## Simple and Advanced
+
+A switch in the top bar picks the layout. Both show the same project:
+
+- **Simple** — four steps (Build Flow, Data & Rules, Load, Run & Results). If a flow has settings that are not obvious at a glance (scripts, extraction, Before/After requests, gRPC…), a notice lists them by category.
+- **Advanced** (default) — direct categories, plus a request outline next to the selected request's editor.
+
+Switching never changes what runs or what is saved; the choice is remembered in your browser only. Details: [docs/ui-modes.md](docs/ui-modes.md).
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) 18+

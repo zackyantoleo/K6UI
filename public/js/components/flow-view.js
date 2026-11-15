@@ -120,7 +120,7 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   groupsIntro.append(groupsTitle, groupsHint);
   const addGroup = document.createElement('button');
   addGroup.type = 'button';
-  addGroup.className = 'btn-secondary add-request-group';
+  addGroup.className = 'btn ghost sm add-request-group';
   addGroup.textContent = '+ Add Group';
   const groupsContainer = document.createElement('div');
   groupsContainer.id = 'request-groups';

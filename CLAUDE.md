@@ -1,7 +1,8 @@
 # K6UI — Project Guide
 
 A web UI for building and running [k6](https://k6.io) load tests without writing code.
-Stack: Express (ESM) + vanilla JS frontend. **No build step, no framework, no automated tests.**
+Stack: Express (ESM) + vanilla JS frontend. **No build step, no framework.** Tests use Node's
+built-in runner (`npm test`); browser checks live in `scripts/` (see Verification).
 
 ## Running
 
@@ -29,22 +30,28 @@ server/                 Backend (Node/Express, ESM)
     └── helpers.js      JSON selectors & regex literals
 
 public/                 Static frontend (ES modules, no bundler)
-├── index.html          All markup: sidebar + one <section> per view
+├── index.html          All markup: sidebar (Simple steps + Advanced categories) + one <section> per view
 ├── css/style.css       All styling
 └── js/
     ├── app.js          Entry point: event wiring + initial render
+    ├── ui-mode.js      Simple / Advanced layout switch (presentation only, see docs/ui-modes.md)
     ├── nav.js          View switching
     ├── dom.js          $ / $$ helpers
     ├── config.js       Read the form → config object + validation
+    ├── project-store.js Versioned (schema v2), frozen project snapshot + migration
     ├── curl-parse.js   Parse a cURL command → { method, url, headers, body }
     ├── curl-import.js  "Import from cURL" modal: parse + fill a request card
     ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics
     ├── project-io.js   Save/load projects (JSON file = config object)
     └── components/
-        ├── req-card.js  Request card: Headers/Body/Extract/Assertions/Options tabs + pre/post sub-requests
-        ├── rows.js      Header & extraction form rows
-        ├── counts.js    Extraction/assertion count badges + card renumbering
-        └── flow-view.js "Main Scenario" zone + load-profile stage rows
+        ├── req-card.js        Request card: lazy editor tabs + pre/post sub-requests
+        ├── request-editor/    One module per editor tab (headers, body, extract, checks, scripts, advanced)
+        ├── request-groups.js  One-level request groups with shared header defaults
+        ├── flow-outline.js    Advanced: outline in execution order that selects the canonical card/group
+        ├── advanced-notice.js Simple: "Advanced settings configured" notice (categories + counts only)
+        ├── rows.js            Header & extraction form rows
+        ├── counts.js          Count badges, renumbering, flow-changed events, focus after removal
+        └── flow-view.js       "Main Scenario" zone + load-profile stage rows
 ```
 
 ## Data flow
@@ -113,16 +120,20 @@ Shape of one request:
 - `{{varName}}` interpolation in url/headers/body uses global variables, values extracted by earlier requests, and `vars.<name>` assignments made by earlier pre/post-processor scripts (precedence: extracted > processor > global); unknown names are left as literal text.
 - Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Referencing `crypto.` or `encoding.` in a script auto-adds the `k6/crypto` / `k6/encoding` import. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
 - gRPC requests (`type: "grpc"`) generate `k6/net/grpc` unary calls with server reflection (`reflect: true` — the target server must support it; .proto upload is not implemented). The automatic check compares against `grpc.StatusOK`; extractions read the decoded `res.message`; assertions are remapped for gRPC (statuses = gRPC codes, body = `JSON.stringify(message)`, `duration-lt` is skipped). Pre/post sub-requests stay HTTP.
-- Assertion type list: `ASSERT_TYPES` in `public/js/components/req-card.js` — **must stay in sync** with the switch in `server/generator/assertions.js`.
+- Assertion type list: `ASSERT_TYPES` in `public/js/components/request-editor/checks.js` — **must stay in sync** with the switch in `server/generator/assertions.js`.
 
 ## Conventions
 
 - UI text, code comments, and error messages: English.
 - Kebab-case file names; the frontend stays vanilla JS (do not add a framework/bundler unless asked).
-- Sidebar items marked "Soon" are placeholders for unimplemented features.
+- Simple and Advanced are two layouts over one DOM: never clone, move, or re-render request cards per mode, and never store the mode in project data (rules in `docs/ui-modes.md`).
+- Render project data (names, URLs, labels) with `textContent`, never `innerHTML`.
 
-## Verification (no automated tests)
+## Verification
 
-1. `node --check` every changed JS file.
-2. `npm start`, then `curl localhost:3000/api/k6-status` and `curl -X POST localhost:3000/api/generate` with a sample configuration.
-3. Open the UI: enter a URL → "View Script" → "Run Test" (short duration, localhost target).
+1. `npm test` (Node's built-in runner; the run test uses a fake `k6`).
+2. `node --check` every changed JS file and `git diff --check`.
+3. UI changes: `PLAYWRIGHT_MODULE=file:///path/to/playwright/index.mjs node scripts/verify-ui-modes.mjs`
+   — the full browser check for both modes, including the older stage checks. It needs Playwright and `k6`, and only
+   talks to servers it starts on `127.0.0.1`.
+4. Performance-sensitive changes: `npm run measure:baseline` and compare with `docs/baseline-performance.md`.

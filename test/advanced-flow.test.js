@@ -95,3 +95,17 @@ test('selection keeps stable IDs and picks a deterministic neighbor when its ite
   assert.deepEqual(resolveSelection({ kind: 'group', id: 'g2' }, before, model(['a'], ['g1', 'g3'])), { kind: 'group', id: 'g3' });
   assert.deepEqual(resolveSelection({ kind: 'group', id: 'g1' }, before, model(['a'], [])), { kind: 'request', id: 'a' }, 'last group falls back to a request');
 });
+
+test('removing a request or group hands keyboard focus on instead of dropping it on <body>', async () => {
+  // Behaviour is checked in a real browser by scripts/verify-ui-modes.mjs ("Focus after delete").
+  const [card, groupsSource, counts] = await Promise.all([
+    read('public/js/components/req-card.js'),
+    read('public/js/components/request-groups.js'),
+    read('public/js/components/counts.js'),
+  ]);
+  assert.match(counts, /export function focusAfterRemoval\(/);
+  assert.match(card, /card\.remove\(\);[\s\S]{0,200}notifyFlowChanged\(\);\s*focusAfterRemoval\(hadFocus,/,
+    'request: focus moves after the outline has re-selected');
+  assert.match(groupsSource, /wrapper\.remove\(\);[\s\S]{0,200}notifyFlowChanged\(\);\s*focusAfterRemoval\(hadFocus,/,
+    'group: focus moves after the outline has re-selected');
+});
