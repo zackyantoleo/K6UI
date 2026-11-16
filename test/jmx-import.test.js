@@ -269,6 +269,45 @@ test('reads loops, concurrency thread groups, nested controllers, and scoped ext
   assert.match(text, /CSV Data Set "Users" \(users\.csv\) is not supported; \$\{email\}, \$\{password\} will have no value/);
 });
 
+test('keeps the case of a ${VAR} protocol, so the URL placeholder matches its variable', () => {
+  const udv = (name, value) => `<elementProp name="${name}" elementType="Argument">
+    <stringProp name="Argument.name">${name}</stringProp>
+    <stringProp name="Argument.value">${value}</stringProp>
+  </elementProp>`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan testname="Plan">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments">
+        <collectionProp name="Arguments.arguments">
+          ${udv('BASE_URL', 'api.test')}${udv('PROTOCOL', 'https')}${udv('PORT', '443')}
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <ConfigTestElement testname="HTTP Request Defaults">
+        <stringProp name="HTTPSampler.domain">\${BASE_URL}</stringProp>
+        <stringProp name="HTTPSampler.port">\${PORT}</stringProp>
+        <stringProp name="HTTPSampler.protocol">\${PROTOCOL}</stringProp>
+      </ConfigTestElement><hashTree/>
+      ${TG}<hashTree>
+        <HTTPSamplerProxy testname="Ping">
+          <stringProp name="HTTPSampler.path">/ping</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+        </HTTPSamplerProxy><hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>`;
+
+  const { config } = importJmx(xml);
+  assert.equal(config.scenario.requests[0].url, '{{PROTOCOL}}://{{BASE_URL}}:{{PORT}}/ping');
+
+  const script = generateScript(config);
+  assert.match(script, /`\$\{GLOBALS\.PROTOCOL\}:\/\/\$\{GLOBALS\.BASE_URL\}:\$\{GLOBALS\.PORT\}\/ping`/);
+  assert.doesNotMatch(script, /`[^`]*\{\{/); // no unresolved placeholder inside a URL template
+});
+
 test('rejects files that cannot be imported, with a readable reason', () => {
   assert.throws(() => importJmx('  '), ScriptImportError);
   assert.throws(() => importJmx('<jmeterTestPlan><hashTree>'), /not a valid \.jmx file: <hashTree> is never closed/);

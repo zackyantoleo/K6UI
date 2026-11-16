@@ -68,7 +68,9 @@ function buildUrl(sampler, defaults, ctx) {
     url = path;
   } else {
     const port = part("port");
-    const protocol = (part("protocol") || (port === "443" ? "https" : "http")).toLowerCase();
+    const rawProtocol = part("protocol") || (port === "443" ? "https" : "http");
+    // A ${VAR} protocol keeps its case: variable names are case-sensitive.
+    const protocol = rawProtocol.includes("${") ? rawProtocol : rawProtocol.toLowerCase();
     if (path && !path.startsWith("/")) path = `/${path}`;
     url = `${protocol}://${domain}${port && port !== DEFAULT_PORT[protocol] ? `:${port}` : ""}${path || "/"}`;
   }
