@@ -131,6 +131,33 @@ JMeter's "Default Value" of JSON, Regex and Boundary extractors is imported as `
 are `x || "text"` / `x ?? "text"` in a k6 script. Custom fallback logic (a JSR223 post-processor
 that searches the response again) is not imported; the import warning names the variables it sets.
 
+## Save to CSV (`exports`)
+
+A request can save rows to CSV files of the run. Purely additive: older projects have none,
+migration does not add the field, and the store only normalizes it when it is there (unknown
+fields pass through).
+
+```json
+"exports": [{
+  "file": "orders_created.csv",
+  "columns": [{ "name": "order_number", "value": "{{order_number}}" }, { "name": "auth", "value": "Bearer {{token}}" }],
+  "skipMissing": true
+}]
+```
+
+| Field | Meaning |
+|---|---|
+| `file` | The file the row goes to (trimmed; no `/`, `\` or control characters; at most 120 characters). Requests that save to the same file must use the same column names, in the same order |
+| `columns` | `name`: the header of the column, `[A-Za-z_]\w*`, unique (it becomes `{{name}}` when the file is used as a data file). `value`: text with `{{variables}}`, read like a URL after the request, its After request and its scripts have run |
+| `skipMissing` | `true`: no row while an extracted variable the values use is empty or still one of its extraction defaults. Default `false` (a new block in the editor starts with it on) |
+
+A block with no file and no column is ignored; any other broken export is a 400. At most 10 files
+per flow. Rows are logged by the k6 script, collected by the server in memory (5 MB of CSV per
+file, 10 MB in total; later rows are dropped and reported) and streamed to the browser, which
+keeps them until the next run: nothing is written to disk, and rows that a stopped run already
+sent are kept. From Run & Results a file can be downloaded or used as a data file (the data file
+with the same file name, such as an empty one from a .jmx import, gets the rows).
+
 ## Conditional groups (`runIf`)
 
 A group can carry a "run only if" condition. It is purely additive: older projects have

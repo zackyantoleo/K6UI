@@ -20,6 +20,7 @@ server/                 Backend (Node/Express, ESM)
 ├── index.js            Express bootstrap: static public/ + mount /api
 ├── routes.js           API endpoints (see API section)
 ├── k6-runner.js        Write script to a temp folder, spawn `k6 run`, parse output → events
+├── export-collector.js "Save to CSV" rows logged by the script → batched `export` events (memory only, size limits)
 ├── generator/          JSON configuration → k6 script source (string)
 │   ├── index.js        generateScript() — orchestration
 │   ├── options.js      k6 options object (VUs/stages/per-vu-iterations scenario + thresholds)
@@ -29,6 +30,7 @@ server/                 Backend (Node/Express, ESM)
 │   ├── interpolate.js  {{varName}} interpolation → template literals
 │   ├── data.js         Data files (CSV) → SharedArray literal + the row of each iteration (or of a group's start), size limits
 │   ├── run-if.js       A group's "run only if" condition → the `if (...)` expression, 400 for a condition that cannot work
+│   ├── csv-export.js   "Save to CSV" exports → one `console.log` row after the request, 400 for an export that cannot work
 │   └── helpers.js      JSON selectors, regex literals & `jsLiteral()` (string literal, U+2028/U+2029 escaped)
 └── importer/           k6 script source → JSON configuration + warnings (reverse of generator/)
     ├── index.js        importK6Script() — acorn parse (never executes the script), imports, top-level consts
@@ -60,7 +62,9 @@ public/                 Static frontend (ES modules, no bundler)
     ├── project-store.js Versioned (schema v2), frozen project snapshot + migration (incl. `dataSets` normalization, `runIf`, data set `groupId`, extraction `default`)
     ├── run-if.js       A group's "run only if" condition: validation, normalization, wording. Shared by the store, the group editor, the outline and server/generator/run-if.js (pure, no DOM)
     ├── csv-parse.js    CSV reader + data-file limits, shared by the Data files panel and server/generator/data.js (pure, no DOM)
-    ├── data-files.js   "Data files" view (Data & Rules): data file cards, preview, validation; state lives on each card
+    ├── csv-export.js   "Save to CSV": normalization, validation, limits, CSV writer, download name. Shared by the store, the editor, the results panel, server/generator/csv-export.js and server/export-collector.js (pure, no DOM)
+    ├── export-results.js Run & Results "Saved to CSV": rows of `export` events (this tab's memory only), Download CSV, Use as data file
+    ├── data-files.js   "Data files" view (Data & Rules): data file cards, preview, validation; state lives on each card; `useAsDataFile()` for saved rows
     ├── curl-parse.js   Parse a cURL command → { method, url, headers, body }
     ├── curl-import.js  "Import from cURL" modal: parse + fill a request card
     ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics
@@ -73,6 +77,7 @@ public/                 Static frontend (ES modules, no bundler)
         ├── flow-outline.js    Advanced: outline in execution order that selects the canonical card/group (a group shows its condition)
         ├── advanced-notice.js Simple: "Advanced settings configured" notice (categories + counts only, incl. Conditional groups and Data files)
         ├── rows.js            Header & extraction form rows (`extractionRow(extraction)` / `readExtractionRow(row)`, incl. the optional Default)
+        ├── export-rows.js     "Save to CSV" blocks of the Extract tab (`exportBlock(exp)` / `readExportBlock(block)`)
         ├── counts.js          Count badges, renumbering, flow-changed events, focus after removal
         └── flow-view.js       "Main Scenario" zone + load-profile stage rows
 ```
@@ -94,7 +99,8 @@ UI form → `collectConfig()` (js/config.js) → `POST /api/generate` or `/api/r
 | `POST /api/run` | config object (≤ 24 MB) | SSE stream (events below), or the same 400 / 413 JSON before it starts |
 
 SSE events from `/api/run`: `status` (progress), `log` (raw k6 output line), `req-log`
-(single request detail, max 500/run), `error`, `done` (`{ code, summary }` — summary
+(single request detail, max 500/run), `export` ("Save to CSV" rows: `{ file, columns, rows, truncated }`,
+batched, all sent before `done`), `error`, `done` (`{ code, summary }` — summary
 from `k6 --summary-export`). Exit code 0 = all thresholds met; 99 = thresholds failed.
 
 ## Configuration object schema
@@ -160,6 +166,11 @@ Shape of one request:
   "extractions": [{ "varName": "token", "source": "json", "selector": "data.token", "default": "TOKEN_NOT_FOUND" }],
   // source: "json" (JSON path), "header" (header name), "regex" (1st capture group)
   // default: optional fixed text used when nothing matches (absent or "" = none, see below)
+  "exports": [{                  // optional "Save to CSV": after the request, add a row to a CSV file of the run
+    "file": "orders_created.csv",  // file name (no / or \, ≤ 120 chars); one file keeps one set of columns
+    "columns": [{ "name": "order_number", "value": "{{order_number}}" }, { "name": "auth", "value": "Bearer {{token}}" }],
+    "skipMissing": true            // skip the row while an extracted value it uses is empty or still its default
+  }],
   "assertions": [{ "type": "status-eq", "value": "200", "value2": "" }],
   "preScript":  "vars.ts = Date.now();",              // JS inlined before the request
   "postScript": "vars.id = JSON.parse(res.body).id;", // JS inlined after it; `res` = response
@@ -176,6 +187,7 @@ Shape of one request:
   - Data files of a group (`groupId`): the row variable is declared up front (`let DATA_n_ROW = { column: "", ... }`), and the row is chosen, and `stop` applied (an early `return`), at the start of the group's run, inside the `if` when there is one. A data file of a **turned-off** group is not used at all (no SharedArray, no size-limit count, its `{{columns}}` stay literal text); a `groupId` that points nowhere means global. The row is picked by `exec.scenario.iterationInTest` (or `__VU - 1`), so the row index follows the iteration number, **not** how many times the group ran: if the condition holds in only some iterations, rows are skipped.
   - Importing: JMeter `IfController` directly under the thread group → a group with `runIf` (see the JMeter bullet); K6UI's own generated `if` is read back by `importer/run-if.js` (the group name comes from the `// Group "…" runs only if` comment above it); any other `if` in a k6 script is skipped with a warning that its requests were left out.
 - Extraction defaults (`default`, `server/generator/extract.js`): fixed text only, never an expression. Without one (absent or `""`) the generated line is exactly as before: a regex with no match gives `""`, a missing JSON path or header gives `undefined`, and a body that is not JSON throws (k6 ends the iteration). With one, the read is wrapped in `extractOr(() => <read>, "<default>")`, a helper written once above the default function only when an extraction that runs has a default: the default is used when the read gives `undefined` or `null` or throws (missing path or header, no regex match, a body that is not JSON, no body). A match that is `""`, `0` or `false` is kept. The same default is the value a skipped conditional group leaves behind (see above). A number or boolean default in a project or API payload is read as text; strings are kept as typed (not trimmed), including in the UI, where an empty input means no default. Importing: JMeter's "Default Value" of JSON (`defaultValues`, one per variable, `;`-separated), Regex and Boundary extractors becomes `default`; an empty one, or one with `${...}` (a warning), gives none. In a k6 script, `x || "text"` and `x ?? "text"` (string, number or plain template literal) on a value read from a response become the default (`|| ""` stays "no default"; with nested fallbacks the inner one wins, as in JavaScript), as does K6UI's own `extractOr(...)` when the script declares the `extractOr` helper. JSR223 / BeanShell post-processors (custom fallback logic) are never imported: the warning names the variables they `vars.put`.
+- Save to CSV (`exports`, `server/generator/csv-export.js` + `public/js/csv-export.js`): k6 cannot write files, so after the request (after its After request too) the script logs one row: `console.log(JSON.stringify({ k6uiExport: "<file>", columns: [...], row: [...] }))`, the values interpolated like a URL. `k6-runner.js` hands every console line that starts with `{"k6uiExport":` to `server/export-collector.js` and never to the live log (a broken one is dropped too, since it may hold a token). The collector keeps the rows in memory only, at most 5 MB of CSV per file, 10 MB in total and 10 files (later rows are dropped and the file is marked `truncated`), and sends them as `export` events every 250 ms and before `done`, so a stopped run keeps what reached the browser. The browser (`public/js/export-results.js`) keeps them in the tab until the next run, offers Download CSV (a Blob, nothing goes back to the server) and Use as data file (`useAsDataFile()`: fills the data file with that file name, for example the empty one a .jmx import created, after a confirm when it already has other rows, or adds one; header row on). `skipMissing` wraps the line in `if (![undefined, null, "", <every default of that extraction>].includes(name) && ...)` over the extracted variables the columns use; with none it has no effect and imports back as `false`. Column names are `[A-Za-z_]\w*` (they become `{{columns}}` of a data file), unique; two requests saving to one file must use the same columns; an export that breaks a rule is a 400 naming the request (and the UI reports it before Run). Turned-off requests and groups save nothing, a skipped conditional group saves no row. The k6 importer reads K6UI's own line (and its `if`) back into `exports`; the JMeter importer never translates a JSR223 post-processor that writes a file (Groovy), its warning points to Save to CSV.
 - Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Referencing `crypto.` or `encoding.` in a script auto-adds the `k6/crypto` / `k6/encoding` import. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
 - gRPC requests (`type: "grpc"`) generate `k6/net/grpc` unary calls with server reflection (`reflect: true` — the target server must support it; .proto upload is not implemented). The automatic check compares against `grpc.StatusOK`; extractions read the decoded `res.message`; assertions are remapped for gRPC (statuses = gRPC codes, body = `JSON.stringify(message)`, `duration-lt` is skipped). Pre/post sub-requests stay HTTP.
 - Assertion type list: `ASSERT_TYPES` in `public/js/components/request-editor/checks.js` — **must stay in sync** with the switch in `server/generator/assertions.js` and the recognized shapes in `server/importer/checks.js`.

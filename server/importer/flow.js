@@ -7,7 +7,7 @@ import { buildRequest, httpCallInfo } from "./request.js";
 import { convertPredicate, regexSelector } from "./checks.js";
 import { groupNameBefore, readRunIf } from "./run-if.js";
 import {
-  Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, sourceOf, tryStatic, unwrap,
+  Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, safeText, sourceOf, tryStatic, unwrap,
 } from "./values.js";
 
 // ── Where does a value come from? ──────────────────────────────
@@ -323,6 +323,63 @@ function handleConditionalGroup(stmt, state) {
   return true;
 }
 
+// ── Save to CSV ────────────────────────────────────────────────
+// K6UI's own row (generator/csv-export.js), on the request before it:
+//   console.log(JSON.stringify({ k6uiExport: "file.csv", columns: ["a"], row: [`${a}`] }));
+// → { file, columnsNode, rowNode }, or null for any other call.
+function readExportCall(node) {
+  const call = unwrap(node);
+  if (!isConsoleCall(call) || call.callee.property?.name !== "log" || call.arguments.length !== 1) return null;
+  const json = unwrap(call.arguments[0]);
+  const c = json?.callee;
+  if (json?.type !== "CallExpression" || c?.type !== "MemberExpression" || c.computed || c.object.type !== "Identifier"
+      || c.object.name !== "JSON" || c.property.name !== "stringify" || json.arguments.length !== 1) return null;
+  const obj = unwrap(json.arguments[0]);
+  if (obj?.type !== "ObjectExpression") return null;
+  const prop = (key) => obj.properties.find((p) => p.type === "Property" && !p.computed && (p.key.name ?? p.key.value) === key)?.value;
+  const file = prop("k6uiExport");
+  const columnsNode = prop("columns");
+  const rowNode = prop("row");
+  if (file?.type !== "Literal" || typeof file.value !== "string") return null;
+  if (columnsNode?.type !== "ArrayExpression" || rowNode?.type !== "ArrayExpression") return null;
+  if (columnsNode.elements.length !== rowNode.elements.length || rowNode.elements.some((e) => !e)) return null;
+  if (!columnsNode.elements.every((e) => e?.type === "Literal" && typeof e.value === "string")) return null;
+  return { file: file.value, columnsNode, rowNode };
+}
+
+function addExport(shape, skipMissing, stmt, state) {
+  const { ctx } = state;
+  if (!state.last) {
+    ctx.warn(stmt, `"Save to CSV" for "${shape.file}" before the first request was skipped.`);
+    return;
+  }
+  const columns = shape.columnsNode.elements.map((nameNode, i) => ({
+    name: nameNode.value,
+    value: safeText(shape.rowNode.elements[i], ctx, `value of column "${nameNode.value}"`),
+  }));
+  (state.last.exports ??= []).push({ file: shape.file, columns, skipMissing });
+}
+
+// `![undefined, null, "", ...].includes(name) && ...`: "skip missing" of a K6UI row.
+function isMissingCheck(node) {
+  const n = unwrap(node);
+  if (n?.type === "LogicalExpression" && n.operator === "&&") return isMissingCheck(n.left) && isMissingCheck(n.right);
+  if (n?.type !== "UnaryExpression" || n.operator !== "!") return false;
+  const call = unwrap(n.argument);
+  return call?.type === "CallExpression" && isMember(call.callee, "includes") && call.callee.object.type === "ArrayExpression"
+    && call.arguments.length === 1 && call.arguments[0].type === "Identifier";
+}
+
+// `if (<missing checks>) { <K6UI row> }` → an export with skipMissing. False for any other `if`.
+function handleExportIf(stmt, state) {
+  if (stmt.alternate || !isMissingCheck(stmt.test)) return false;
+  const body = stmt.consequent.type === "BlockStatement" ? stmt.consequent.body : [stmt.consequent];
+  const shape = body.length === 1 && body[0].type === "ExpressionStatement" ? readExportCall(body[0].expression) : null;
+  if (!shape) return false;
+  addExport(shape, true, stmt, state);
+  return true;
+}
+
 // `name = <init>` (declaration or assignment): remember where the value comes from.
 function bind(name, rawInit, state) {
   const { ctx } = state;
@@ -367,6 +424,7 @@ function expression(rawExpr, stmt, state) {
     else if (isCallTo(expr, ctx.names.check)) handleCheck(expr, state);
     else if (isCallTo(expr, ctx.names.sleep)) handleSleep(expr, state);
     else if (isCallTo(expr, ctx.names.group)) handleGroup(expr, state);
+    else if (readExportCall(expr)) addExport(readExportCall(expr), false, stmt, state);
     else if (!isConsoleCall(expr)) unsupported(stmt, state);
     return;
   }
@@ -415,7 +473,7 @@ function statement(stmt, state) {
       if (!isLoggingOnly(stmt.block)) unsupported(stmt, state);
       break;
     case "IfStatement":
-      if (!handleConditionalGroup(stmt, state)) unsupported(stmt, state);
+      if (!handleConditionalGroup(stmt, state) && !handleExportIf(stmt, state)) unsupported(stmt, state);
       break;
     case "EmptyStatement":
     case "ReturnStatement":

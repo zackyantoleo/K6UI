@@ -16,6 +16,7 @@ const REQUEST_CATEGORIES = [
   { id: 'grpc', label: 'gRPC requests', test: request => request.type === 'grpc' },
   { id: 'subRequests', label: 'Before/After requests', test: request => hasText(request.pre?.url) || hasText(request.post?.url) },
   { id: 'extractions', label: 'Response extraction', test: request => (request.extractions || []).some(item => hasText(item?.varName)) },
+  { id: 'exports', label: 'Save to CSV', test: request => (request.exports || []).some(item => hasText(item?.file)) },
   { id: 'checks', label: 'Custom checks', test: request => (request.assertions || []).length > 0 },
   { id: 'scripts', label: 'Pre/post scripts', test: request => hasText(request.preScript) || hasText(request.postScript) },
   { id: 'pacing', label: 'Custom pause after request', test: request => pauseSeconds(request.sleepAfter) !== DEFAULT_PAUSE_SECONDS },
@@ -90,6 +91,9 @@ export function readRequestSettings(card) {
     extractions: panelReady(card, 'extractions')
       ? [...card.querySelectorAll('.req-card-body .extractions-list .ext-name')].map(input => ({ varName: input.value }))
       : saved.extractions || [],
+    exports: panelReady(card, 'extractions')
+      ? [...card.querySelectorAll('.req-card-body .exports-list .export-file')].map(input => ({ file: input.value }))
+      : saved.exports || [],
     assertions: panelReady(card, 'assertions')
       ? [...card.querySelectorAll('.req-card-body .assertions-list .assertion-row')].map(() => ({}))
       : saved.assertions || [],

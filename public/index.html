@@ -324,6 +324,15 @@
               <div><dt>Errors</dt><dd id="run-error-total">0</dd></div>
             </dl>
             <div id="overview-metrics" class="metrics-grid" aria-label="Key performance metrics"></div>
+            <section id="run-exports" class="run-exports" aria-labelledby="run-exports-title" hidden>
+              <h3 id="run-exports-title">Saved to CSV</h3>
+              <p class="run-exports-warning" role="note">
+                These rows come from responses and can hold tokens or other secrets. They are kept in this
+                browser tab only (not on the server) until the next run. Treat a downloaded file, or a project
+                that uses it as a data file, like a password.
+              </p>
+              <ul id="run-exports-list" class="run-exports-list"></ul>
+            </section>
             <div class="result-shortcuts" data-ui-only="advanced" role="group" aria-label="Result details">
               <button type="button" class="btn ghost sm" data-results-tab="requests">Inspect requests</button>
               <button type="button" class="btn ghost sm" data-results-tab="metrics">All metrics</button>

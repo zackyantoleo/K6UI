@@ -210,7 +210,10 @@ function scriptPostProcessor(el, kind, warn) {
   const sets = names.length
     ? ` It sets ${names.map((name) => `"${name}"`).join(", ")}: in K6UI a variable gets only what its extraction reads, or the extraction's fixed Default when nothing matches.`
     : "";
-  warn(`runs ${language} code, which K6UI cannot import, so it was skipped.${sets}`);
+  const writes = /\bnew\s+File(?:Writer|OutputStream)?\s*\(|\bwithWriter(?:Append)?\b|\bFiles\.write/.test(str(el, "script"))
+    ? ' It writes a file: to collect rows during a run, add "Save to CSV" to the request (Extract tab), then download the rows or use them as a data file from Run & Results.'
+    : "";
+  warn(`runs ${language} code, which K6UI cannot import, so it was skipped.${writes}${sets}`);
 }
 
 // → [{ varName, source, selector, default? }]

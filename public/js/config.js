@@ -6,6 +6,8 @@ import { createRequestId, projectStore } from './project-store.js';
 import { collectRequestGroups, requestGroupProblem } from './components/request-groups.js';
 import { collectDataSets, validateDataSets } from './data-files.js';
 import { readExtractionRow } from './components/rows.js';
+import { readExportBlocks } from './components/export-rows.js';
+import { exportsProblem } from './csv-export.js';
 
 // ── Row readers — used by main cards & sub-requests ────────────
 function readHeaderRows(scope) {
@@ -67,6 +69,7 @@ function collectReqList(containerId) {
       checkStatus: card.querySelector('.check-status').checked,
       sleepAfter:  card.querySelector('.sleep').value,
       extractions: readExtractionRows(body.querySelector('.extractions-list')),
+      exports:     readExportBlocks(body.querySelector('.exports-list')),
       assertions:  readAssertionRows(body.querySelector('.assertions-list')),
       preScript:   card.querySelector('.pre-script').value,
       postScript:  card.querySelector('.post-script').value,
@@ -128,6 +131,11 @@ export function validate(config) {
   if (groupError) return groupError;
   const dataError = validateDataSets(config.dataSets);
   if (dataError) return dataError;
+  // "Save to CSV": numbered like the generator, over the requests that will run.
+  const offGroups = new Set((config.scenario.groups || []).filter(group => group.enabled === false).map(group => group.id));
+  const runnable = config.scenario.requests.filter(r => r.enabled !== false && !offGroups.has(r.groupId) && String(r.url || '').trim());
+  const exportError = exportsProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, exports: r.exports })));
+  if (exportError) return exportError;
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
       return 'Add at least one valid stage in the Load Profile.';

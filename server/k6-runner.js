@@ -5,6 +5,8 @@
 //   status  — progress message, e.g. "Starting k6..."
 //   log     — one raw line of k6 output
 //   req-log — details of a single request (emitted by the script via console.log JSON {__r:1,...})
+//   export  — rows saved with "Save to CSV" (console.log JSON {"k6uiExport":...}, see
+//             export-collector.js); never shown as a log line, flushed before done
 //   error   — failures (k6 not installed, failed to write the file, etc.)
 //   done    — process finished: { code, summary } (summary from --summary-export)
 // onEnd() is called once the process ends. Return value: { stop() } to
@@ -14,6 +16,7 @@ import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { createExportCollector } from "./export-collector.js";
 
 // Cap on req-log events per run so the UI doesn't get flooded.
 const MAX_REQ_LOGS = 500;
@@ -57,6 +60,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
   });
 
   let reqLogCount = 0;
+  const exportRows = createExportCollector(onEvent);
 
   // Split the stdout/stderr streams into whole lines.
   function makeLineSplitter(onLine) {
@@ -79,6 +83,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
       try {
         // logrus escaping is equivalent to JSON string body escaping — reverse it
         const raw = JSON.parse('"' + consoleMatch[1] + '"');
+        if (exportRows.addLine(raw)) return;
         if (raw.startsWith('{"__r":1,')) {
           const entry = JSON.parse(raw);
           if (reqLogCount < MAX_REQ_LOGS) {
@@ -103,6 +108,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
       // the summary may be missing if the test failed very early
     }
     const outcome = code === 0 ? "passed" : code === 99 ? "threshold-failed" : "failed";
+    exportRows.flush();
     onEvent("done", { code, outcome, summary });
     await cleanup();
     onEnd();

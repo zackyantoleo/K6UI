@@ -357,6 +357,32 @@ export function restoreDataSets(dataSets) {
   syncEmpty();
 }
 
+// Rows a run saved with "Save to CSV" (CSV text with a header row) → the data file
+// with that file name, its rows replaced (after a confirm when it has other rows),
+// or a new one. A data file imported from a .jmx without rows is filled this way.
+// → { result: 'created' | 'replaced' | 'kept' | 'too-big', name }
+export function useAsDataFile(fileName, text) {
+  if (byteLength(text) > MAX_DATA_SET_BYTES) return { result: 'too-big', name: fileName };
+  let card = cards().find(({ dataSet }) => dataSet.fileName === fileName)
+    || cards().find(({ dataSet }) => !dataSet.content && dataSet.name === fileName);
+  const label = card ? card.dataSet.name || card.dataSet.fileName : fileName;
+  if (card?.dataSet.content && card.dataSet.content !== text
+      && !confirm(`Replace the rows of the data file "${label}" with the rows saved by this run?`)) {
+    return { result: 'kept', name: label };
+  }
+  const created = !card;
+  if (!card) {
+    card = createCard({ ...blankDataSet(), name: fileName, fileName });
+    list().append(card);
+    syncEmpty();
+  }
+  // The saved rows always start with a header row.
+  card.dataSet.skipHeader = true;
+  card.querySelector('.df-skip-header').checked = true;
+  loadContent(card, text, fileName);
+  return { result: created ? 'created' : 'replaced', name: card.dataSet.name || fileName };
+}
+
 // Data files the generator will use: rows and at least one valid column.
 export const usableDataFileCount = () => cards().filter(card => card.usable).length;
 

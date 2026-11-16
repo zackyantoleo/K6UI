@@ -1096,6 +1096,8 @@ html[data-ui-mode="advanced"] #reqs-main > .req-card.expanded .req-card-head { c
   .extraction-row .ext-name, .extraction-row .ext-source { flex: 1 1 110px; width: auto; }
   /* Phone: the selector gets its own line; the default shares the next one with the remove button. */
   .extraction-row .ext-default { flex: 1 1 200px; }
+  /* Save to CSV: the file name keeps its remove button; "only when found" gets its own line. */
+  .export-head .export-skip { order: 1; flex-basis: 100%; }
   .titlebar { padding: 4px 12px; height: auto; min-height: var(--topbar-h); flex-wrap: wrap; gap: 8px; }
   .titlebar .k6-pill { margin-left: auto; }
   .category-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1218,6 +1220,42 @@ html[data-ui-mode="advanced"] #reqs-main > .req-card.expanded .req-card-head { c
   max-height: 200px; overflow-y: auto; border-left: 3px solid var(--accent);
 }
 
+
+/* ── Save to CSV: editor blocks (Extract tab) ─────────────────── */
+.exports-section { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 10px; border-top: 1px dashed var(--border-2); }
+.exports-title { font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin: 0; }
+.exports-list { display: flex; flex-direction: column; gap: 10px; }
+.export-block {
+  display: flex; flex-direction: column; gap: 7px; padding: 10px;
+  background: var(--surface-3); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+}
+.export-head { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.export-head .export-file { flex: 1 1 220px; min-width: 0; }
+.export-skip { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--text-muted); }
+.export-columns { display: flex; flex-direction: column; gap: 7px; }
+.export-column-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.export-column-row .export-col-name { flex: 0 1 180px; min-width: 110px; }
+.export-column-row .export-col-value { flex: 1 1 200px; min-width: 0; }
+
+/* ── Save to CSV: rows of a run (Run & Results) ──────────────── */
+.run-exports { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.run-exports[hidden] { display: none; }
+.run-exports h3 { font-size: 14px; margin: 0; }
+.run-exports-warning {
+  font-size: 12.5px; color: var(--warn); background: var(--warn-lite);
+  border: 1px solid rgba(245,165,36,.3); border-radius: var(--radius-sm);
+  padding: 8px 10px; margin: 0; line-height: 1.45;
+}
+.run-exports-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.run-export {
+  display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 12px;
+  background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+}
+.run-export-name { font-weight: 600; overflow-wrap: anywhere; }
+.run-export-count { font-size: 12.5px; color: var(--text-muted); }
+.run-export-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.run-export-status { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--text-muted); }
+.run-export-status:empty { display: none; }
 
 /* ── Data files (CSV) ────────────────────────────────────────── */
 .data-files-warning {

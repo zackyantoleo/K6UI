@@ -1,6 +1,7 @@
 // Lightweight versioned project state. The store owns a normalized immutable
 // snapshot; DOM adapters in config.js/project-io.js synchronize at UI boundaries.
 import { normalizeRunIf } from './run-if.js';
+import { normalizeExports } from './csv-export.js';
 
 export const CURRENT_SCHEMA_VERSION = 2;
 
@@ -114,6 +115,8 @@ function normalizeRequest(rawRequest, index, used, validGroupIds) {
     const sub = request[position];
     if (sub && typeof sub === 'object' && sub.extractions !== undefined) sub.extractions = normalizeExtractions(sub.extractions);
   }
+  // "Save to CSV" (see csv-export.js): one shape, unknown fields kept; absent stays absent.
+  if (request.exports !== undefined) request.exports = normalizeExports(request.exports);
   return request;
 }
 

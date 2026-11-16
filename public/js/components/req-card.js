@@ -1,5 +1,6 @@
 // Compact request card with one-at-a-time expansion and lazy feature panels.
 import { headerRow, extractionRow } from './rows.js';
+import { exportBlock, readExportBlock } from './export-rows.js';
 import {
   updateExtCount,
   updateAssertCount,
@@ -199,6 +200,10 @@ export function ensureRequestPanel(card, panelId) {
       for (const extraction of request.extractions || []) {
         if (extraction?.varName) list.appendChild(extractionRow(extraction));
       }
+      const exportsList = panel.querySelector('.exports-list');
+      for (const exp of request.exports || []) {
+        if (exp && typeof exp === 'object') exportsList.appendChild(exportBlock(exp));
+      }
       updateExtCount(card);
     } else if (panelId === 'assertions') {
       const list = panel.querySelector('.assertions-list');
@@ -242,6 +247,8 @@ function requestSnapshot(card) {
     row.querySelector('.h-val').value,
   ]);
   snapshot.extractions = [...card.querySelectorAll('.req-card-body .extraction-row')].map(extractionSnapshot);
+  snapshot.exports = [...card.querySelectorAll('.req-card-body .exports-list .export-block')]
+    .map(block => readExportBlock(block, { asTyped: true }));
   snapshot.assertions = [...card.querySelectorAll('.req-card-body .assertion-row')].map(row => [
     row.querySelector('.assert-type').value,
     row.querySelector('.assert-val').value,
@@ -303,6 +310,9 @@ function applySnapshot(card, snapshot) {
   }
   for (const extraction of snapshot.extractions) {
     ensureRequestPanel(card, 'extractions').querySelector('.extractions-list').appendChild(extractionRow(extraction));
+  }
+  for (const exp of snapshot.exports) {
+    ensureRequestPanel(card, 'extractions').querySelector('.exports-list').appendChild(exportBlock(exp));
   }
   for (const [type, value, value2] of snapshot.assertions) {
     ensureRequestPanel(card, 'assertions').querySelector('.assertions-list')

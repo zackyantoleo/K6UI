@@ -1,4 +1,5 @@
 import { extractionRow } from '../rows.js';
+import { exportBlock } from '../export-rows.js';
 
 export function createExtractPanel(onCountChange = () => {}) {
   const panel = document.createElement('div');
@@ -25,6 +26,29 @@ export function createExtractPanel(onCountChange = () => {}) {
   list.addEventListener('click', event => {
     if (event.target.closest('.btn-remove-sm')) queueMicrotask(onCountChange);
   });
-  panel.append(hint, list, addButton);
+
+  // "Save to CSV": after this request, add a row to a CSV file of the run.
+  const exportsSection = document.createElement('div');
+  exportsSection.className = 'exports-section';
+  const exportsTitle = document.createElement('p');
+  exportsTitle.className = 'exports-title';
+  exportsTitle.textContent = 'Save to CSV';
+  const exportsHint = document.createElement('p');
+  exportsHint.className = 'ext-hint';
+  exportsHint.textContent = 'After this request, add a row to a CSV file. Download it from Run & Results, or use it as a data file in a later run.';
+  const exportsList = document.createElement('div');
+  exportsList.className = 'exports-list';
+  const addExport = document.createElement('button');
+  addExport.type = 'button';
+  addExport.className = 'add-row-btn add-export';
+  addExport.textContent = '+ Save to CSV';
+  addExport.addEventListener('click', () => {
+    const block = exportBlock();
+    exportsList.appendChild(block);
+    block.querySelector('.export-file').focus();
+  });
+  exportsSection.append(exportsTitle, exportsHint, exportsList, addExport);
+
+  panel.append(hint, list, addButton, exportsSection);
   return panel;
 }

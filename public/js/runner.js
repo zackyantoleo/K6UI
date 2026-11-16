@@ -3,6 +3,7 @@
 import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
+import { addExportRows, resetExports } from './export-results.js';
 
 export const MAX_REQ_LOGS = 500;
 const MAX_LOG_LINES = 1500;
@@ -334,6 +335,7 @@ function handleSSE(event, data) {
     addError(data.message);
     setVerdict({ status: 'failed', title: 'Test failed to run', detail: data.message, mark: '×' });
   } else if (event === 'req-log') addRequestLog(data);
+  else if (event === 'export') addExportRows(data);
   else if (event === 'done') finishRun(data);
 }
 
@@ -350,6 +352,7 @@ function resetRunWorkspace() {
   resetReqLog();
   resetLiveLog();
   resetErrors();
+  resetExports();
   $('#run-metrics').replaceChildren();
   $('#overview-metrics').replaceChildren();
   setText('#run-started', '—');

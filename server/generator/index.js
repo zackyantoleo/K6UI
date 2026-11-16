@@ -7,6 +7,7 @@
 //   interpolate.js → {{varName}} interpolation
 //   data.js        → data files (CSV) → SharedArray + the row of each iteration
 //   run-if.js      → "run only if" condition of a request group → if (...) { ... }
+//   csv-export.js  → "Save to CSV" exports → one logged row after the request
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
@@ -18,6 +19,7 @@ import {
   dataColumns, prepareDataSets,
 } from "./data.js";
 import { buildRunIfCondition, runIfComment } from "./run-if.js";
+import { buildExportCode, extractionDefaultsByName, validateExports } from "./csv-export.js";
 
 // Request logging is opt-in because URLs and response samples can contain
 // credentials or personal data. This helper runs inside the generated k6
@@ -188,6 +190,10 @@ export function generateScript(config) {
     }
   }
 
+  // "Save to CSV": checked up front, so a broken export is a 400 before any code is built.
+  validateExports(mainReqs);
+  const exportDefaults = extractionDefaultsByName(mainReqs);
+
   // extractOr() is only written when an extraction that will run has a default.
   const hasDefault = (e) => isExtractable(e) && extractionDefault(e) !== null;
   const subRequestDefaults = (sub) => Boolean(sub && String(sub.url || "").trim() && (sub.extractions || []).some(hasDefault));
@@ -346,6 +352,9 @@ export function generateScript(config) {
     for (const e of req.extractions || []) {
       if (e && e.varName) declaredVars.add(e.varName);
     }
+
+    // ── Save to CSV (after everything of this request) ───────
+    out += buildExportCode(req.exports, ctx, exportDefaults);
   }
 
   endRun();

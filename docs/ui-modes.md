@@ -47,6 +47,8 @@ when changing either mode.
 | `public/js/components/flow-outline.js` | Advanced outline: pure `outlineModel()` / `resolveSelection()` plus a DOM adapter that reads card and group heads only |
 | `public/js/components/request-groups.js` | The group editor, one DOM for both modes: the "Run only if" row (variable, operator, comma-separated values) lives in the group body, and a badge with its summary in the always-visible head. The outline and the notice read that badge, never the inputs of a hidden panel |
 | `public/js/data-files.js` | The Data files view (`#view-datafiles`): one DOM for both modes, reached from the Data & Rules step (Simple) or its own category (Advanced). Cards keep their state in `card.dataSet`; file text is rendered with `textContent` only and nothing here reads the mode |
+| `public/js/components/export-rows.js` | "Save to CSV" blocks in the Extract tab, one DOM for both modes; values are DOM properties |
+| `public/js/export-results.js` | "Saved to CSV" in the Overview of Run & Results, shown in both modes; rows live in this tab's memory until the next run, names are rendered with `textContent` |
 | `public/js/components/advanced-notice.js` | Simple notice: pure `summarizeAdvancedSettings()` plus a DOM adapter that reads live panels when hydrated, otherwise `card.requestState` |
 | `public/css/style.css` | `[data-ui-only="simple|advanced"]` hides one-mode pieces; `html[data-ui-mode="advanced"]` rules lay out the outline and editor |
 
@@ -65,6 +67,7 @@ that will run with:
 - gRPC protocol
 - Before/After sub-requests
 - response extraction
+- Save to CSV (requests that save rows; never the file name)
 - custom checks
 - pre/post scripts (whitespace-only scripts do not count)
 - a pause other than the default 1 second
