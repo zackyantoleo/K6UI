@@ -28,13 +28,7 @@ function fillSubReq(section, req) {
 
   const srExtList = form.querySelector('.sr-extractions-list');
   for (const e of req.extractions || []) {
-    if (!e.varName) continue;
-    const row = extractionRow();
-    row.querySelector('.ext-name').value     = e.varName;
-    row.querySelector('.ext-source').value   = e.source   || 'json';
-    row.querySelector('.ext-selector').value = e.selector || '';
-    row.querySelector('.ext-source').dispatchEvent(new Event('change'));
-    srExtList.appendChild(row);
+    if (e?.varName) srExtList.appendChild(extractionRow(e));
   }
 }
 

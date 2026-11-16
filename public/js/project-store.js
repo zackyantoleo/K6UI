@@ -84,6 +84,20 @@ function normalizeGroup(rawGroup, index, used) {
   return group;
 }
 
+// An extraction's optional `default` (see CLAUDE.md): fixed text used when nothing
+// matches. Non-empty text is kept as is (a number or boolean becomes text); anything
+// else, "" included, is dropped, which means "no default". Other fields pass through.
+function normalizeExtractions(extractions) {
+  if (!Array.isArray(extractions)) return extractions;
+  return extractions.map(extraction => {
+    if (!extraction || typeof extraction !== 'object' || !Object.hasOwn(extraction, 'default')) return extraction;
+    const { default: value, ...rest } = extraction;
+    const text = typeof value === 'string' ? value
+      : (typeof value === 'number' && Number.isFinite(value)) || typeof value === 'boolean' ? String(value) : '';
+    return text ? { ...rest, default: text } : rest;
+  });
+}
+
 function normalizeRequest(rawRequest, index, used, validGroupIds) {
   if (!rawRequest || typeof rawRequest !== 'object' || Array.isArray(rawRequest)) {
     throw new TypeError(`Request ${index + 1} must be an object.`);
@@ -95,6 +109,11 @@ function normalizeRequest(rawRequest, index, used, validGroupIds) {
   request.enabled = request.enabled !== false;
   request.groupId = validGroupIds.has(request.groupId) ? request.groupId : '';
   if (!request.type) request.type = 'http';
+  if (request.extractions !== undefined) request.extractions = normalizeExtractions(request.extractions);
+  for (const position of ['pre', 'post']) {
+    const sub = request[position];
+    if (sub && typeof sub === 'object' && sub.extractions !== undefined) sub.extractions = normalizeExtractions(sub.extractions);
+  }
   return request;
 }
 

@@ -32,6 +32,7 @@ function createContext(src) {
     variables: new Map(),   // global variables created while importing: name → value
     globalsName: null,      // name of K6UI's own `const GLOBALS = {...}` object
     dataRows: new Set(),    // K6UI's own data file rows: DATA_1_ROW → {{column}}
+    extractOr: false,       // the script declares K6UI's extractOr() helper (extraction defaults)
     requests: [],
     groups: [],
     logRequests: false,
@@ -94,6 +95,7 @@ function collectTopLevel(ast, ctx) {
         ctx.warn(stmt, `Exported function ${decl.id.name}() is not imported (only the default function is).`);
       }
       if (decl.id.name === "redactResponseSample") ctx.logRequests = true; // K6UI's request-log helper
+      if (decl.id.name === "extractOr" && !decl.async && !decl.generator && decl.params.length === 2) ctx.extractOr = true;
     } else if (decl?.type === "VariableDeclaration") {
       for (const d of decl.declarations) {
         if (d.id.type !== "Identifier" || !d.init) continue;

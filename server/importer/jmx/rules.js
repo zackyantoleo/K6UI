@@ -135,10 +135,22 @@ function readsBody(el, prefix, warn) {
   return false;
 }
 
+// "Default Value" → the extraction's `default` (fixed text, used when nothing matches).
+// Empty: none. One that uses ${...} cannot be fixed text, so it is left out with a warning.
+function withDefault(extraction, value, warn) {
+  if (!value) return extraction;
+  if (value.includes("${")) {
+    warn(`default value "${value}" for "${extraction.varName}" uses a JMeter variable or function; K6UI defaults are fixed text, so the extraction has no default.`);
+    return extraction;
+  }
+  return { ...extraction, default: value };
+}
+
 function jsonExtractor(el, ctx, warn) {
   const names = str(el, "JSONPostProcessor.referenceNames").split(";");
   const paths = str(el, "JSONPostProcessor.jsonPathExprs").split(";");
   const matches = str(el, "JSONPostProcessor.match_numbers").split(";");
+  const defaults = str(el, "JSONPostProcessor.defaultValues").split(";");
   const out = [];
   names.forEach((rawName, i) => {
     const name = rawName.trim();
@@ -147,7 +159,7 @@ function jsonExtractor(el, ctx, warn) {
     const selector = path.includes("${") ? null : jsonPathSelector(path);
     if (!FIRST_MATCH.has((matches[i] ?? "").trim())) warn(`variable "${name}" uses match number ${matches[i].trim()}; only the first match is supported, so it was skipped.`);
     else if (selector == null) warn(`JSON path "${path}" for "${name}" is not supported (K6UI reads plain paths like $.data.items[0].id), so it was skipped.`);
-    else out.push({ varName: k6Name(name, ctx, el), source: "json", selector });
+    else out.push(withDefault({ varName: k6Name(name, ctx, el), source: "json", selector }, defaults[i] ?? "", warn));
   });
   return out;
 }
@@ -174,7 +186,7 @@ function regexExtractor(el, ctx, warn) {
     warn(`pattern ${pattern} cannot be used by K6UI and was skipped.`);
     return [];
   }
-  return [{ varName: k6Name(name, ctx, el), source: "regex", selector }];
+  return [withDefault({ varName: k6Name(name, ctx, el), source: "regex", selector }, str(el, "RegexExtractor.default"), warn)];
 }
 
 function boundaryExtractor(el, ctx, warn) {
@@ -187,17 +199,29 @@ function boundaryExtractor(el, ctx, warn) {
     return [];
   }
   const selector = `${escapeRegex(left)}${right ? "([\\s\\S]*?)" : "([\\s\\S]*)"}${escapeRegex(right)}`;
-  return [{ varName: k6Name(name, ctx, el), source: "regex", selector: regexSelector(selector) }];
+  return [withDefault({ varName: k6Name(name, ctx, el), source: "regex", selector: regexSelector(selector) }, str(el, "BoundaryExtractor.default"), warn)];
 }
 
-// → [{ varName, source, selector }]
+// JSR223 / BeanShell post-processors run code, which is never imported. Their usual job
+// next to an extractor is a fallback, so the warning names the variables they set.
+function scriptPostProcessor(el, kind, warn) {
+  const language = kind === "BeanShellPostProcessor" ? "BeanShell" : str(el, "scriptLanguage").trim() || "groovy";
+  const names = [...new Set([...str(el, "script").matchAll(/\bvars\.put(?:Object)?\(\s*["']([^"'\s]+)["']/g)].map((m) => m[1]))];
+  const sets = names.length
+    ? ` It sets ${names.map((name) => `"${name}"`).join(", ")}: in K6UI a variable gets only what its extraction reads, or the extraction's fixed Default when nothing matches.`
+    : "";
+  warn(`runs ${language} code, which K6UI cannot import, so it was skipped.${sets}`);
+}
+
+// → [{ varName, source, selector, default? }]
 export function convertExtractor(el, ctx) {
   const kind = el.name.split(".").pop();
   const warn = (message) => ctx.warn(el, `${kind} "${titleOf(el)}" ${message}`);
   if (kind === "JSONPostProcessor") return jsonExtractor(el, ctx, warn);
   if (kind === "RegexExtractor") return regexExtractor(el, ctx, warn);
   if (kind === "BoundaryExtractor") return boundaryExtractor(el, ctx, warn);
-  warn("has no K6UI equivalent and was skipped.");
+  if (kind === "JSR223PostProcessor" || kind === "BeanShellPostProcessor") scriptPostProcessor(el, kind, warn);
+  else warn("has no K6UI equivalent and was skipped.");
   return [];
 }
 

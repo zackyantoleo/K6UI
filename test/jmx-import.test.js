@@ -61,7 +61,8 @@ test('imports a JMeter test plan: load, variables, headers, groups, extractors, 
   assert.equal(login.method, 'POST');
   assert.equal(login.groupId, config.scenario.groups[0].id);
   assert.match(login.body, /"user": "\{\{user_name\}\}"/);
-  assert.deepEqual(login.extractions, [{ varName: 'token', source: 'json', selector: 'data.token' }]);
+  // The JSON Extractor's "Default Value" (NOT_FOUND) is kept as the extraction's default.
+  assert.deepEqual(login.extractions, [{ varName: 'token', source: 'json', selector: 'data.token', default: 'NOT_FOUND' }]);
   assert.deepEqual(login.assertions, [{ type: 'status-eq', value: '200', value2: '' }]);
   assert.equal(login.checkStatus, true);
 

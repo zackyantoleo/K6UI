@@ -25,18 +25,18 @@ server/                 Backend (Node/Express, ESM)
 │   ├── options.js      k6 options object (VUs/stages/per-vu-iterations scenario + thresholds)
 │   ├── request.js      Code block for one HTTP request
 │   ├── assertions.js   check() block from per-request assertions
-│   ├── extract.js      Variable extraction from responses
+│   ├── extract.js      Variable extraction from responses; an extraction `default` → `extractOr(() => read, "default")`
 │   ├── interpolate.js  {{varName}} interpolation → template literals
 │   ├── data.js         Data files (CSV) → SharedArray literal + the row of each iteration (or of a group's start), size limits
 │   ├── run-if.js       A group's "run only if" condition → the `if (...)` expression, 400 for a condition that cannot work
-│   └── helpers.js      JSON selectors & regex literals
+│   └── helpers.js      JSON selectors, regex literals & `jsLiteral()` (string literal, U+2028/U+2029 escaped)
 └── importer/           k6 script source → JSON configuration + warnings (reverse of generator/)
     ├── index.js        importK6Script() — acorn parse (never executes the script), imports, top-level consts
     ├── values.js       Static evaluation; textOf() renders expressions as text with {{var}} placeholders
     ├── options.js      `options` → load profile (VUs/duration, stages, one per-vu-iterations scenario) + thresholds (p95 / error rate only)
     ├── request.js      http.* calls → request (URL, headers, JSON/form body, tags.name → name)
     ├── checks.js       check() predicates → assertions (same set as generator/assertions.js)
-    ├── flow.js         Default function walk: groups, sleep, extractions created on first use (warns about SharedArray data files; `DATA_n_ROW.col` → `{{col}}`)
+    ├── flow.js         Default function walk: groups, sleep, extractions created on first use (`x || "text"` / `?? "text"` and K6UI's `extractOr()` → `default`; warns about SharedArray data files; `DATA_n_ROW.col` → `{{col}}`)
     ├── run-if.js       K6UI's own `if (...) { ... }` around a conditional group → that group with its `runIf` (any other `if` is skipped with a warning)
     └── jmx/            JMeter .jmx → JSON configuration + warnings (same warning shape)
         ├── index.js    importJmx() — thread group pick, hashTree walk, JMeter scope rules, pauses
@@ -46,7 +46,7 @@ server/                 Backend (Node/Express, ESM)
         ├── sampler.js  HTTP Request (+ HTTP Request Defaults, Header Manager) → request
         ├── data.js     CSV Data Set Config → data file (no rows: a .jmx only names the file; `groupId` of the group it sits in), column/extraction clash warning
         ├── condition.js If Controller condition → a group's `runIf`: tokenized and matched against known shapes, never evaluated
-        └── rules.js    Response/Duration Assertion, JSON/Regex/Boundary Extractor, timers
+        └── rules.js    Response/Duration Assertion, JSON/Regex/Boundary Extractor (Default Value → `default`), JSR223/BeanShell post-processor warning, timers
 
 public/                 Static frontend (ES modules, no bundler)
 ├── index.html          All markup: sidebar (Simple steps + Advanced categories) + one <section> per view
@@ -57,7 +57,7 @@ public/                 Static frontend (ES modules, no bundler)
     ├── nav.js          View switching
     ├── dom.js          $ / $$ helpers
     ├── config.js       Read the form → config object + validation
-    ├── project-store.js Versioned (schema v2), frozen project snapshot + migration (incl. `dataSets` normalization, `runIf` and data set `groupId`)
+    ├── project-store.js Versioned (schema v2), frozen project snapshot + migration (incl. `dataSets` normalization, `runIf`, data set `groupId`, extraction `default`)
     ├── run-if.js       A group's "run only if" condition: validation, normalization, wording. Shared by the store, the group editor, the outline and server/generator/run-if.js (pure, no DOM)
     ├── csv-parse.js    CSV reader + data-file limits, shared by the Data files panel and server/generator/data.js (pure, no DOM)
     ├── data-files.js   "Data files" view (Data & Rules): data file cards, preview, validation; state lives on each card
@@ -72,7 +72,7 @@ public/                 Static frontend (ES modules, no bundler)
         ├── request-groups.js  One-level request groups with shared header defaults and a "Run only if" row (head badge + editor, `requestGroupProblem()` for validation)
         ├── flow-outline.js    Advanced: outline in execution order that selects the canonical card/group (a group shows its condition)
         ├── advanced-notice.js Simple: "Advanced settings configured" notice (categories + counts only, incl. Conditional groups and Data files)
-        ├── rows.js            Header & extraction form rows
+        ├── rows.js            Header & extraction form rows (`extractionRow(extraction)` / `readExtractionRow(row)`, incl. the optional Default)
         ├── counts.js          Count badges, renumbering, flow-changed events, focus after removal
         └── flow-view.js       "Main Scenario" zone + load-profile stage rows
 ```
@@ -157,8 +157,9 @@ Shape of one request:
   "body": "",                    // only used for POST/PUT/PATCH/DELETE
   "checkStatus": true,           // add the automatic 2xx status check
   "sleepAfter": "1",             // seconds to pause after the request
-  "extractions": [{ "varName": "token", "source": "json", "selector": "data.token" }],
+  "extractions": [{ "varName": "token", "source": "json", "selector": "data.token", "default": "TOKEN_NOT_FOUND" }],
   // source: "json" (JSON path), "header" (header name), "regex" (1st capture group)
+  // default: optional fixed text used when nothing matches (absent or "" = none, see below)
   "assertions": [{ "type": "status-eq", "value": "200", "value2": "" }],
   "preScript":  "vars.ts = Date.now();",              // JS inlined before the request
   "postScript": "vars.id = JSON.parse(res.body).id;", // JS inlined after it; `res` = response
@@ -171,9 +172,10 @@ Shape of one request:
 - Data files (`dataSets`, `server/generator/data.js`) embed the rows in the script as `new SharedArray(...)` built from a JSON literal (imports `k6/data` and `k6/execution` only when a data set is used), so View Script and a standalone run need no extra file and `k6-runner.js` is untouched. At the start of the default function each data set picks its row `DATA_n_ROW` (`next-row`: `exec.scenario.iterationInTest`; `per-vu`: `__VU - 1`; `recycle` = modulo; `stop` = `return` after a `sleep(1)` so duration tests do not spin, with one `console.warn`: once for the whole test with `next-row`, once per VU with `per-vu`). A global data set (no `groupId`) reads its row for every iteration, whether or not the requests that use it run; a data set tied to a group is read only when that group starts (see the conditional groups bullet). A data set with no content, no rows, or no valid column is ignored (its `{{placeholders}}` stay literal text); the first data set that has a column name wins. A file over 5 MB (or 10 MB in total) is a 413, an unclosed quote a 400. `express.json` takes 24 MB on `/api/generate` and `/api/run` only; the import endpoints keep 1 MB. The CSV reader (`public/js/csv-parse.js`: quotes, delimiter, CRLF, BOM, empty lines) is shared with the UI so the preview and the script always count the same rows. Needs k6 with `k6/execution` (v0.38+). The data is saved in the project file and written into the script, so a file with credentials makes both sensitive.
 - `iterationInTest` is unique per iteration across all VUs of the scenario, also for the `per-vu-iterations` scenario of iterations mode (checked with k6 v2.4.0 in `test/data-files-k6.test.js`, which skips when `k6` is missing): 5 VUs x 1 iteration over 5 rows reads 5 different rows.
 - Conditional groups (`runIf`, `server/generator/run-if.js` + `public/js/run-if.js`): a group's requests are wrapped in `if (...) { ... }` in the default function. The condition is data, never free JavaScript. The variable is read by the same precedence as `{{variable}}` (extracted > processor > data column > global) **when the group starts**, and values are compared as strings (`String(x) === "A"`, `!==`, or `["A","B"].includes(String(x))`; case-sensitive). The condition is checked once per *run* of the group: requests of one group that are not next to each other (Auth, Checkout, Auth) are separate runs, each with its own `if`. A variable that is not known when the group starts (not global, not a column of a file outside this group, not extracted or assigned by an earlier request) is a **400** naming the group and the variable, as is a condition that cannot work (bad name, operator or values); the UI blocks Run / View Script for a half-typed row. The block is not re-indented (a request body can hold raw newlines inside a template literal), so the generated `if` looks flat. Everything of a request stays inside it: Before/After requests, processors, assertions, request log, `sleep`, gRPC.
-  - Variables hoisted out of the block: names extracted by the group's requests (main, Before, After) that are not declared yet get `let name = "";` above the `if`, so a request after the group can still use `{{name}}`; inside, they are assigned, never re-declared. The *precedence* rule is unchanged (a name counts as extracted only after the request that extracts it, in generate order). When the group does not run the value stays `""` (the real fallback is a later feature). Names a processor script assigns to `vars` inside the group start as `""` outside it.
+  - Variables hoisted out of the block: names extracted by the group's requests (main, Before, After) that are not declared yet get `let name = "";` above the `if` — or `let name = "<default>";` when an extraction of that name in the run has a default (the first one, in Before → main → After order) — so a request after the group can still use `{{name}}`; inside, they are assigned, never re-declared. The *precedence* rule is unchanged (a name counts as extracted only after the request that extracts it, in generate order). When the group does not run the value stays at that default, else `""`; a name already extracted before the group is not hoisted again and keeps its earlier value. Names a processor script assigns to `vars` inside the group start as `""` outside it.
   - Data files of a group (`groupId`): the row variable is declared up front (`let DATA_n_ROW = { column: "", ... }`), and the row is chosen, and `stop` applied (an early `return`), at the start of the group's run, inside the `if` when there is one. A data file of a **turned-off** group is not used at all (no SharedArray, no size-limit count, its `{{columns}}` stay literal text); a `groupId` that points nowhere means global. The row is picked by `exec.scenario.iterationInTest` (or `__VU - 1`), so the row index follows the iteration number, **not** how many times the group ran: if the condition holds in only some iterations, rows are skipped.
   - Importing: JMeter `IfController` directly under the thread group → a group with `runIf` (see the JMeter bullet); K6UI's own generated `if` is read back by `importer/run-if.js` (the group name comes from the `// Group "…" runs only if` comment above it); any other `if` in a k6 script is skipped with a warning that its requests were left out.
+- Extraction defaults (`default`, `server/generator/extract.js`): fixed text only, never an expression. Without one (absent or `""`) the generated line is exactly as before: a regex with no match gives `""`, a missing JSON path or header gives `undefined`, and a body that is not JSON throws (k6 ends the iteration). With one, the read is wrapped in `extractOr(() => <read>, "<default>")`, a helper written once above the default function only when an extraction that runs has a default: the default is used when the read gives `undefined` or `null` or throws (missing path or header, no regex match, a body that is not JSON, no body). A match that is `""`, `0` or `false` is kept. The same default is the value a skipped conditional group leaves behind (see above). A number or boolean default in a project or API payload is read as text; strings are kept as typed (not trimmed), including in the UI, where an empty input means no default. Importing: JMeter's "Default Value" of JSON (`defaultValues`, one per variable, `;`-separated), Regex and Boundary extractors becomes `default`; an empty one, or one with `${...}` (a warning), gives none. In a k6 script, `x || "text"` and `x ?? "text"` (string, number or plain template literal) on a value read from a response become the default (`|| ""` stays "no default"; with nested fallbacks the inner one wins, as in JavaScript), as does K6UI's own `extractOr(...)` when the script declares the `extractOr` helper. JSR223 / BeanShell post-processors (custom fallback logic) are never imported: the warning names the variables they `vars.put`.
 - Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Referencing `crypto.` or `encoding.` in a script auto-adds the `k6/crypto` / `k6/encoding` import. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
 - gRPC requests (`type: "grpc"`) generate `k6/net/grpc` unary calls with server reflection (`reflect: true` — the target server must support it; .proto upload is not implemented). The automatic check compares against `grpc.StatusOK`; extractions read the decoded `res.message`; assertions are remapped for gRPC (statuses = gRPC codes, body = `JSON.stringify(message)`, `duration-lt` is skipped). Pre/post sub-requests stay HTTP.
 - Assertion type list: `ASSERT_TYPES` in `public/js/components/request-editor/checks.js` — **must stay in sync** with the switch in `server/generator/assertions.js` and the recognized shapes in `server/importer/checks.js`.

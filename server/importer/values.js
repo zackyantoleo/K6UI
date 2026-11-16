@@ -253,6 +253,9 @@ export function textOf(rawNode, ctx, depth = 0) {
     default: {
       const value = tryStatic(node, ctx);
       if (isPrimitive(value)) return String(value);
+      // `${res.json('id') || "NONE"}`: a response value with a fallback (flow.js)
+      const fromResponse = node.type === "LogicalExpression" ? ctx.refText?.(node) : null;
+      if (fromResponse != null) return fromResponse;
       throw new Unresolvable(`unsupported expression (${node.type})`);
     }
   }

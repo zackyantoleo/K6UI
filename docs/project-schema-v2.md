@@ -105,6 +105,32 @@ placeholders stay literal text; when two data sets share a column name the first
 Because the rows are part of the project, the saved file (and the generated script) holds
 whatever the CSV holds, passwords and tokens included.
 
+## Extraction defaults
+
+An extraction can carry a `default`. It is purely additive: older projects have none, migration
+does not add the field, and an extraction without it (or with `""`) behaves exactly as before.
+
+```json
+"extractions": [
+  { "varName": "token", "source": "json", "selector": "data.token", "default": "TOKEN_NOT_FOUND" }
+]
+```
+
+| Field | Meaning |
+|---|---|
+| `default` | Fixed text (never an expression), used when nothing matches: a missing JSON path or header, no regex match, a body that is not JSON, or no body. A match that is `""`, `0` or `false` is kept. Also the value a skipped conditional group leaves behind (see below) |
+
+The store keeps a non-empty string as typed (no trimming), turns a number or boolean into text,
+and drops anything else, `""` included. It applies to the extractions of a request and of its
+Before/After requests. Without a default the old fallbacks stay: `""` for a regex with no match,
+`undefined` for a missing JSON path or header, and an error that ends the k6 iteration for a body
+that is not JSON. The generated script reads a value with a default through one small helper,
+`extractOr(() => <read>, "<default>")`, written only when it is used.
+
+JMeter's "Default Value" of JSON, Regex and Boundary extractors is imported as `default`, and so
+are `x || "text"` / `x ?? "text"` in a k6 script. Custom fallback logic (a JSR223 post-processor
+that searches the response again) is not imported; the import warning names the variables it sets.
+
 ## Conditional groups (`runIf`)
 
 A group can carry a "run only if" condition. It is purely additive: older projects have
@@ -135,7 +161,9 @@ How it runs (`server/generator/run-if.js`): the requests of the group sit inside
 assertions, request log, pauses, and gRPC calls. Requests of one group that are not next to
 each other are separate runs, each checked when it starts. A variable that the group extracts
 is declared above the block (`let name = "";`), so later requests can use `{{name}}`; when the
-group does not run it stays empty (a real fallback value is a separate feature).
+group does not run it keeps the extraction's `default` (the first extraction of that name in the
+run that has one), or stays empty without one. A name extracted before the group is not declared
+again, so a skipped group leaves its earlier value.
 
 A data file with a `groupId` is read only when its group starts: inside the `if` when there
 is a condition, and a data file of a turned-off group is not used at all. The row index still

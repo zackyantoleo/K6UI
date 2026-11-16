@@ -11,7 +11,8 @@ import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
 import { buildAssertionsCode } from "./assertions.js";
-import { isExtractable } from "./extract.js";
+import { EXTRACT_OR_SOURCE, extractionDefault, isExtractable } from "./extract.js";
+import { jsLiteral } from "./helpers.js";
 import {
   buildDataDeclarations, buildDataHoists, buildDataImports, buildDataRowCode, buildGroupDataRowCode,
   dataColumns, prepareDataSets,
@@ -187,6 +188,13 @@ export function generateScript(config) {
     }
   }
 
+  // extractOr() is only written when an extraction that will run has a default.
+  const hasDefault = (e) => isExtractable(e) && extractionDefault(e) !== null;
+  const subRequestDefaults = (sub) => Boolean(sub && String(sub.url || "").trim() && (sub.extractions || []).some(hasDefault));
+  if (mainReqs.some((r) => (r.extractions || []).some(hasDefault) || subRequestDefaults(r.pre) || subRequestDefaults(r.post))) {
+    out += `\n${EXTRACT_OR_SOURCE}\n`;
+  }
+
   out += `\nexport default function() {\n`;
   out += buildDataRowCode(dataSets);
   out += buildDataHoists(dataSets);
@@ -235,23 +243,31 @@ export function generateScript(config) {
   };
 
   // Names a conditional run extracts or assigns would otherwise live and die
-  // inside its block. They start empty (real fallbacks are a separate feature).
+  // inside its block. An extracted name starts at its extraction's default (the
+  // first extraction of that name in the run that has one), else empty, so a
+  // skipped group leaves the default behind.
   const hoistRunDeclarations = (run) => {
-    const extracted = [];
+    const extracted = new Map(); // name → default or null
     const assigned = new Set();
     for (const r of run) {
       for (const e of [...(r.pre?.extractions || []), ...(r.extractions || []), ...(r.post?.extractions || [])]) {
-        if (!isExtractable(e) || declaredVars.has(e.varName) || hoistedVars.has(e.varName)) continue;
+        if (!isExtractable(e) || declaredVars.has(e.varName)) continue;
+        if (extracted.has(e.varName)) {
+          if (extracted.get(e.varName) === null) extracted.set(e.varName, extractionDefault(e));
+          continue;
+        }
+        if (hoistedVars.has(e.varName)) continue;
         hoistedVars.add(e.varName);
-        extracted.push(e.varName);
+        extracted.set(e.varName, extractionDefault(e));
       }
       scanAssignedVars(String(r.preScript || ""), assigned);
       scanAssignedVars(String(r.postScript || ""), assigned);
     }
     let code = "";
-    if (extracted.length) {
-      code += `\n  // Extracted inside a conditional group: declared here so later requests can read them (empty if the group does not run)\n`;
-      for (const name of extracted) code += `  let ${name} = "";\n`;
+    if (extracted.size) {
+      const withDefaults = [...extracted.values()].some((value) => value !== null);
+      code += `\n  // Extracted inside a conditional group: declared here so later requests can read them (${withDefaults ? "their default, or empty," : "empty"} if the group does not run)\n`;
+      for (const [name, fallback] of extracted) code += `  let ${name} = ${fallback === null ? '""' : jsLiteral(fallback)};\n`;
     }
     if (assigned.size) {
       code += `\n  // Set by scripts inside a conditional group: empty until they run\n`;

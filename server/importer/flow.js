@@ -13,6 +13,7 @@ import {
 // ── Where does a value come from? ──────────────────────────────
 // Descriptors: { kind: 'response', req } | { kind: 'json', req, path } |
 // { kind: 'header', req, name } | { kind: 'regex', req, pattern }
+// json / header / regex may also carry `fallback`: the extraction's default.
 
 const isCallTo = (node, name) =>
   node?.type === "CallExpression" && node.callee.type === "Identifier" && node.callee.name === name;
@@ -24,6 +25,25 @@ const isMember = (node, prop) =>
 function isEmptyFallback(node) {
   return (node.type === "Literal" && node.value === "")
     || (node.type === "ArrayExpression" && node.elements.length === 0);
+}
+
+// `X || "NONE"`, `X ?? 0`: a fixed fallback → the extraction's default (text), else null.
+function fixedFallback(rawNode) {
+  const node = unwrap(rawNode);
+  let value = null;
+  if (node?.type === "Literal" && (typeof node.value === "string" || (typeof node.value === "number" && Number.isFinite(node.value)))) {
+    value = String(node.value);
+  } else if (node?.type === "TemplateLiteral" && !node.expressions.length) {
+    value = node.quasis[0].value.cooked;
+  }
+  return value ? value : null;
+}
+
+// A json / header / regex descriptor with a default; nested fallbacks keep the inner one,
+// which is the one JavaScript would use.
+function withFallback(desc, fallback) {
+  if (!desc || desc.kind === "response" || fallback == null) return desc;
+  return desc.fallback == null ? { ...desc, fallback } : desc;
 }
 
 function splitSelector(selector) {
@@ -40,10 +60,12 @@ export function serializePath(path) {
 }
 
 function extractionOf(desc) {
-  if (desc?.kind === "json" && desc.path.length) return { source: "json", selector: serializePath(desc.path) };
-  if (desc?.kind === "header") return { source: "header", selector: desc.name };
-  if (desc?.kind === "regex") return { source: "regex", selector: desc.pattern };
-  return null;
+  let out = null;
+  if (desc?.kind === "json" && desc.path.length) out = { source: "json", selector: serializePath(desc.path) };
+  else if (desc?.kind === "header") out = { source: "header", selector: desc.name };
+  else if (desc?.kind === "regex") out = { source: "regex", selector: desc.pattern };
+  if (out && desc.fallback != null) out.default = desc.fallback;
+  return out;
 }
 
 // `<response>.body` → the response descriptor, else null
@@ -74,12 +96,24 @@ function describe(rawNode, state) {
     case "Identifier":
       return ctx.bindings.get(node.name) ?? null;
 
-    case "LogicalExpression":
-      return (node.operator === "||" || node.operator === "??") && isEmptyFallback(node.right)
-        ? describe(node.left, state)
-        : null;
+    case "LogicalExpression": {
+      if (node.operator !== "||" && node.operator !== "??") return null;
+      if (isEmptyFallback(node.right)) return describe(node.left, state);
+      const fallback = fixedFallback(node.right);
+      if (fallback == null) return null;
+      const base = describe(node.left, state);
+      return base?.kind === "response" ? null : withFallback(base, fallback);
+    }
 
     case "CallExpression": {
+      // K6UI's own `extractOr(() => <read>, "default")` (see generator/extract.js)
+      if (ctx.extractOr && isCallTo(node, "extractOr") && node.arguments.length === 2) {
+        const [read, fallbackNode] = node.arguments;
+        const fallback = fixedFallback(fallbackNode);
+        if (read.type !== "ArrowFunctionExpression" || read.params.length || read.body.type === "BlockStatement" || fallback == null) return null;
+        const base = describe(read.body, state);
+        return base?.kind === "response" ? null : withFallback(base, fallback);
+      }
       // res.json() / res.json('data.token')
       if (isMember(node.callee, "json")) {
         const base = describe(node.callee.object, state);
@@ -137,13 +171,12 @@ function safeKey(node, ctx) {
 }
 
 // ── Extractions ────────────────────────────────────────────────
+// The same value used twice (`${res.json('id')}` in the URL and the body) is one extraction.
 function addExtraction(desc, name) {
-  const { source, selector } = extractionOf(desc);
-  desc.names ??= new Set();
-  if (!desc.names.has(name)) {
-    desc.req.extractions.push({ varName: name, source, selector });
-    desc.names.add(name);
-  }
+  const extraction = { varName: name, ...extractionOf(desc) };
+  const same = (e) => e.varName === name && e.source === extraction.source
+    && e.selector === extraction.selector && e.default === extraction.default;
+  if (!desc.req.extractions.some(same)) desc.req.extractions.push(extraction);
   return `{{${name}}}`;
 }
 
@@ -160,7 +193,7 @@ function inlineExtraction(node, state) {
   const desc = describe(node, state);
   const ex = extractionOf(desc);
   if (!ex) return null;
-  const key = `${desc.req.id}|${ex.source}|${ex.selector}`;
+  const key = `${desc.req.id}|${ex.source}|${ex.selector}|${ex.default ?? ""}`;
   if (!state.inline.has(key)) {
     const last = desc.kind === "json" ? [...desc.path].reverse().find((seg) => typeof seg === "string") : desc.name;
     const base = String(last ?? "value").replace(/\W+/g, "_").replace(/^(\d)/, "_$1") || "value";
@@ -312,7 +345,7 @@ function bind(name, rawInit, state) {
   const desc = describe(init, state);
   if (desc) {
     ctx.consts.delete(name);
-    ctx.bindings.set(name, { ...desc, names: undefined });
+    ctx.bindings.set(name, { ...desc });
     return;
   }
   // Anything else is resolved where it is used (URL, header, body…).

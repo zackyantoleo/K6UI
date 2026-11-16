@@ -5,6 +5,7 @@ import { $, $$ } from './dom.js';
 import { createRequestId, projectStore } from './project-store.js';
 import { collectRequestGroups, requestGroupProblem } from './components/request-groups.js';
 import { collectDataSets, validateDataSets } from './data-files.js';
+import { readExtractionRow } from './components/rows.js';
 
 // ── Row readers — used by main cards & sub-requests ────────────
 function readHeaderRows(scope) {
@@ -15,11 +16,7 @@ function readHeaderRows(scope) {
 
 function readExtractionRows(scope) {
   return $$('.extraction-row', scope)
-    .map(r => ({
-      varName:  r.querySelector('.ext-name').value.trim().replace(/\s+/g, '_'),
-      source:   r.querySelector('.ext-source').value,
-      selector: r.querySelector('.ext-selector').value.trim(),
-    }))
+    .map(readExtractionRow)
     .filter(e => e.varName);
 }
 
