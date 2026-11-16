@@ -30,7 +30,7 @@
       <div class="project-actions" aria-label="Project file actions">
         <button type="button" class="project-action" id="save-project-btn">↓ Save</button>
         <button type="button" class="project-action" id="open-project-btn">↑ Open</button>
-        <button type="button" class="project-action project-action-wide" id="import-k6-btn">⇣ Import k6 script</button>
+        <button type="button" class="project-action project-action-wide" id="import-k6-btn">⇣ Import k6 script / JMeter .jmx</button>
       </div>
       <input type="file" id="project-file-input" accept=".json,application/json" hidden />
 
@@ -421,16 +421,16 @@
 <!-- ── k6 script import modal ───────────────────────────────── -->
 <div id="k6-import-modal" class="modal-overlay hidden">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="k6-import-title">
-    <h3 id="k6-import-title">Import k6 script</h3>
+    <h3 id="k6-import-title">Import k6 script or JMeter test plan</h3>
     <div id="k6-import-form" class="modal-section">
       <p class="note">
-        Paste a k6 script or choose a <code>.js</code> file. The script is only read, never run.
+        Paste a k6 script or a JMeter test plan, or choose a <code>.js</code> / <code>.jmx</code> file. The file is only read, never run.
         Importing replaces the current project; anything K6UI cannot represent is listed afterwards.
       </p>
-      <textarea id="k6-import-input" spellcheck="false" aria-label="k6 script" placeholder="import http from 'k6/http';&#10;import { check, sleep } from 'k6';&#10;&#10;export default function () {&#10;  http.get('https://test.k6.io');&#10;}"></textarea>
+      <textarea id="k6-import-input" spellcheck="false" aria-label="k6 script or JMeter test plan" placeholder="import http from 'k6/http';&#10;import { check, sleep } from 'k6';&#10;&#10;export default function () {&#10;  http.get('https://test.k6.io');&#10;}"></textarea>
       <div>
-        <button type="button" class="btn ghost sm" id="k6-import-pick">Choose .js file…</button>
-        <input type="file" id="k6-import-file" accept=".js,.mjs,text/javascript" hidden />
+        <button type="button" class="btn ghost sm" id="k6-import-pick">Choose .js or .jmx file…</button>
+        <input type="file" id="k6-import-file" accept=".js,.mjs,.jmx,.xml,text/javascript,application/xml,text/xml" hidden />
       </div>
     </div>
     <div id="k6-import-error" class="curl-error hidden" role="alert"></div>

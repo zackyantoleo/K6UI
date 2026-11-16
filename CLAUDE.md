@@ -21,20 +21,27 @@ server/                 Backend (Node/Express, ESM)
 ├── routes.js           API endpoints (see API section)
 ├── k6-runner.js        Write script to a temp folder, spawn `k6 run`, parse output → events
 ├── generator/          JSON configuration → k6 script source (string)
+│   ├── index.js        generateScript() — orchestration
+│   ├── options.js      k6 options object (VUs/stages + thresholds)
+│   ├── request.js      Code block for one HTTP request
+│   ├── assertions.js   check() block from per-request assertions
+│   ├── extract.js      Variable extraction from responses
+│   ├── interpolate.js  {{varName}} interpolation → template literals
+│   └── helpers.js      JSON selectors & regex literals
 └── importer/           k6 script source → JSON configuration + warnings (reverse of generator/)
     ├── index.js        importK6Script() — acorn parse (never executes the script), imports, top-level consts
     ├── values.js       Static evaluation; textOf() renders expressions as text with {{var}} placeholders
     ├── options.js      `options` → load profile + thresholds (p95 / error rate only)
     ├── request.js      http.* calls → request (URL, headers, JSON/form body, tags.name → name)
     ├── checks.js       check() predicates → assertions (same set as generator/assertions.js)
-    └── flow.js         Default function walk: groups, sleep, extractions created on first use
-    ├── index.js        generateScript() — orchestration
-    ├── options.js      k6 options object (VUs/stages + thresholds)
-    ├── request.js      Code block for one HTTP request
-    ├── assertions.js   check() block from per-request assertions
-    ├── extract.js      Variable extraction from responses
-    ├── interpolate.js  {{varName}} interpolation → template literals
-    └── helpers.js      JSON selectors & regex literals
+    ├── flow.js         Default function walk: groups, sleep, extractions created on first use
+    └── jmx/            JMeter .jmx → JSON configuration + warnings (same warning shape)
+        ├── index.js    importJmx() — thread group pick, hashTree walk, JMeter scope rules, pauses
+        ├── xml.js      Minimal XML parser with line numbers (no DOCTYPE, so no external entities)
+        ├── props.js    JMeter property readers; ${var} → {{var}}, ${__P(name,default)} → global variable
+        ├── load.js     ThreadGroup / ConcurrencyThreadGroup → load profile
+        ├── sampler.js  HTTP Request (+ HTTP Request Defaults, Header Manager) → request
+        └── rules.js    Response/Duration Assertion, JSON/Regex/Boundary Extractor, timers
 
 public/                 Static frontend (ES modules, no bundler)
 ├── index.html          All markup: sidebar (Simple steps + Advanced categories) + one <section> per view
@@ -50,7 +57,7 @@ public/                 Static frontend (ES modules, no bundler)
     ├── curl-import.js  "Import from cURL" modal: parse + fill a request card
     ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics
     ├── project-io.js   Save/load projects (JSON file = config object)
-    ├── script-import.js "Import k6 script" modal: POST /api/import-script, applyConfig, list warnings
+    ├── script-import.js "Import k6 script / JMeter .jmx" modal: text starting with "<" → POST /api/import-jmx, else /api/import-script; applyConfig, list warnings
     └── components/
         ├── req-card.js        Request card: lazy editor tabs + pre/post sub-requests
         ├── request-editor/    One module per editor tab (headers, body, extract, checks, scripts, advanced)
@@ -75,6 +82,7 @@ UI form → `collectConfig()` (js/config.js) → `POST /api/generate` or `/api/r
 | `GET /api/k6-status` | — | `{ installed, version? }` |
 | `POST /api/generate` | config object | `{ script }` or 400 `{ error }` |
 | `POST /api/import-script` | `{ script }` (k6 source) | `{ config, warnings: [{ line, message }] }` or 400 `{ error, warnings }` |
+| `POST /api/import-jmx` | raw .jmx XML (`Content-Type: application/xml`, ≤ 10 MB) | same as `/api/import-script` |
 | `POST /api/run` | config object | SSE stream (events below) |
 
 SSE events from `/api/run`: `status` (progress), `log` (raw k6 output line), `req-log`
@@ -131,6 +139,7 @@ Shape of one request:
 - gRPC requests (`type: "grpc"`) generate `k6/net/grpc` unary calls with server reflection (`reflect: true` — the target server must support it; .proto upload is not implemented). The automatic check compares against `grpc.StatusOK`; extractions read the decoded `res.message`; assertions are remapped for gRPC (statuses = gRPC codes, body = `JSON.stringify(message)`, `duration-lt` is skipped). Pre/post sub-requests stay HTTP.
 - Assertion type list: `ASSERT_TYPES` in `public/js/components/request-editor/checks.js` — **must stay in sync** with the switch in `server/generator/assertions.js` and the recognized shapes in `server/importer/checks.js`.
 - Script import (`importK6Script`) is a best-effort reverse of the generator: it reads straight-line request flows, never runs the script, and reports everything it skips as warnings. Imported requests start with `checkStatus: false` unless the script has K6UI's own 2xx/3xx check. Scripts written by K6UI import back to the same flow (covered by `test/script-import.test.js`), except pre/post scripts, Before/After sub-requests and gRPC, which come back as plain requests or warnings. When the generator gains a new construct, teach the importer the same shape.
+- JMeter import (`importJmx`) reads the first enabled thread group (setUp/tearDown and further thread groups become warnings) and follows JMeter scope: config elements, timers, assertions and extractors apply to every request at their level and below. Header Managers at test plan / thread group level → `globalHeaders`; a controller directly under the thread group → request group (deeper controllers are merged into it); other Header Managers → request headers. Requests keep JMeter's failure rule via `checkStatus: true` unless a Response Assertion has "Ignore status". Timers pause *before* a request, so the pause is added to the previous request's `sleepAfter` (the first request's wraps to the last). Variable names are renamed to valid, non-reserved identifiers everywhere they appear.
 
 ## Conventions
 

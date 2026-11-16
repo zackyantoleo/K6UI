@@ -1,6 +1,7 @@
-// "Import k6 script" modal: send a pasted/chosen k6 script to POST /api/import-script
-// (the server only parses it) and load the resulting configuration like Open does.
-// Anything K6UI cannot represent comes back as warnings and is listed here.
+// "Import k6 script / JMeter .jmx" modal: send a pasted/chosen k6 script to
+// POST /api/import-script, or a JMeter test plan (XML) to POST /api/import-jmx
+// (the server only parses it), and load the resulting configuration like Open
+// does. Anything K6UI cannot represent comes back as warnings and is listed here.
 import { $ } from './dom.js';
 import { collectConfig } from './config.js';
 import { applyConfig } from './project-io.js';
@@ -55,6 +56,19 @@ function closeModal() {
   returnFocus = null;
 }
 
+// A k6 script is JavaScript; a .jmx test plan is XML and starts with "<".
+const isJmx = (text) => /^\uFEFF?\s*</.test(text);
+
+function importRequest(text) {
+  return isJmx(text)
+    ? fetch('/api/import-jmx', { method: 'POST', headers: { 'Content-Type': 'application/xml' }, body: text })
+    : fetch('/api/import-script', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script: text }),
+    });
+}
+
 function hasCurrentWork() {
   return collectConfig().scenario.requests.some(r => r.url);
 }
@@ -76,21 +90,17 @@ function showResult(config, warnings) {
 
 async function applyImport() {
   const script = $('#k6-import-input').value;
-  if (!script.trim()) { showError('Paste a k6 script or choose a file first.'); return; }
+  if (!script.trim()) { showError('Paste a k6 script or JMeter test plan, or choose a file first.'); return; }
   if (hasCurrentWork() && !confirm('Importing replaces the current project. Continue?')) return;
 
   const apply = $('#k6-import-apply');
   apply.disabled = true;
   showError('');
   try {
-    const res = await fetch('/api/import-script', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script }),
-    });
+    const res = await importRequest(script);
     const data = await res.json();
     if (!res.ok) {
-      showError(data.error || 'The script could not be imported.');
+      showError(data.error || 'The file could not be imported.');
       renderWarnings(data.warnings || []);
       $('#k6-import-result').classList.toggle('hidden', !(data.warnings || []).length);
       $('#k6-import-summary').textContent = 'These parts were skipped:';
@@ -100,7 +110,7 @@ async function applyImport() {
     if (data.warnings.length) showResult(data.config, data.warnings);
     else closeModal();
   } catch (e) {
-    showError(e instanceof Error ? e.message : 'The script could not be imported.');
+    showError(e instanceof Error ? e.message : 'The file could not be imported.');
   } finally {
     apply.disabled = false;
   }

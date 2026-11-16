@@ -1,9 +1,10 @@
 // API endpoints. k6 process logic lives in k6-runner.js, codegen in generator/.
-import { Router } from "express";
+import express, { Router } from "express";
 import { execFile } from "node:child_process";
 
 import { generateScript } from "./generator/index.js";
 import { ScriptImportError, importK6Script } from "./importer/index.js";
+import { importJmx } from "./importer/jmx/index.js";
 import { startK6Run } from "./k6-runner.js";
 
 export const apiRouter = Router();
@@ -34,6 +35,17 @@ apiRouter.post("/generate", (req, res) => {
 apiRouter.post("/import-script", (req, res) => {
   try {
     res.json(importK6Script(req.body?.script));
+  } catch (err) {
+    if (!(err instanceof ScriptImportError)) throw err;
+    res.status(400).json({ error: err.message, warnings: err.warnings });
+  }
+});
+
+// POST /api/import-jmx — read a JMeter test plan (raw .jmx XML body, never run) into a UI configuration.
+// Response: { config, warnings: [{ line, message }] } or 400 { error, warnings }.
+apiRouter.post("/import-jmx", express.text({ type: ["application/xml", "text/xml"], limit: "10mb" }), (req, res) => {
+  try {
+    res.json(importJmx(typeof req.body === "string" ? req.body : ""));
   } catch (err) {
     if (!(err instanceof ScriptImportError)) throw err;
     res.status(400).json({ error: err.message, warnings: err.warnings });
