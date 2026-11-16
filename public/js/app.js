@@ -13,6 +13,7 @@ import {
 } from './runner.js';
 import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';
+import { initScriptImport } from './script-import.js';
 import { initAdvancedNotice } from './components/advanced-notice.js';
 
 // ── Navigation ─────────────────────────────────────────────────
@@ -204,6 +205,7 @@ stagesEl.appendChild(stageRow('1m',  '20'));
 stagesEl.appendChild(stageRow('30s', '0'));
 
 initCurlImport();
+initScriptImport();
 initAdvancedNotice();
 initUiMode();
 navigate('flow', { focusHeading: false });
