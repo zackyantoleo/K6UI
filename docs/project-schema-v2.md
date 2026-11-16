@@ -54,6 +54,21 @@ PR-02 introduces a lightweight, versioned project state without adding a tree or
 ```
 
 Additional existing request fields remain supported and pass through migration unchanged.
+
+## Load modes
+
+`load.mode` is `simple` (VUs + duration), `stages`, or `iterations`. Iterations mode
+adds two optional fields and is purely additive: older projects have none of them,
+migration does not add them, and unknown fields pass through unchanged.
+
+```json
+"load": { "mode": "iterations", "vus": "5", "iterations": "2", "maxDuration": "1h" }
+```
+
+Every VU starts at once and runs the flow `iterations` times, then stops (a k6
+`per-vu-iterations` scenario). `maxDuration` is a safety limit and defaults to
+`1h` when empty (k6's own default is only 10m). `duration` and `stages` are not
+used in this mode.
 Group header defaults are applied during generation with precedence
 `global < group < request`; disabling a group skips its member requests.
 

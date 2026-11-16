@@ -109,3 +109,15 @@ test('malformed array-valued object domains fall back to safe defaults', () => {
   assert.deepEqual(migrated.thresholds, {});
   assert.deepEqual(migrated.options, {});
 });
+
+test('iterations load settings pass through migration without changing older projects', () => {
+  const iterations = { mode: 'iterations', vus: '5', iterations: '2', maxDuration: '2h' };
+  const migrated = migrateProject({ load: iterations, scenario: { requests: [] } });
+  assert.deepEqual({ ...migrated.load }, { ...iterations, duration: '30s', stages: [] });
+  assert.deepEqual(migrateProject(JSON.parse(serializeProject(migrated))).load, migrated.load);
+
+  // Projects saved before the mode existed gain no iterations fields.
+  const legacy = migrateProject({ load: { mode: 'stages', stages: [{ duration: '5s', target: '2' }] }, scenario: { requests: [] } });
+  assert.equal('iterations' in legacy.load, false);
+  assert.equal('maxDuration' in legacy.load, false);
+});

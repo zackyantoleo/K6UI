@@ -95,6 +95,10 @@ export function collectConfig() {
   if (mode === 'simple') {
     load.vus      = $('#vus').value;
     load.duration = $('#duration').value.trim();
+  } else if (mode === 'iterations') {
+    load.vus         = $('#iter-vus').value;
+    load.iterations  = $('#iterations').value;
+    load.maxDuration = $('#max-duration').value.trim();
   } else {
     load.stages = $$('.stage-row').map(s => ({
       duration: s.querySelector('.stage-dur').value.trim(),
@@ -123,6 +127,11 @@ export function validate(config) {
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
       return 'Add at least one valid stage in the Load Profile.';
+  }
+  if (config.load.mode === 'iterations') {
+    const whole = value => /^[1-9]\d*$/.test(String(value ?? '').trim());
+    if (!whole(config.load.vus) || !whole(config.load.iterations))
+      return 'Enter whole numbers of at least 1 for VUs and iterations in the Load Profile.';
   }
   return null;
 }

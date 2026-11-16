@@ -22,7 +22,7 @@ server/                 Backend (Node/Express, ESM)
 ├── k6-runner.js        Write script to a temp folder, spawn `k6 run`, parse output → events
 ├── generator/          JSON configuration → k6 script source (string)
 │   ├── index.js        generateScript() — orchestration
-│   ├── options.js      k6 options object (VUs/stages + thresholds)
+│   ├── options.js      k6 options object (VUs/stages/per-vu-iterations scenario + thresholds)
 │   ├── request.js      Code block for one HTTP request
 │   ├── assertions.js   check() block from per-request assertions
 │   ├── extract.js      Variable extraction from responses
@@ -31,7 +31,7 @@ server/                 Backend (Node/Express, ESM)
 └── importer/           k6 script source → JSON configuration + warnings (reverse of generator/)
     ├── index.js        importK6Script() — acorn parse (never executes the script), imports, top-level consts
     ├── values.js       Static evaluation; textOf() renders expressions as text with {{var}} placeholders
-    ├── options.js      `options` → load profile + thresholds (p95 / error rate only)
+    ├── options.js      `options` → load profile (VUs/duration, stages, one per-vu-iterations scenario) + thresholds (p95 / error rate only)
     ├── request.js      http.* calls → request (URL, headers, JSON/form body, tags.name → name)
     ├── checks.js       check() predicates → assertions (same set as generator/assertions.js)
     ├── flow.js         Default function walk: groups, sleep, extractions created on first use
@@ -39,7 +39,7 @@ server/                 Backend (Node/Express, ESM)
         ├── index.js    importJmx() — thread group pick, hashTree walk, JMeter scope rules, pauses
         ├── xml.js      Minimal XML parser with line numbers (no DOCTYPE, so no external entities)
         ├── props.js    JMeter property readers; ${var} → {{var}}, ${__P(name,default)} → global variable
-        ├── load.js     ThreadGroup / ConcurrencyThreadGroup → load profile
+        ├── load.js     ThreadGroup / ConcurrencyThreadGroup → load profile (fixed loop count → iterations mode)
         ├── sampler.js  HTTP Request (+ HTTP Request Defaults, Header Manager) → request
         └── rules.js    Response/Duration Assertion, JSON/Regex/Boundary Extractor, timers
 
@@ -104,6 +104,9 @@ The same object is used for `/api/generate`, `/api/run`, and project save files.
   // header with the same name (case-insensitive) overrides the global one
   "load": { "mode": "simple", "vus": "10", "duration": "30s" },
   // or: { "mode": "stages", "stages": [{ "duration": "30s", "target": "20" }] }
+  // or: { "mode": "iterations", "vus": "5", "iterations": "2", "maxDuration": "1h" }
+  //     every VU starts at once and runs the flow `iterations` times, then stops
+  //     (k6 `per-vu-iterations` scenario); maxDuration is optional, default "1h"
   "thresholds": { "p95": "500", "errorRate": "1" },   // empty string = unused
   "options": { "logRequests": true }                   // enables req-log events
 }
@@ -138,8 +141,8 @@ Shape of one request:
 - Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Referencing `crypto.` or `encoding.` in a script auto-adds the `k6/crypto` / `k6/encoding` import. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
 - gRPC requests (`type: "grpc"`) generate `k6/net/grpc` unary calls with server reflection (`reflect: true` — the target server must support it; .proto upload is not implemented). The automatic check compares against `grpc.StatusOK`; extractions read the decoded `res.message`; assertions are remapped for gRPC (statuses = gRPC codes, body = `JSON.stringify(message)`, `duration-lt` is skipped). Pre/post sub-requests stay HTTP.
 - Assertion type list: `ASSERT_TYPES` in `public/js/components/request-editor/checks.js` — **must stay in sync** with the switch in `server/generator/assertions.js` and the recognized shapes in `server/importer/checks.js`.
-- Script import (`importK6Script`) is a best-effort reverse of the generator: it reads straight-line request flows, never runs the script, and reports everything it skips as warnings. Imported requests start with `checkStatus: false` unless the script has K6UI's own 2xx/3xx check. Scripts written by K6UI import back to the same flow (covered by `test/script-import.test.js`), except pre/post scripts, Before/After sub-requests and gRPC, which come back as plain requests or warnings. When the generator gains a new construct, teach the importer the same shape.
-- JMeter import (`importJmx`) reads the first enabled thread group (setUp/tearDown and further thread groups become warnings) and follows JMeter scope: config elements, timers, assertions and extractors apply to every request at their level and below. Header Managers at test plan / thread group level → `globalHeaders`; a controller directly under the thread group → request group (deeper controllers are merged into it); other Header Managers → request headers. Requests keep JMeter's failure rule via `checkStatus: true` unless a Response Assertion has "Ignore status". Timers pause *before* a request, so the pause is added to the previous request's `sleepAfter` (the first request's wraps to the last). Variable names are renamed to valid, non-reserved identifiers everywhere they appear.
+- Script import (`importK6Script`) is a best-effort reverse of the generator: it reads straight-line request flows, never runs the script, and reports everything it skips as warnings. Imported requests start with `checkStatus: false` unless the script has K6UI's own 2xx/3xx check. Scripts written by K6UI import back to the same flow (covered by `test/script-import.test.js`), except pre/post scripts, Before/After sub-requests and gRPC, which come back as plain requests or warnings. When the generator gains a new construct, teach the importer the same shape (e.g. a single `per-vu-iterations` scenario in `options.scenarios` imports as iterations mode; other scenarios are skipped with a warning).
+- JMeter import (`importJmx`) reads the first enabled thread group (setUp/tearDown and further thread groups become warnings) and follows JMeter scope: config elements, timers, assertions and extractors apply to every request at their level and below. Header Managers at test plan / thread group level → `globalHeaders`; a controller directly under the thread group → request group (deeper controllers are merged into it); other Header Managers → request headers. Requests keep JMeter's failure rule via `checkStatus: true` unless a Response Assertion has "Ignore status". Timers pause *before* a request, so the pause is added to the previous request's `sleepAfter` (the first request's wraps to the last). Variable names are renamed to valid, non-reserved identifiers everywhere they appear. A thread group with a fixed loop count and no scheduler duration ("N loops per user") becomes `{ mode: "iterations", vus: <threads>, iterations: <loops> }`; its ramp-up is not supported there (all VUs start at once, with a warning when more than one user ramps up). Forever loops, scheduler durations and Concurrency Thread Groups keep the duration/stages profile.
 
 ## Conventions
 

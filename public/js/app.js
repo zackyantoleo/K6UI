@@ -42,6 +42,7 @@ function setLoadMode(mode) {
   if (radio) radio.checked = true;
   $('#load-simple').classList.toggle('hidden', mode !== 'simple');
   $('#load-stages').classList.toggle('hidden', mode !== 'stages');
+  $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
 }
 
 function setLoadEditorExpanded(expanded) {

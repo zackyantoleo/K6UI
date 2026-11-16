@@ -199,9 +199,34 @@ test('reads loops, concurrency thread groups, nested controllers, and scoped ext
       <boolProp name="ThreadGroup.scheduler">false</boolProp>
     </ThreadGroup>`,
   });
+  // A fixed loop count without a duration is "every user runs N iterations".
   const fromLoops = importJmx(loops);
-  assert.deepEqual(fromLoops.config.load, { mode: 'simple', vus: '3', duration: '30s', stages: [] });
-  assert.match(messages(fromLoops.warnings), /runs 10 iterations per user/);
+  assert.deepEqual(fromLoops.config.load, { mode: 'iterations', vus: '3', iterations: '10' });
+  assert.doesNotMatch(messages(fromLoops.warnings), /iteration|ramp-up/);
+  assert.match(generateScript(fromLoops.config), /"executor": "per-vu-iterations",\s+"vus": 3,\s+"iterations": 10,\s+"maxDuration": "1h"/);
+
+  // Ramp-up is not supported there: all users start at once, with a warning (not for a single user).
+  const ramped = importJmx(plan(sampler('A', '/a'), { threadGroup: loops.match(/<ThreadGroup[\s\S]*<\/ThreadGroup>/)[0].replace('ramp_time">0<', 'ramp_time">5<') }));
+  assert.deepEqual(ramped.config.load, { mode: 'iterations', vus: '3', iterations: '10' });
+  assert.match(messages(ramped.warnings), /ramps up its 3 users over 5s; in iterations mode K6UI starts all users at once/);
+
+  // Forever loops and a scheduler duration keep the duration-based profile.
+  const threadGroupWith = (loopsValue, extra = '') => `<ThreadGroup testname="Loops">
+      <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+        <stringProp name="LoopController.loops">${loopsValue}</stringProp>
+      </elementProp>
+      <stringProp name="ThreadGroup.num_threads">3</stringProp>${extra}
+    </ThreadGroup>`;
+  const forever = importJmx(plan(sampler('A', '/a'), { threadGroup: threadGroupWith('-1') }));
+  assert.deepEqual(forever.config.load, { mode: 'simple', vus: '3', duration: '30s', stages: [] });
+  assert.match(messages(forever.warnings), /loops until it is stopped/);
+  const timed = importJmx(plan(sampler('A', '/a'), {
+    threadGroup: threadGroupWith('10', '<boolProp name="ThreadGroup.scheduler">true</boolProp><stringProp name="ThreadGroup.duration">90</stringProp>'),
+  }));
+  assert.deepEqual(timed.config.load, { mode: 'simple', vus: '3', duration: '90s', stages: [] });
+  const noLoops = importJmx(plan(sampler('A', '/a'), { threadGroup: threadGroupWith('0') }));
+  assert.deepEqual(noLoops.config.load, { mode: 'iterations', vus: '3', iterations: '1' });
+  assert.match(messages(noLoops.warnings), /has 0 loops; K6UI needs a whole number of at least 1/);
 
   const concurrency = plan(sampler('A', '/a'), {
     threadGroup: `<com.blazemeter.jmeter.threads.concurrency.ConcurrencyThreadGroup testname="Ramp">

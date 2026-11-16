@@ -1,5 +1,7 @@
 // JMeter thread group → K6UI load profile. JMeter settings are in seconds;
 // a ramp-up becomes a stage that ramps to the thread count, then one that holds.
+// A thread group that loops a fixed number of times (no duration) becomes the
+// iterations mode: every user runs that many iterations, then stops.
 import { jmxNumber, bool, prop, str, titleOf } from "./props.js";
 
 const FALLBACK_HOLD = 30;
@@ -13,6 +15,8 @@ function profile(vus, ramp, total) {
   }
   return { mode: "simple", vus: String(vus), duration: seconds(Math.max(total, 1)), stages: [] };
 }
+
+const iterationsProfile = (vus, iterations) => ({ mode: "iterations", vus: String(vus), iterations: String(iterations) });
 
 function reader(tg, ctx) {
   const where = `thread group "${titleOf(tg)}"`;
@@ -38,12 +42,18 @@ function threadGroup(tg, ctx) {
   const scheduler = bool(tg, "ThreadGroup.scheduler");
   let total = scheduler ? num("ThreadGroup.duration", 0) : 0;
 
+  let iterations = 0;
   if (!(total > 0)) {
     const loops = num("LoopController.loops", 1, prop(tg, "ThreadGroup.main_controller"));
-    ctx.warn(tg, loops < 0
-      ? `Thread group "${name}" loops until it is stopped; K6UI needs a duration, so the test holds for ${FALLBACK_HOLD}s after the ramp-up.`
-      : `Thread group "${name}" runs ${loops} iteration${loops === 1 ? "" : "s"} per user; K6UI runs for a duration instead, so the test holds for ${FALLBACK_HOLD}s after the ramp-up — adjust it under Load Profile.`);
-    total = ramp + FALLBACK_HOLD;
+    if (loops < 0) {
+      ctx.warn(tg, `Thread group "${name}" loops until it is stopped; K6UI needs a duration, so the test holds for ${FALLBACK_HOLD}s after the ramp-up.`);
+      total = ramp + FALLBACK_HOLD;
+    } else if (Number.isInteger(loops) && loops >= 1) {
+      iterations = loops;
+    } else {
+      ctx.warn(tg, `Thread group "${name}" has ${loops} loops; K6UI needs a whole number of at least 1, so 1 was used.`);
+      iterations = 1;
+    }
   }
   if (scheduler && num("ThreadGroup.delay", 0) > 0) {
     ctx.warn(tg, `The startup delay of thread group "${name}" is not supported and was ignored.`);
@@ -51,6 +61,12 @@ function threadGroup(tg, ctx) {
   const onError = str(tg, "ThreadGroup.on_sample_error");
   if (onError && onError !== "continue") {
     ctx.warn(tg, `"Action after a sampler error" (${onError}) is not supported; k6 continues with the next request.`);
+  }
+  if (iterations) {
+    if (ramp > 0 && vus > 1) {
+      ctx.warn(tg, `Thread group "${name}" ramps up its ${vus} users over ${seconds(ramp)}; in iterations mode K6UI starts all users at once, so the ramp-up was ignored.`);
+    }
+    return iterationsProfile(vus, iterations);
   }
   return profile(vus, ramp, total);
 }

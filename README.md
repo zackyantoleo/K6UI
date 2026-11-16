@@ -7,13 +7,13 @@ A simple UI for building and running [k6](https://k6.io) load tests **without wr
 - **Request flow** — one or many sequential requests (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS) with headers and body; each request can have optional *Before* and *After* sub-requests.
 - **Extraction & variables** — pull values out of responses (JSON path, header, or regex), then use them in later requests with `{{variable_name}}` in the URL, headers, or body (e.g. a login token).
 - **Per-request assertions** — validate status codes, body content, headers, or response time.
-- **Load profile** — fixed VUs + duration, or staged (ramp up/down via stages).
+- **Load profile** — fixed VUs + duration, staged (ramp up/down via stages), or iterations (every VU runs the flow N times, then stops).
 - **Thresholds / SLA** — max p95 and max error rate targets; if unmet, k6 exits with a non-zero code (useful for CI/CD).
 - **Script generation** — view & copy the generated k6 script; it can also be run standalone outside the UI.
 - **Run & monitor** — k6 runs on the server; live log streaming, a per-request detail table (filter by errors/URL), and an automatic metrics summary.
 - **Save / open projects** — the configuration is saved as a JSON file and can be loaded back.
-- **Import k6 scripts** — paste or open an existing k6 `.js` script and K6UI rebuilds the flow from it: load profile, thresholds, requests, headers and bodies, `check()` assertions, values taken from responses, `sleep()`, and `group()`. The script is only read, never run. Anything K6UI cannot represent (loops, conditions, custom code, other `options`) is skipped and listed after the import.
-- **Import JMeter test plans** — paste or open a `.jmx` file in the same dialog. K6UI reads one thread group (users, ramp-up, duration — also Concurrency Thread Group), HTTP requests with HTTP Request Defaults and Header Managers, User Defined Variables and `${__P(name,default)}`, Transaction/Simple Controllers as request groups, Response/Duration Assertions, JSON/Regex/Boundary Extractors, and timers / Flow Control Action pauses. The file is only read, never run; anything else (logic controllers, CSV data, scripts, other samplers) is listed after the import.
+- **Import k6 scripts** — paste or open an existing k6 `.js` script and K6UI rebuilds the flow from it: load profile (including a single `per-vu-iterations` scenario), thresholds, requests, headers and bodies, `check()` assertions, values taken from responses, `sleep()`, and `group()`. The script is only read, never run. Anything K6UI cannot represent (loops, conditions, custom code, other `options`) is skipped and listed after the import.
+- **Import JMeter test plans** — paste or open a `.jmx` file in the same dialog. K6UI reads one thread group (users, ramp-up, duration — also Concurrency Thread Group; a fixed "N loops per user" becomes the iterations load mode, without ramp-up), HTTP requests with HTTP Request Defaults and Header Managers, User Defined Variables and `${__P(name,default)}`, Transaction/Simple Controllers as request groups, Response/Duration Assertions, JSON/Regex/Boundary Extractors, and timers / Flow Control Action pauses. The file is only read, never run; anything else (logic controllers, CSV data, scripts, other samplers) is listed after the import.
 
 ## Simple and Advanced
 
@@ -39,7 +39,7 @@ npm start
 Open http://localhost:3000 in your browser.
 
 1. Enter the URL and request details in **Request Flow** (add requests, extractions, or assertions as needed).
-2. Set the number of virtual users and the duration in **Load Profile** (or use stages to ramp up/down).
+2. Set the number of virtual users and the duration in **Load Profile** (or use stages to ramp up/down, or iterations to run the flow a fixed number of times per user).
 3. (Optional) set p95 and error-rate targets in **Thresholds / SLA**.
 4. Click **View Script** to preview, or **Run Test** to execute directly.
 

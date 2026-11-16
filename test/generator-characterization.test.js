@@ -86,3 +86,32 @@ test('invalid gRPC configuration is rejected with actionable validation', () => 
     /enter the gRPC method/,
   );
 });
+
+const optionsOf = (config) => {
+  const script = generateScript({ scenario: { requests: [{ method: 'GET', url: 'https://example.test/' }] }, ...config });
+  return JSON.parse(script.match(/export const options = (\{[\s\S]*?\n\});/u)[1]);
+};
+
+test('simple and stages load modes keep their k6 options', () => {
+  assert.deepEqual(optionsOf({ load: { mode: 'simple', vus: '3', duration: '10s' } }), { vus: 3, duration: '10s' });
+  assert.deepEqual(optionsOf({}), { vus: 1, duration: '30s' });
+  assert.deepEqual(
+    optionsOf({ load: { mode: 'stages', stages: [{ duration: '5s', target: '2' }, { duration: '', target: '9' }] }, thresholds: { p95: '300' } }),
+    { stages: [{ duration: '5s', target: 2 }], thresholds: { http_req_duration: ['p(95)<300'] } },
+  );
+});
+
+test('iterations load mode generates a per-vu-iterations scenario and keeps thresholds', () => {
+  assert.deepEqual(
+    optionsOf({ load: { mode: 'iterations', vus: '5', iterations: '2' }, thresholds: { p95: '500', errorRate: '1' } }),
+    {
+      scenarios: { default: { executor: 'per-vu-iterations', vus: 5, iterations: 2, maxDuration: '1h' } },
+      thresholds: { http_req_duration: ['p(95)<500'], http_req_failed: ['rate<0.01'] },
+    },
+  );
+  // maxDuration can be raised; unusable VUs/iterations fall back to 1.
+  assert.deepEqual(
+    optionsOf({ load: { mode: 'iterations', vus: '0', iterations: 'x', maxDuration: ' 3h ' } }).scenarios.default,
+    { executor: 'per-vu-iterations', vus: 1, iterations: 1, maxDuration: '3h' },
+  );
+});

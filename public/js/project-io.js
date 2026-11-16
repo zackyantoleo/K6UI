@@ -93,10 +93,15 @@ export function applyConfig(cfg) {
   if (modeRadio) modeRadio.checked = true;
   $('#load-simple').classList.toggle('hidden', mode !== 'simple');
   $('#load-stages').classList.toggle('hidden', mode !== 'stages');
+  $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
 
   if (mode === 'simple') {
     $('#vus').value      = cfg.load?.vus      ?? 10;
     $('#duration').value = cfg.load?.duration ?? '30s';
+  } else if (mode === 'iterations') {
+    $('#iter-vus').value     = cfg.load?.vus        ?? 1;
+    $('#iterations').value   = cfg.load?.iterations ?? 1;
+    $('#max-duration').value = cfg.load?.maxDuration ?? '1h';
   } else {
     const stagesEl = $('#stages');
     stagesEl.innerHTML = '';

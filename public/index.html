@@ -145,7 +145,7 @@
         <!-- VIEW: Load Profile -->
         <section id="view-load" class="view hidden">
           <p class="view-hint" data-ui-only="simple">Choose a safe starter pattern, then customize it only when you need finer control.</p>
-          <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, or stages directly. Presets are optional starting points and ask before replacing custom values.</p>
+          <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, stages, or iterations directly. Presets are optional starting points and ask before replacing custom values.</p>
           <div class="preset-strip" aria-label="Starter load presets">
             <span>Quick start:</span>
             <button type="button" class="preset-btn" data-preset="smoke" aria-pressed="false">Smoke <small>1 VU · 30s</small></button>
@@ -171,6 +171,13 @@
                     <span>Ramp up/down across stages.</span>
                   </div>
                 </label>
+                <label class="radio-card">
+                  <input type="radio" name="load-mode" value="iterations" />
+                  <div>
+                    <strong>Iterations</strong>
+                    <span>Each VU runs the flow a set number of times, then stops.</span>
+                  </div>
+                </label>
               </div>
 
               <div id="load-simple">
@@ -187,6 +194,24 @@
               <div id="load-stages" class="hidden">
                 <div id="stages"></div>
                 <button type="button" id="add-stage" class="btn ghost sm">+ Add Stage</button>
+              </div>
+
+              <div id="load-iterations" class="hidden">
+                <div class="field">
+                  <label for="iter-vus">Virtual Users (VUs)</label>
+                  <input type="number" id="iter-vus" min="1" value="1" />
+                  <span class="field-note">All VUs start together.</span>
+                </div>
+                <div class="field">
+                  <label for="iterations">Iterations per VU</label>
+                  <input type="number" id="iterations" min="1" value="1" />
+                  <span class="field-note">Each VU runs the whole flow this many times, then stops.</span>
+                </div>
+                <div class="field">
+                  <label for="max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label>
+                  <input type="text" id="max-duration" value="1h" />
+                  <span class="field-note">Safety limit: k6 stops the test if it is still running after this long.</span>
+                </div>
               </div>
               <div class="load-guidance" aria-label="Load terminology guide">
                 <p><strong>VUs</strong> simulate concurrent users running your request flow.</p>
@@ -206,6 +231,7 @@
                 <tr><td><code>1h30m</code></td><td>1 hour 30 minutes</td></tr>
               </table>
               <p class="note">Staged mode: each stage defines a transition from the current VU count to the target VU count over the given time range.</p>
+              <p class="note">Iterations mode: every VU starts at once and runs the whole flow a fixed number of times, then the test ends. Total runs = VUs × iterations.</p>
             </div>
           </div>
         </section>

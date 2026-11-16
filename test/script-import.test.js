@@ -271,3 +271,40 @@ test('POST /api/import-script returns the configuration and warnings, or a 400 w
   });
   assert.equal(missing.status, 400);
 });
+
+test('per-vu-iterations scenarios import as the iterations load mode', () => {
+  const script = (scenarios, extra = '') => `
+    import http from 'k6/http';
+    export const options = { ${extra} scenarios: ${scenarios} };
+    export default function () { http.get('https://x.test/a'); }
+  `;
+
+  // What K6UI's generator writes comes back as the same load profile.
+  const generated = importK6Script(generateScript({
+    load: { mode: 'iterations', vus: '5', iterations: '2' },
+    scenario: { requests: [{ method: 'GET', url: 'https://x.test/a', checkStatus: false }] },
+  }));
+  assert.deepEqual(generated.config.load, { mode: 'iterations', vus: '5', iterations: '2' });
+  assert.deepEqual(generated.warnings, []);
+
+  // A custom maxDuration is kept; k6's own defaults (1 VU, 1 iteration, 10m) apply when omitted.
+  const handwritten = importK6Script(script(`{ checkout: { executor: 'per-vu-iterations', vus: 3, iterations: 4, maxDuration: '2h' } }`));
+  assert.deepEqual(handwritten.config.load, { mode: 'iterations', vus: '3', iterations: '4', maxDuration: '2h' });
+  assert.deepEqual(importK6Script(script(`{ a: { executor: 'per-vu-iterations' } }`)).config.load,
+    { mode: 'iterations', vus: '1', iterations: '1', maxDuration: '10m' });
+
+  // Anything else is skipped with a warning.
+  const withExtras = importK6Script(script(`{ a: { executor: 'per-vu-iterations', vus: 2, startTime: '5s' } }`, 'vus: 9, duration: "1m",'));
+  assert.deepEqual(withExtras.config.load, { mode: 'iterations', vus: '2', iterations: '1', maxDuration: '10m' });
+  assert.match(messages(withExtras.warnings), /option startTime is not supported/);
+  assert.match(messages(withExtras.warnings), /options\.vus, duration and stages are ignored when scenarios are set/);
+
+  for (const [scenarios, warning] of [
+    [`{ a: { executor: 'constant-vus', vus: 2, duration: '1m' } }`, /does not use the per-vu-iterations executor/],
+    [`{ a: { executor: 'per-vu-iterations' }, b: { executor: 'per-vu-iterations' } }`, /more than one scenario/],
+  ]) {
+    const skipped = importK6Script(script(scenarios));
+    assert.equal(skipped.config.load.mode, 'simple');
+    assert.match(messages(skipped.warnings), warning);
+  }
+});
