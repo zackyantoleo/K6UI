@@ -20,7 +20,14 @@ server/                 Backend (Node/Express, ESM)
 ├── index.js            Express bootstrap: static public/ + mount /api
 ├── routes.js           API endpoints (see API section)
 ├── k6-runner.js        Write script to a temp folder, spawn `k6 run`, parse output → events
-└── generator/          JSON configuration → k6 script source (string)
+├── generator/          JSON configuration → k6 script source (string)
+└── importer/           k6 script source → JSON configuration + warnings (reverse of generator/)
+    ├── index.js        importK6Script() — acorn parse (never executes the script), imports, top-level consts
+    ├── values.js       Static evaluation; textOf() renders expressions as text with {{var}} placeholders
+    ├── options.js      `options` → load profile + thresholds (p95 / error rate only)
+    ├── request.js      http.* calls → request (URL, headers, JSON/form body, tags.name → name)
+    ├── checks.js       check() predicates → assertions (same set as generator/assertions.js)
+    └── flow.js         Default function walk: groups, sleep, extractions created on first use
     ├── index.js        generateScript() — orchestration
     ├── options.js      k6 options object (VUs/stages + thresholds)
     ├── request.js      Code block for one HTTP request
@@ -43,6 +50,7 @@ public/                 Static frontend (ES modules, no bundler)
     ├── curl-import.js  "Import from cURL" modal: parse + fill a request card
     ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics
     ├── project-io.js   Save/load projects (JSON file = config object)
+    ├── script-import.js "Import k6 script" modal: POST /api/import-script, applyConfig, list warnings
     └── components/
         ├── req-card.js        Request card: lazy editor tabs + pre/post sub-requests
         ├── request-editor/    One module per editor tab (headers, body, extract, checks, scripts, advanced)
@@ -66,6 +74,7 @@ UI form → `collectConfig()` (js/config.js) → `POST /api/generate` or `/api/r
 |---|---|---|
 | `GET /api/k6-status` | — | `{ installed, version? }` |
 | `POST /api/generate` | config object | `{ script }` or 400 `{ error }` |
+| `POST /api/import-script` | `{ script }` (k6 source) | `{ config, warnings: [{ line, message }] }` or 400 `{ error, warnings }` |
 | `POST /api/run` | config object | SSE stream (events below) |
 
 SSE events from `/api/run`: `status` (progress), `log` (raw k6 output line), `req-log`
@@ -120,7 +129,8 @@ Shape of one request:
 - `{{varName}}` interpolation in url/headers/body uses global variables, values extracted by earlier requests, and `vars.<name>` assignments made by earlier pre/post-processor scripts (precedence: extracted > processor > global); unknown names are left as literal text.
 - Pre/post-processor scripts are inlined as `{ ... }` blocks (post gets the response as `const res`) and share a per-iteration `vars` object. Referencing `crypto.` or `encoding.` in a script auto-adds the `k6/crypto` / `k6/encoding` import. Execution order per request: pre sub-request → pre-processor → request (+ check/extract) → assertions → post-processor → post sub-request. Scripts are syntax-checked at generate time (`new Function`) — invalid code returns a 400 with the request number.
 - gRPC requests (`type: "grpc"`) generate `k6/net/grpc` unary calls with server reflection (`reflect: true` — the target server must support it; .proto upload is not implemented). The automatic check compares against `grpc.StatusOK`; extractions read the decoded `res.message`; assertions are remapped for gRPC (statuses = gRPC codes, body = `JSON.stringify(message)`, `duration-lt` is skipped). Pre/post sub-requests stay HTTP.
-- Assertion type list: `ASSERT_TYPES` in `public/js/components/request-editor/checks.js` — **must stay in sync** with the switch in `server/generator/assertions.js`.
+- Assertion type list: `ASSERT_TYPES` in `public/js/components/request-editor/checks.js` — **must stay in sync** with the switch in `server/generator/assertions.js` and the recognized shapes in `server/importer/checks.js`.
+- Script import (`importK6Script`) is a best-effort reverse of the generator: it reads straight-line request flows, never runs the script, and reports everything it skips as warnings. Imported requests start with `checkStatus: false` unless the script has K6UI's own 2xx/3xx check. Scripts written by K6UI import back to the same flow (covered by `test/script-import.test.js`), except pre/post scripts, Before/After sub-requests and gRPC, which come back as plain requests or warnings. When the generator gains a new construct, teach the importer the same shape.
 
 ## Conventions
 

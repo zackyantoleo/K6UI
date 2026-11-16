@@ -12,6 +12,7 @@ A simple UI for building and running [k6](https://k6.io) load tests **without wr
 - **Script generation** — view & copy the generated k6 script; it can also be run standalone outside the UI.
 - **Run & monitor** — k6 runs on the server; live log streaming, a per-request detail table (filter by errors/URL), and an automatic metrics summary.
 - **Save / open projects** — the configuration is saved as a JSON file and can be loaded back.
+- **Import k6 scripts** — paste or open an existing k6 `.js` script and K6UI rebuilds the flow from it: load profile, thresholds, requests, headers and bodies, `check()` assertions, values taken from responses, `sleep()`, and `group()`. The script is only read, never run. Anything K6UI cannot represent (loops, conditions, custom code, other `options`) is skipped and listed after the import.
 
 ## Simple and Advanced
 
@@ -50,7 +51,8 @@ server/                 Express backend
 ├── index.js            Server entry point
 ├── routes.js           API endpoints
 ├── k6-runner.js        Runs the k6 process + streams its output
-└── generator/          Turns the UI configuration into a k6 script
+├── generator/          Turns the UI configuration into a k6 script
+└── importer/           Reads a k6 script back into a UI configuration
 
 public/                 Frontend (vanilla JS, no build step)
 ├── index.html          Markup for every view

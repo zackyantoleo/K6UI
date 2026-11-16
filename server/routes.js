@@ -3,6 +3,7 @@ import { Router } from "express";
 import { execFile } from "node:child_process";
 
 import { generateScript } from "./generator/index.js";
+import { ScriptImportError, importK6Script } from "./importer/index.js";
 import { startK6Run } from "./k6-runner.js";
 
 export const apiRouter = Router();
@@ -25,6 +26,17 @@ apiRouter.post("/generate", (req, res) => {
     res.json({ script });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/import-script — read a k6 script (never executed) into a UI configuration.
+// Body: { script }. Response: { config, warnings: [{ line, message }] } or 400 { error, warnings }.
+apiRouter.post("/import-script", (req, res) => {
+  try {
+    res.json(importK6Script(req.body?.script));
+  } catch (err) {
+    if (!(err instanceof ScriptImportError)) throw err;
+    res.status(400).json({ error: err.message, warnings: err.warnings });
   }
 });
 
