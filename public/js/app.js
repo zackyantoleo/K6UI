@@ -15,6 +15,7 @@ import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';
 import { initScriptImport } from './script-import.js';
 import { initAdvancedNotice } from './components/advanced-notice.js';
+import { initDataFiles } from './data-files.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -205,6 +206,7 @@ stagesEl.appendChild(stageRow('30s', '10'));
 stagesEl.appendChild(stageRow('1m',  '20'));
 stagesEl.appendChild(stageRow('30s', '0'));
 
+initDataFiles();
 initCurlImport();
 initScriptImport();
 initAdvancedNotice();

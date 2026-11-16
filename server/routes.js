@@ -21,12 +21,13 @@ apiRouter.get("/k6-status", (_req, res) => {
 });
 
 // POST /api/generate — generate a k6 script from the UI configuration.
+// 400 { error } for an invalid configuration, 413 when its data files are too big.
 apiRouter.post("/generate", (req, res) => {
   try {
     const script = generateScript(req.body || {});
     res.json({ script });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.status || 400).json({ error: err.message });
   }
 });
 
@@ -59,7 +60,7 @@ apiRouter.post("/run", async (req, res) => {
   try {
     script = generateScript(req.body || {});
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.status || 400).json({ error: err.message });
     return;
   }
 

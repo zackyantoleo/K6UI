@@ -22,8 +22,8 @@ const RESERVED = new Set(`break case catch class const continue debugger default
   export extends false finally for function if import in instanceof let new null return super switch
   this throw true try typeof var void while with yield await implements interface package private
   protected public static arguments eval undefined NaN Infinity
-  http check sleep group grpc crypto encoding GLOBALS vars options data res console JSON Math Date`.split(/\s+/));
-const GENERATED = /^(?:res|body|d|grpc_client)_/;
+  http check sleep group grpc crypto encoding exec SharedArray GLOBALS vars options data res console JSON Math Date`.split(/\s+/));
+const GENERATED = /^(?:(?:res|body|d|grpc_client)_|DATA_\d)/;
 
 export function k6Name(name, ctx, el) {
   if (ctx.names.has(name)) return ctx.names.get(name);

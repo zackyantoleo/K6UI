@@ -10,6 +10,7 @@ import { refreshFlowEmptyState } from './components/counts.js';
 import { collectConfig } from './config.js';
 import { migrateProject, projectStore, serializeProject } from './project-store.js';
 import { refreshRequestGroupOptions, restoreGroups } from './components/request-groups.js';
+import { restoreDataSets } from './data-files.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 function fillSubReq(section, req) {
@@ -115,6 +116,8 @@ export function applyConfig(cfg) {
   for (const v of cfg.variables || []) {
     if (v && v.key) varsList.appendChild(variableRow(v.key, v.value ?? ''));
   }
+
+  restoreDataSets(cfg.dataSets || []);
 
   const gHeadersList = $('#global-headers-list');
   gHeadersList.innerHTML = '';

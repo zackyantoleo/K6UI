@@ -6,6 +6,7 @@
 //   load.js     → thread group → load profile
 //   sampler.js  → HTTP Request (+ Header Manager, HTTP Request Defaults) → request
 //   rules.js    → assertions, extractors, timers
+//   data.js     → CSV Data Set Config → data file (no rows: the .jmx only names the file)
 //
 // Scope follows JMeter: config elements, timers, assertions and extractors
 // apply to every request at their level and below. Header Managers at test
@@ -13,6 +14,7 @@
 // under the thread group becomes a request group (with its headers); deeper
 // controllers are merged into that group.
 import { ScriptImportError } from "../index.js";
+import { convertCsvDataSet, warnDataConflicts } from "./data.js";
 import { importLoad } from "./load.js";
 import { argumentsOf, isEnabled, items, jmxText, k6Name, prop, resolveVariables, str, titleOf } from "./props.js";
 import { convertAssertion, convertExtractor, convertTimer } from "./rules.js";
@@ -57,6 +59,7 @@ function createContext() {
   return {
     names: new Map(),       // JMeter variable name → K6UI name
     variables: new Map(),   // global variables: K6UI name → value
+    dataSets: [],           // [{ set, el }] CSV data files, see data.js
     globalHeaders: [],
     groups: [],
     requests: [],
@@ -122,8 +125,7 @@ function collectScope(tree, parent, ctx) {
       if (scope.level === "request") scope.extractions.push(...extractions);
       else scope.extractors.push({ el, extractions, claimed: false });
     } else if (el.name === "CSVDataSet") {
-      const names = str(el, "variableNames").split(",").map((n) => n.trim()).filter(Boolean);
-      ctx.warn(el, `CSV Data Set "${titleOf(el)}" (${str(el, "filename") || "no file"}) is not supported${names.length ? `; ${names.map((n) => `\${${n}}`).join(", ")} will have no value — add them under Variables` : ""}.`);
+      convertCsvDataSet(el, scope, ctx);
     } else {
       ctx.warn(el, `${el.name.split(".").pop()} "${titleOf(el)}" is not supported and was skipped.`);
     }
@@ -277,6 +279,7 @@ export function importJmx(source) {
   const load = importLoad(threadGroup.el, ctx);
   walk(threadGroup.tree, { ...planScope, level: "thread" }, ctx);
   placePauses(ctx);
+  warnDataConflicts(ctx);
 
   if (!ctx.requests.length) {
     throw new ScriptImportError(`Thread group "${titleOf(threadGroup.el)}" has no HTTP requests to import.`, ctx.warnings);
@@ -288,6 +291,7 @@ export function importJmx(source) {
       requests: ctx.requests,
     },
     variables: [...ctx.variables].map(([key, value]) => ({ key, value })),
+    dataSets: ctx.dataSets.map(({ set }) => set),
     globalHeaders: ctx.globalHeaders,
     load,
     thresholds: { p95: "", errorRate: "" },

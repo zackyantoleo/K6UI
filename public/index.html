@@ -68,6 +68,7 @@
           <li><button type="button" class="nav-link" data-view="flow">Request Flow</button></li>
           <li><button type="button" class="nav-link" data-view="vars">Variables</button></li>
           <li><button type="button" class="nav-link" data-view="headers">Headers</button></li>
+          <li><button type="button" class="nav-link" data-view="datafiles">Data files</button></li>
           <li><button type="button" class="nav-link" data-view="load">Load Profile</button></li>
           <li><button type="button" class="nav-link" data-view="sla">Thresholds / SLA</button></li>
           <li><button type="button" class="nav-link" data-view="script">k6 Script</button></li>
@@ -132,6 +133,11 @@
             <button type="button" class="data-rule-card" data-view="headers">
               <span class="data-rule-icon" aria-hidden="true">#</span>
               <span><strong>Global Headers</strong><small>Apply common headers to every HTTP request.</small></span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" class="data-rule-card" data-view="datafiles">
+              <span class="data-rule-icon" aria-hidden="true">▤</span>
+              <span><strong>Data Files</strong><small>Give each user a row from a CSV file, such as a login per user.</small></span>
               <span aria-hidden="true">→</span>
             </button>
             <button type="button" class="data-rule-card" data-view="sla">
@@ -422,10 +428,92 @@
           </div>
         </section>
 
+        <!-- VIEW: Data files (CSV) -->
+        <section id="view-datafiles" class="view hidden">
+          <p class="view-hint">
+            Give every iteration its own row from a CSV file — for example one login per user.
+            Use a column name as <code>{{column_name}}</code> in any URL, header, or body.
+          </p>
+          <div class="page-cols">
+            <div class="form-card">
+              <h3>Data files</h3>
+              <p class="data-files-warning" role="note">
+                The rows are saved inside the project file and written into the generated script.
+                If a file holds passwords or tokens, treat both of them as secrets.
+              </p>
+              <div id="data-files-list"></div>
+              <p id="data-files-empty" class="note">No data files yet.</p>
+              <button type="button" id="add-data-file" class="btn ghost sm">+ Add Data File</button>
+            </div>
+
+            <div class="form-card info-card">
+              <h3>How it works</h3>
+              <p class="note">Each iteration reads one row. <strong>Next row for every iteration</strong> shares the file between all users, so no two iterations get the same row; <strong>One row per user</strong> gives user n the n-th row.</p>
+              <p class="note">Column names follow the variable rules: letters, digits, and underscores, not starting with a digit. Other columns are ignored.</p>
+              <p class="note">If a request <strong>extracts</strong> a variable with the same name as a column, {{name}} reads the file until that request has run, and the extracted value after it. Both override a global variable of that name.</p>
+              <p class="note">Files up to 5 MB each (10 MB in total). A file with no rows or no usable column is ignored, and its {{placeholders}} stay as text.</p>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
   </div>
 </div>
+
+<!-- One data file card, cloned by data-files.js -->
+<template id="data-file-template">
+  <article class="data-file-card">
+    <div class="data-file-head">
+      <input class="df-name" aria-label="Data file name" placeholder="Name (e.g. Users login)" />
+      <button type="button" class="row-remove df-remove" title="Remove data file" aria-label="Remove data file">&times;</button>
+    </div>
+    <div class="data-file-source">
+      <button type="button" class="btn ghost sm df-pick">Choose .csv file…</button>
+      <input type="file" class="df-file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden />
+      <span class="df-file-name"></span>
+    </div>
+    <details class="df-paste">
+      <summary>Or paste CSV text</summary>
+      <textarea class="df-paste-text" spellcheck="false" aria-label="Pasted CSV text" placeholder="email,password&#10;user1@example.com,pass1"></textarea>
+      <button type="button" class="btn ghost sm df-paste-apply">Use this text</button>
+    </details>
+    <div class="data-file-options">
+      <label>Delimiter
+        <select class="df-delimiter">
+          <option value=",">Comma ( , )</option>
+          <option value=";">Semicolon ( ; )</option>
+          <option value="&#9;">Tab</option>
+          <option value="|">Pipe ( | )</option>
+        </select>
+      </label>
+      <label class="df-check"><input type="checkbox" class="df-skip-header" /> First row is a header</label>
+      <label class="df-wide">Column names
+        <input class="df-columns" placeholder="email, password" />
+      </label>
+      <label>Row for each iteration
+        <select class="df-share">
+          <option value="next-row">Next row (shared by all users)</option>
+          <option value="per-vu">One row per user</option>
+        </select>
+      </label>
+      <label>When the rows run out
+        <select class="df-end">
+          <option value="recycle">Start over from the first row</option>
+          <option value="stop">Stop the iteration</option>
+        </select>
+      </label>
+    </div>
+    <p class="df-status" role="status"></p>
+    <div class="df-preview-wrap hidden">
+      <table class="df-preview">
+        <caption class="df-preview-caption">Preview: first rows</caption>
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </article>
+</template>
 
 <!-- ── cURL import modal ────────────────────────────────────── -->
 <div id="curl-modal" class="modal-overlay hidden">

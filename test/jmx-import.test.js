@@ -6,6 +6,7 @@ import { createServer } from '../server/index.js';
 import { generateScript } from '../server/generator/index.js';
 import { ScriptImportError } from '../server/importer/index.js';
 import { importJmx } from '../server/importer/jmx/index.js';
+import { parse } from 'acorn';
 import { migrateProject } from '../public/js/project-store.js';
 
 const SHOP_FLOW = readFileSync(new URL('./fixtures/shop-flow.jmx', import.meta.url), 'utf8');
@@ -291,7 +292,12 @@ test('reads loops, concurrency thread groups, nested controllers, and scoped ext
   assert.match(text, /JMeter function \$\{__UUID\(\)\} in header "X-Inner" has no K6UI equivalent/);
   assert.match(text, /"shared id" applies to every request in its scope in JMeter; K6UI attached it to the first one, "B"/);
   assert.match(text, /ModuleController "Reuse" is not supported/);
-  assert.match(text, /CSV Data Set "Users" \(users\.csv\) is not supported; \$\{email\}, \$\{password\} will have no value/);
+  assert.doesNotMatch(text, /is not supported; \$\{email\}/, 'the old "not supported" warning is gone');
+  assert.match(text, /CSV Data Set "Users" was imported without data.*Upload "users\.csv" under Data & Rules/);
+  assert.deepEqual(config.dataSets, [{
+    id: 'ds_jmx_1', name: 'Users', fileName: 'users.csv', delimiter: ',', skipHeader: false,
+    columns: ['email', 'password'], content: '', share: 'next-row', onEnd: 'recycle',
+  }]);
 });
 
 test('keeps the case of a ${VAR} protocol, so the URL placeholder matches its variable', () => {
@@ -380,4 +386,123 @@ test('POST /api/import-jmx takes the raw .jmx and returns the configuration, or 
 
   const empty = await post('');
   assert.equal(empty.status, 400);
+});
+
+// ── CSV Data Set Config → data files ───────────────────────────
+
+const udv = (name, value) => `<elementProp name="${name}" elementType="Argument">
+  <stringProp name="Argument.name">${name}</stringProp>
+  <stringProp name="Argument.value">${value}</stringProp>
+</elementProp>`;
+
+const planVariables = (...pairs) => `<TestPlan testname="Plan">
+  <elementProp name="TestPlan.user_defined_variables" elementType="Arguments">
+    <collectionProp name="Arguments.arguments">${pairs.map(([name, value]) => udv(name, value)).join('')}</collectionProp>
+  </elementProp>
+</TestPlan>`;
+
+const csvSet = (testname, props, { enabled = true } = {}) => `
+<CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="${testname}"${enabled ? '' : ' enabled="false"'}>
+  ${Object.entries(props).map(([key, value]) => (typeof value === 'boolean'
+    ? `<boolProp name="${key}">${value}</boolProp>`
+    : `<stringProp name="${key}">${value}</stringProp>`)).join('\n  ')}
+</CSVDataSet><hashTree/>`;
+
+test('CSV Data Sets become data files: columns, header, delimiter, share mode, and end of file', () => {
+  const xml = plan(`
+    ${csvSet('Users Login', {
+      delimiter: ',', filename: '${LOGIN_CSV_FILE}', ignoreFirstLine: true, recycle: false,
+      shareMode: 'shareMode.all', stopThread: true, variableNames: 'email,password',
+    })}
+    ${sampler('Login', '/login?u=${email}&amp;p=${password}')}
+    ${csvSet('Orders', {
+      filename: '${ORDER_CSV_FILE}', variableNames: 'order_number,auth', ignoreFirstLine: true,
+      recycle: false, stopThread: true, shareMode: 'shareMode.all',
+    })}
+    ${sampler('Create Order', '/orders', {
+      method: 'POST',
+      children: `<JSONPostProcessor testname="order"><stringProp name="JSONPostProcessor.referenceNames">order_number</stringProp><stringProp name="JSONPostProcessor.jsonPathExprs">$.id</stringProp></JSONPostProcessor><hashTree/>`,
+    })}
+    ${sampler('Redeem', '/redeem/${order_number}?t=${auth}')}`, {
+    planChildren: '',
+  }).replace('<TestPlan testname="Plan"/>', planVariables(['LOGIN_CSV_FILE', 'login.csv'], ['ORDER_CSV_FILE', 'orders_created.csv']));
+
+  const { config, warnings } = importJmx(xml);
+  assert.deepEqual(config.dataSets, [
+    {
+      id: 'ds_jmx_1', name: 'Users Login', fileName: 'login.csv', delimiter: ',', skipHeader: true,
+      columns: ['email', 'password'], content: '', share: 'next-row', onEnd: 'stop',
+    },
+    {
+      id: 'ds_jmx_2', name: 'Orders', fileName: 'orders_created.csv', delimiter: ',', skipHeader: true,
+      columns: ['order_number', 'auth'], content: '', share: 'next-row', onEnd: 'stop',
+    },
+  ]);
+  // The file names are not kept as global variables; ${email} is the same {{email}} the file feeds.
+  assert.deepEqual(config.variables.map((v) => v.key), ['LOGIN_CSV_FILE', 'ORDER_CSV_FILE']);
+  assert.equal(config.scenario.requests[0].url, 'https://api.test/login?u={{email}}&p={{password}}');
+
+  const text = messages(warnings);
+  assert.match(text, /CSV Data Set "Users Login" was imported without data.*Upload "login\.csv" under Data & Rules/);
+  assert.match(text, /CSV Data Set "Orders" was imported without data.*Upload "orders_created\.csv" under Data & Rules/);
+  assert.match(text, /Column "order_number" of "orders_created\.csv" has the same name as a variable extracted by "Create Order"/);
+  assert.doesNotMatch(text, /Column "(?:email|password|auth)"/);
+  assert.doesNotMatch(text, /is not supported/);
+
+  // With rows filled in, the project generates a script that feeds the placeholders.
+  const filled = {
+    ...config,
+    dataSets: [
+      { ...config.dataSets[0], content: 'email,password\nuser1@example.com,pass1\nuser2@example.com,pass2\n' },
+      { ...config.dataSets[1], content: 'order_number,auth\nA-1,tok1\n' },
+    ],
+  };
+  const script = generateScript(migrateProject(filled));
+  assert.doesNotThrow(() => parse(script, { ecmaVersion: 'latest', sourceType: 'module' }));
+  assert.match(script, /DATA_1\[exec\.scenario\.iterationInTest\]/);
+  assert.match(script, /login\?u=\$\{DATA_1_ROW\.email\}&p=\$\{DATA_1_ROW\.password\}/);
+  assert.match(script, /redeem\/\$\{order_number\}\?t=\$\{DATA_2_ROW\.auth\}/, 'after Create Order, the extracted order_number wins');
+});
+
+test('CSV Data Set details: tab delimiter, share modes, recycle, paths, and file name variables', () => {
+  const xml = plan(`
+    ${csvSet('Tabbed', { delimiter: '\\t', filename: 'C:\\data\\users.tsv', variableNames: 'user-id,name', ignoreFirstLine: true, recycle: true, stopThread: false, shareMode: 'shareMode.thread' })}
+    ${csvSet('Param file', { filename: '${__P(rows_file,/tmp/rows.csv)}', variableNames: 'a,,c,', recycle: false, stopThread: false, shareMode: 'shareMode.group' })}
+    ${csvSet('Missing', { filename: '${MISSING_FILE}', variableNames: 'x' })}
+    ${csvSet('No names', { filename: 'plain.csv', variableNames: '' })}
+    ${csvSet('Off', { filename: 'off.csv', variableNames: 'off_col' }, { enabled: false })}
+    ${sampler('Home', '/')}`);
+  const { config, warnings } = importJmx(xml);
+  const [tabbed, param, missing, noNames] = config.dataSets;
+  assert.equal(config.dataSets.length, 4, 'a disabled CSV Data Set is not imported');
+
+  assert.deepEqual({ ...tabbed, id: undefined }, {
+    id: undefined, name: 'Tabbed', fileName: 'users.tsv', delimiter: '\t', skipHeader: true,
+    columns: ['user_id', 'name'], content: '', share: 'per-vu', onEnd: 'recycle',
+  });
+  assert.equal(param.fileName, 'rows.csv', 'the path is dropped; the property default names the file');
+  assert.deepEqual(param.columns, ['a', '', 'c'], 'blank names keep the file column positions');
+  assert.equal(param.share, 'per-vu');
+  assert.equal(param.onEnd, 'stop');
+  assert.ok(!config.variables.some((v) => v.key === 'rows_file'), 'the property default is not kept as a variable');
+  assert.equal(missing.fileName, '${MISSING_FILE}');
+  assert.deepEqual(noNames, { ...noNames, columns: [], skipHeader: true });
+
+  const text = messages(warnings);
+  assert.match(text, /JMeter variable "user-id" was renamed to \{\{user_id\}\}/);
+  assert.match(text, /"Tabbed" uses the share mode "shareMode\.thread".*one row per VU/);
+  assert.match(text, /"Param file" keeps running with "<EOF>" values.*ends the iteration instead/);
+  assert.match(text, /file name of CSV Data Set "Missing" uses \$\{MISSING_FILE\}/);
+  assert.match(text, /"No names" has no variable names.*first line of the file; upload "plain\.csv"/);
+  assert.doesNotMatch(text, /off\.csv|off_col/);
+});
+
+test('a CSV Data Set inside a controller warns that its row is read every iteration', () => {
+  const xml = plan(`<TransactionController testname="Checkout"/><hashTree>
+    ${csvSet('Cards', { filename: 'cards.csv', variableNames: 'card' })}
+    ${sampler('Pay', '/pay?c=${card}')}
+  </hashTree>`);
+  const { config, warnings } = importJmx(xml);
+  assert.equal(config.dataSets.length, 1);
+  assert.match(messages(warnings), /"Cards" sits inside a controller; K6UI reads its row at the start of every iteration/);
 });

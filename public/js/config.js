@@ -4,6 +4,7 @@
 import { $, $$ } from './dom.js';
 import { createRequestId, projectStore } from './project-store.js';
 import { collectRequestGroups } from './components/request-groups.js';
+import { collectDataSets, validateDataSets } from './data-files.js';
 
 // ── Row readers — used by main cards & sub-requests ────────────
 function readHeaderRows(scope) {
@@ -108,6 +109,7 @@ export function collectConfig() {
   const config = {
     scenario:      { groups: collectRequestGroups(), requests: collectReqList('reqs-main') },
     variables:     readVariableRows(),
+    dataSets:      collectDataSets(),
     globalHeaders: readHeaderRows($('#global-headers-list')),
     load,
     thresholds:    { p95: $('#p95').value, errorRate: $('#errorRate').value },
@@ -124,6 +126,8 @@ export function validate(config) {
     if (reqs[i].url && reqs[i].type === 'grpc' && !reqs[i].grpcMethod)
       return `Request ${i + 1}: enter the gRPC method (package.Service/Method).`;
   }
+  const dataError = validateDataSets(config.dataSets);
+  if (dataError) return dataError;
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
       return 'Add at least one valid stage in the Load Profile.';

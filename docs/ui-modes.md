@@ -6,7 +6,7 @@ never changes what a test sends, how it runs, or what is saved.
 
 | | Simple | Advanced |
 |---|---|---|
-| Navigation | Four steps: Build Flow, Data & Rules, Load, Run & Results | Direct categories: Request Flow, Variables, Headers, Load Profile, Thresholds / SLA, k6 Script, Run & Results |
+| Navigation | Four steps: Build Flow, Data & Rules, Load, Run & Results | Direct categories: Request Flow, Variables, Headers, Data files, Load Profile, Thresholds / SLA, k6 Script, Run & Results |
 | Request flow | Request cards in execution order, expand one to edit | Outline on the left (execution order + group label), the selected request or group editor on the right |
 | Hidden settings | An **Advanced settings configured** notice lists categories and counts (never values) | Every setting is reachable from the outline and editor tabs |
 | Load | Presets first, **Customize** opens the editor | The custom editor is always open; presets are optional and ask before replacing custom values |
@@ -45,6 +45,7 @@ when changing either mode.
 | `public/js/ui-mode.js` | Read/write the mode enum, apply `html[data-ui-mode]`, show the matching nav, emit `k6ui:ui-mode-changed` |
 | `public/js/nav.js` | View switching and `aria-current` for steps (Simple) or categories (Advanced) |
 | `public/js/components/flow-outline.js` | Advanced outline: pure `outlineModel()` / `resolveSelection()` plus a DOM adapter that reads card and group heads only |
+| `public/js/data-files.js` | The Data files view (`#view-datafiles`): one DOM for both modes, reached from the Data & Rules step (Simple) or its own category (Advanced). Cards keep their state in `card.dataSet`; file text is rendered with `textContent` only and nothing here reads the mode |
 | `public/js/components/advanced-notice.js` | Simple notice: pure `summarizeAdvancedSettings()` plus a DOM adapter that reads live panels when hydrated, otherwise `card.requestState` |
 | `public/css/style.css` | `[data-ui-only="simple|advanced"]` hides one-mode pieces; `html[data-ui-mode="advanced"]` rules lay out the outline and editor |
 
@@ -68,6 +69,7 @@ that will run with:
 - a pause other than the default 1 second
 - the automatic 2xx check turned off
 - group header defaults (groups only)
+- data files that will be used (a count of files; the notice is not per request)
 
 Disabled requests and requests in a turned-off group are reported separately as
 "configured but not run". The notice never shows names, URLs, header values, or

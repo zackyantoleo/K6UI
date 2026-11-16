@@ -4,11 +4,13 @@ export const CURRENT_SCHEMA_VERSION = 2;
 
 const REQUEST_ID_PATTERN = /^req_[a-z0-9_-]+$/;
 const GROUP_ID_PATTERN = /^grp_[a-z0-9_-]+$/;
+const DATA_SET_ID_PATTERN = /^ds_[a-z0-9_-]+$/;
 
 const DEFAULT_PROJECT = Object.freeze({
   schemaVersion: CURRENT_SCHEMA_VERSION,
   scenario: { groups: [], requests: [] },
   variables: [],
+  dataSets: [],
   globalHeaders: [],
   load: { mode: 'simple', vus: 10, duration: '30s', stages: [] },
   thresholds: {},
@@ -91,6 +93,26 @@ function normalizeRequest(rawRequest, index, used, validGroupIds) {
   return request;
 }
 
+// A CSV data file: see "Configuration object schema" in CLAUDE.md. Missing
+// fields (older projects have no data sets at all) fall back to the defaults.
+function normalizeDataSet(rawDataSet, index, used) {
+  if (!rawDataSet || typeof rawDataSet !== 'object' || Array.isArray(rawDataSet)) {
+    throw new TypeError(`Data file ${index + 1} must be an object.`);
+  }
+  const dataSet = clone(rawDataSet);
+  dataSet.id = uniqueItemId(dataSet, index, used, 'ds', DATA_SET_ID_PATTERN);
+  used.add(dataSet.id);
+  dataSet.name = typeof dataSet.name === 'string' ? dataSet.name.trim().slice(0, 120) : '';
+  dataSet.fileName = typeof dataSet.fileName === 'string' ? dataSet.fileName : '';
+  dataSet.delimiter = typeof dataSet.delimiter === 'string' && dataSet.delimiter ? dataSet.delimiter : ',';
+  dataSet.skipHeader = dataSet.skipHeader === true;
+  dataSet.columns = Array.isArray(dataSet.columns) ? dataSet.columns.map(column => String(column ?? '')) : [];
+  dataSet.content = typeof dataSet.content === 'string' ? dataSet.content : '';
+  dataSet.share = dataSet.share === 'per-vu' ? 'per-vu' : 'next-row';
+  dataSet.onEnd = dataSet.onEnd === 'stop' ? 'stop' : 'recycle';
+  return dataSet;
+}
+
 function normalizeProject(rawProject) {
   if (!rawProject || typeof rawProject !== 'object' || Array.isArray(rawProject)) {
     throw new TypeError('Project JSON must contain an object.');
@@ -109,6 +131,7 @@ function normalizeProject(rawProject) {
   const usedGroupIds = new Set();
   const normalizedGroups = (groups || []).map((group, index) => normalizeGroup(group, index, usedGroupIds));
   const usedRequestIds = new Set();
+  const usedDataSetIds = new Set();
   return {
     ...source,
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -119,6 +142,8 @@ function normalizeProject(rawProject) {
         normalizeRequest(request, index, usedRequestIds, usedGroupIds)),
     },
     variables: Array.isArray(source.variables) ? source.variables : [],
+    dataSets: (Array.isArray(source.dataSets) ? source.dataSets : [])
+      .map((dataSet, index) => normalizeDataSet(dataSet, index, usedDataSetIds)),
     globalHeaders: Array.isArray(source.globalHeaders) ? source.globalHeaders : [],
     load: {
       ...DEFAULT_PROJECT.load,
@@ -150,6 +175,11 @@ export function createRequestId() {
 export function createRequestGroupId() {
   if (globalThis.crypto?.randomUUID) return `grp_${globalThis.crypto.randomUUID().replaceAll('-', '')}`;
   return `grp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createDataSetId() {
+  if (globalThis.crypto?.randomUUID) return `ds_${globalThis.crypto.randomUUID().replaceAll('-', '')}`;
+  return `ds_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function createProjectStore(initialProject = DEFAULT_PROJECT) {

@@ -10,6 +10,7 @@ const NAV_TITLES = {
   results:   'Run & Results',
   vars:      'Global Variables',
   headers:   'Global Headers',
+  datafiles: 'Data files',
 };
 
 const STEP_BY_VIEW = {
@@ -17,6 +18,7 @@ const STEP_BY_VIEW = {
   data: 'data',
   vars: 'data',
   headers: 'data',
+  datafiles: 'data',
   sla: 'data',
   load: 'load',
   script: 'results',

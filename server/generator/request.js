@@ -3,7 +3,7 @@
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
 
-// ctx = { localVars, processorVars, globalVars } — see interpolate.js.
+// ctx = { localVars, processorVars, dataVars, globalVars } — see interpolate.js.
 export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests) {
   const method = (req.method || "GET").toUpperCase();
   const urlCode = interpolate(req.url, ctx);

@@ -193,6 +193,12 @@ function memberText(node, ctx, depth) {
     if (ctx.variables.has(key)) return `{{${key}}}`;
   }
 
+  // A column of the data file row K6UI's generator reads: DATA_1_ROW.email → {{email}}.
+  if (object.type === "Identifier" && ctx.dataRows?.has(object.name) && !node.computed
+    && node.property.type === "Identifier" && VALID_VAR_NAME.test(node.property.name)) {
+    return `{{${node.property.name}}}`;
+  }
+
   const fromResponse = ctx.refText?.(node);
   if (fromResponse != null) return fromResponse;
 

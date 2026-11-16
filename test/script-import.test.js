@@ -308,3 +308,42 @@ test('per-vu-iterations scenarios import as the iterations load mode', () => {
     assert.match(messages(skipped.warnings), warning);
   }
 });
+
+test('a K6UI script with data files imports without crashing: columns return as {{column}}, the data itself is a warning', () => {
+  const script = generateScript({
+    load: { mode: 'iterations', vus: '2', iterations: '1' },
+    scenario: { requests: [{
+      method: 'POST', url: 'https://api.test/{{email}}', body: '{"p":"{{password}}"}',
+      headers: [{ key: 'X-User', value: '{{email}}' }], checkStatus: true, sleepAfter: '1',
+    }] },
+    dataSets: [{
+      name: 'login.csv', fileName: 'login.csv', delimiter: ',', skipHeader: true,
+      columns: ['email', 'password'], content: 'email,password\nuser1@example.com,pass1\n',
+      share: 'next-row', onEnd: 'stop',
+    }],
+  });
+  const { config, warnings } = importK6Script(script);
+  const [request] = config.scenario.requests;
+  assert.equal(request.url, 'https://api.test/{{email}}');
+  assert.equal(request.body, '{"p":"{{password}}"}');
+  assert.deepEqual(request.headers, [{ key: 'X-User', value: '{{email}}' }]);
+  assert.equal(config.load.mode, 'iterations');
+  assert.equal('dataSets' in config, false, 'the importer does not rebuild data files');
+
+  const text = messages(warnings);
+  assert.match(text, /import "k6\/data" was ignored; data read with SharedArray is not imported/);
+  assert.match(text, /SharedArray DATA_1 \(a data file\) is not imported; add the CSV file under Data & Rules/);
+  assert.doesNotMatch(text, /Could not convert/);
+});
+
+test('a hand-written SharedArray warns and does not crash', () => {
+  const { warnings } = importK6Script(`
+import http from 'k6/http';
+import { SharedArray } from 'k6/data';
+const users = new SharedArray('users', function () { return JSON.parse(open('./users.json')); });
+export default function () {
+  const user = users[0];
+  http.get('https://api.test/users');
+}`);
+  assert.match(messages(warnings), /SharedArray users \(a data file\) is not imported/);
+});

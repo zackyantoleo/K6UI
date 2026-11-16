@@ -121,3 +121,50 @@ test('iterations load settings pass through migration without changing older pro
   assert.equal('iterations' in legacy.load, false);
   assert.equal('maxDuration' in legacy.load, false);
 });
+
+test('projects without data files open with an empty list and old fields are untouched', () => {
+  const migrated = migrateProject(legacyV1);
+  assert.deepEqual(migrated.dataSets, []);
+  assert.equal('dataSets' in legacyV1, false, 'migration must not mutate imported data');
+  assert.deepEqual(migrateProject({ schemaVersion: 2, dataSets: 'nope' }).dataSets, []);
+});
+
+test('data files keep their content, get defaults for missing fields, and unique ids', () => {
+  const content = 'email,password\nuser1@example.com,pass1\n';
+  const migrated = migrateProject({
+    schemaVersion: 2,
+    dataSets: [
+      { id: 'ds_login', name: '  Users  ', fileName: 'login.csv', delimiter: ';', skipHeader: true, columns: ['email', 7], content, share: 'per-vu', onEnd: 'stop', extra: 1 },
+      { id: 'ds_login', content: 'x' },
+      { content: 'y', share: 'weird', onEnd: 'weird', skipHeader: 'yes', columns: 'a,b' },
+    ],
+  });
+  const [first, second, third] = migrated.dataSets;
+  assert.deepEqual(first, {
+    id: 'ds_login', name: 'Users', fileName: 'login.csv', delimiter: ';', skipHeader: true,
+    columns: ['email', '7'], content, share: 'per-vu', onEnd: 'stop', extra: 1,
+  });
+  assert.deepEqual({ ...second, id: undefined }, {
+    id: undefined, name: '', fileName: '', delimiter: ',', skipHeader: false,
+    columns: [], content: 'x', share: 'next-row', onEnd: 'recycle',
+  });
+  assert.equal(third.share, 'next-row');
+  assert.equal(third.onEnd, 'recycle');
+  assert.equal(third.skipHeader, false);
+  assert.deepEqual(third.columns, []);
+  assert.equal(new Set(migrated.dataSets.map(set => set.id)).size, 3);
+  assert.match(second.id, /^ds_[a-z0-9_-]+$/);
+  assert.throws(() => migrateProject({ dataSets: [null] }), /Data file 1 must be an object/);
+});
+
+test('data files round-trip through serializeProject and the frozen store', () => {
+  const store = createProjectStore();
+  const snapshot = store.replace({
+    scenario: { requests: [] },
+    dataSets: [{ id: 'ds_a', name: 'a', content: 'h\n1\n', columns: ['h'], skipHeader: true }],
+  });
+  assert.equal(Object.isFrozen(snapshot.dataSets[0]), true);
+  assert.equal(Object.isFrozen(snapshot.dataSets[0].columns), true);
+  const reopened = migrateProject(JSON.parse(serializeProject(snapshot)));
+  assert.deepEqual(reopened.dataSets, snapshot.dataSets);
+});

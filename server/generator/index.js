@@ -5,10 +5,14 @@
 //   assertions.js  → check() block for per-request assertions
 //   extract.js     → variable extraction from responses
 //   interpolate.js → {{varName}} interpolation
+//   data.js        → data files (CSV) → SharedArray + the row of each iteration
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
 import { buildAssertionsCode } from "./assertions.js";
+import {
+  buildDataDeclarations, buildDataImports, buildDataRowCode, dataColumns, prepareDataSets,
+} from "./data.js";
 
 // Request logging is opt-in because URLs and response samples can contain
 // credentials or personal data. This helper runs inside the generated k6
@@ -106,6 +110,7 @@ export function generateScript(config) {
   const logRequests = !!(config.options && config.options.logRequests);
   const globals     = collectGlobalVars(config.variables);
   const globalVars  = new Set(globals.keys());
+  const dataSets    = prepareDataSets(config.dataSets);
 
   const globalHeaders = (Array.isArray(config.globalHeaders) ? config.globalHeaders : [])
     .filter((h) => h && h.key && String(h.key).trim());
@@ -154,6 +159,7 @@ export function generateScript(config) {
   if (grpcIndexes.length)              out += `import grpc from 'k6/net/grpc';\n`;
   if (/\bcrypto\./.test(allScripts))   out += `import crypto from 'k6/crypto';\n`;
   if (/\bencoding\./.test(allScripts)) out += `import encoding from 'k6/encoding';\n`;
+  out += buildDataImports(dataSets);
   out += `\n`;
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
 
@@ -166,6 +172,8 @@ export function generateScript(config) {
     out += `};\n`;
   }
 
+  out += buildDataDeclarations(dataSets);
+
   if (grpcIndexes.length) {
     out += `\n// gRPC clients — connect with server reflection (no .proto files needed)\n`;
     for (const i of grpcIndexes) {
@@ -174,12 +182,13 @@ export function generateScript(config) {
   }
 
   out += `\nexport default function() {\n`;
+  out += buildDataRowCode(dataSets);
 
   // Variables already declared — prevents a double `let`
   const declaredVars   = new Set();
   // {{name}}s made available by processor scripts assigning vars.<name>
   const processorVars  = new Set();
-  const ctx = { localVars: declaredVars, processorVars, globalVars };
+  const ctx = { localVars: declaredVars, processorVars, dataVars: dataColumns(dataSets), globalVars };
 
   const hasProcessors = mainReqs.some(
     (r) => String(r.preScript || "").trim() || String(r.postScript || "").trim()

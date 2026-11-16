@@ -24,14 +24,14 @@ test('Simple navigation exposes exactly four ordered steps', async () => {
   ]);
 });
 
-test('Advanced navigation exposes seven direct categories', async () => {
+test('Advanced navigation exposes eight direct categories', async () => {
   const html = await read('public/index.html');
   const advanced = html.match(/<nav[^>]*id="advanced-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
   assert.ok(advanced, 'Advanced has its own navigation');
   assert.deepEqual(matches(advanced, /data-view="([^"]+)"[^>]*>([^<]+)</g)
     .map(([, view, label]) => [view, label]), [
     ['flow', 'Request Flow'], ['vars', 'Variables'], ['headers', 'Headers'],
-    ['load', 'Load Profile'], ['sla', 'Thresholds / SLA'],
+    ['datafiles', 'Data files'], ['load', 'Load Profile'], ['sla', 'Thresholds / SLA'],
     ['script', 'k6 Script'], ['results', 'Run &amp; Results'],
   ]);
 });
