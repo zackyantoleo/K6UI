@@ -5,13 +5,15 @@
 // when the variable is first used in a URL, header, or body).
 import { buildRequest, httpCallInfo } from "./request.js";
 import { convertPredicate, regexSelector } from "./checks.js";
+import { groupNameBefore, readRunIf } from "./run-if.js";
 import {
-  Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, sourceOf, tryStatic, unwrap,
+  Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, safeText, sourceOf, tryStatic, unwrap,
 } from "./values.js";
 
 // ── Where does a value come from? ──────────────────────────────
 // Descriptors: { kind: 'response', req } | { kind: 'json', req, path } |
 // { kind: 'header', req, name } | { kind: 'regex', req, pattern }
+// json / header / regex may also carry `fallback`: the extraction's default.
 
 const isCallTo = (node, name) =>
   node?.type === "CallExpression" && node.callee.type === "Identifier" && node.callee.name === name;
@@ -23,6 +25,25 @@ const isMember = (node, prop) =>
 function isEmptyFallback(node) {
   return (node.type === "Literal" && node.value === "")
     || (node.type === "ArrayExpression" && node.elements.length === 0);
+}
+
+// `X || "NONE"`, `X ?? 0`: a fixed fallback → the extraction's default (text), else null.
+function fixedFallback(rawNode) {
+  const node = unwrap(rawNode);
+  let value = null;
+  if (node?.type === "Literal" && (typeof node.value === "string" || (typeof node.value === "number" && Number.isFinite(node.value)))) {
+    value = String(node.value);
+  } else if (node?.type === "TemplateLiteral" && !node.expressions.length) {
+    value = node.quasis[0].value.cooked;
+  }
+  return value ? value : null;
+}
+
+// A json / header / regex descriptor with a default; nested fallbacks keep the inner one,
+// which is the one JavaScript would use.
+function withFallback(desc, fallback) {
+  if (!desc || desc.kind === "response" || fallback == null) return desc;
+  return desc.fallback == null ? { ...desc, fallback } : desc;
 }
 
 function splitSelector(selector) {
@@ -39,10 +60,12 @@ export function serializePath(path) {
 }
 
 function extractionOf(desc) {
-  if (desc?.kind === "json" && desc.path.length) return { source: "json", selector: serializePath(desc.path) };
-  if (desc?.kind === "header") return { source: "header", selector: desc.name };
-  if (desc?.kind === "regex") return { source: "regex", selector: desc.pattern };
-  return null;
+  let out = null;
+  if (desc?.kind === "json" && desc.path.length) out = { source: "json", selector: serializePath(desc.path) };
+  else if (desc?.kind === "header") out = { source: "header", selector: desc.name };
+  else if (desc?.kind === "regex") out = { source: "regex", selector: desc.pattern };
+  if (out && desc.fallback != null) out.default = desc.fallback;
+  return out;
 }
 
 // `<response>.body` → the response descriptor, else null
@@ -73,12 +96,24 @@ function describe(rawNode, state) {
     case "Identifier":
       return ctx.bindings.get(node.name) ?? null;
 
-    case "LogicalExpression":
-      return (node.operator === "||" || node.operator === "??") && isEmptyFallback(node.right)
-        ? describe(node.left, state)
-        : null;
+    case "LogicalExpression": {
+      if (node.operator !== "||" && node.operator !== "??") return null;
+      if (isEmptyFallback(node.right)) return describe(node.left, state);
+      const fallback = fixedFallback(node.right);
+      if (fallback == null) return null;
+      const base = describe(node.left, state);
+      return base?.kind === "response" ? null : withFallback(base, fallback);
+    }
 
     case "CallExpression": {
+      // K6UI's own `extractOr(() => <read>, "default")` (see generator/extract.js)
+      if (ctx.extractOr && isCallTo(node, "extractOr") && node.arguments.length === 2) {
+        const [read, fallbackNode] = node.arguments;
+        const fallback = fixedFallback(fallbackNode);
+        if (read.type !== "ArrowFunctionExpression" || read.params.length || read.body.type === "BlockStatement" || fallback == null) return null;
+        const base = describe(read.body, state);
+        return base?.kind === "response" ? null : withFallback(base, fallback);
+      }
       // res.json() / res.json('data.token')
       if (isMember(node.callee, "json")) {
         const base = describe(node.callee.object, state);
@@ -136,13 +171,12 @@ function safeKey(node, ctx) {
 }
 
 // ── Extractions ────────────────────────────────────────────────
+// The same value used twice (`${res.json('id')}` in the URL and the body) is one extraction.
 function addExtraction(desc, name) {
-  const { source, selector } = extractionOf(desc);
-  desc.names ??= new Set();
-  if (!desc.names.has(name)) {
-    desc.req.extractions.push({ varName: name, source, selector });
-    desc.names.add(name);
-  }
+  const extraction = { varName: name, ...extractionOf(desc) };
+  const same = (e) => e.varName === name && e.source === extraction.source
+    && e.selector === extraction.selector && e.default === extraction.default;
+  if (!desc.req.extractions.some(same)) desc.req.extractions.push(extraction);
   return `{{${name}}}`;
 }
 
@@ -159,7 +193,7 @@ function inlineExtraction(node, state) {
   const desc = describe(node, state);
   const ex = extractionOf(desc);
   if (!ex) return null;
-  const key = `${desc.req.id}|${ex.source}|${ex.selector}`;
+  const key = `${desc.req.id}|${ex.source}|${ex.selector}|${ex.default ?? ""}`;
   if (!state.inline.has(key)) {
     const last = desc.kind === "json" ? [...desc.path].reverse().find((seg) => typeof seg === "string") : desc.name;
     const base = String(last ?? "value").replace(/\W+/g, "_").replace(/^(\d)/, "_$1") || "value";
@@ -273,6 +307,79 @@ function handleGroup(call, state) {
   if (ctx.requests.some((r) => r.groupId === group.id) && !ctx.groups.includes(group)) ctx.groups.push(group);
 }
 
+// K6UI's own `if (...) { ... }` around a group with a "Run only if" row → a group with
+// that condition. Returns false for any other `if`.
+function handleConditionalGroup(stmt, state) {
+  const { ctx } = state;
+  const runIf = !state.group && !stmt.alternate && stmt.consequent.type === "BlockStatement" ? readRunIf(stmt.test) : null;
+  if (!runIf) return false;
+  const name = groupNameBefore(ctx.src, stmt.start) || `Conditional group ${ctx.groups.length + 1}`;
+  const group = { id: `grp_import_${state.groups.size + 1}`, name, enabled: true, collapsed: false, headers: [], runIf };
+  state.groups.set(`${name}#${group.id}`, group);
+  state.group = group;
+  walk(stmt.consequent.body, state);
+  state.group = null;
+  if (ctx.requests.some((r) => r.groupId === group.id) && !ctx.groups.includes(group)) ctx.groups.push(group);
+  return true;
+}
+
+// ── Save to CSV ────────────────────────────────────────────────
+// K6UI's own row (generator/csv-export.js), on the request before it:
+//   console.log(JSON.stringify({ k6uiExport: "file.csv", columns: ["a"], row: [`${a}`] }));
+// → { file, columnsNode, rowNode }, or null for any other call.
+function readExportCall(node) {
+  const call = unwrap(node);
+  if (!isConsoleCall(call) || call.callee.property?.name !== "log" || call.arguments.length !== 1) return null;
+  const json = unwrap(call.arguments[0]);
+  const c = json?.callee;
+  if (json?.type !== "CallExpression" || c?.type !== "MemberExpression" || c.computed || c.object.type !== "Identifier"
+      || c.object.name !== "JSON" || c.property.name !== "stringify" || json.arguments.length !== 1) return null;
+  const obj = unwrap(json.arguments[0]);
+  if (obj?.type !== "ObjectExpression") return null;
+  const prop = (key) => obj.properties.find((p) => p.type === "Property" && !p.computed && (p.key.name ?? p.key.value) === key)?.value;
+  const file = prop("k6uiExport");
+  const columnsNode = prop("columns");
+  const rowNode = prop("row");
+  if (file?.type !== "Literal" || typeof file.value !== "string") return null;
+  if (columnsNode?.type !== "ArrayExpression" || rowNode?.type !== "ArrayExpression") return null;
+  if (columnsNode.elements.length !== rowNode.elements.length || rowNode.elements.some((e) => !e)) return null;
+  if (!columnsNode.elements.every((e) => e?.type === "Literal" && typeof e.value === "string")) return null;
+  return { file: file.value, columnsNode, rowNode };
+}
+
+function addExport(shape, skipMissing, stmt, state) {
+  const { ctx } = state;
+  if (!state.last) {
+    ctx.warn(stmt, `"Save to CSV" for "${shape.file}" before the first request was skipped.`);
+    return;
+  }
+  const columns = shape.columnsNode.elements.map((nameNode, i) => ({
+    name: nameNode.value,
+    value: safeText(shape.rowNode.elements[i], ctx, `value of column "${nameNode.value}"`),
+  }));
+  (state.last.exports ??= []).push({ file: shape.file, columns, skipMissing });
+}
+
+// `![undefined, null, "", ...].includes(name) && ...`: "skip missing" of a K6UI row.
+function isMissingCheck(node) {
+  const n = unwrap(node);
+  if (n?.type === "LogicalExpression" && n.operator === "&&") return isMissingCheck(n.left) && isMissingCheck(n.right);
+  if (n?.type !== "UnaryExpression" || n.operator !== "!") return false;
+  const call = unwrap(n.argument);
+  return call?.type === "CallExpression" && isMember(call.callee, "includes") && call.callee.object.type === "ArrayExpression"
+    && call.arguments.length === 1 && call.arguments[0].type === "Identifier";
+}
+
+// `if (<missing checks>) { <K6UI row> }` → an export with skipMissing. False for any other `if`.
+function handleExportIf(stmt, state) {
+  if (stmt.alternate || !isMissingCheck(stmt.test)) return false;
+  const body = stmt.consequent.type === "BlockStatement" ? stmt.consequent.body : [stmt.consequent];
+  const shape = body.length === 1 && body[0].type === "ExpressionStatement" ? readExportCall(body[0].expression) : null;
+  if (!shape) return false;
+  addExport(shape, true, stmt, state);
+  return true;
+}
+
 // `name = <init>` (declaration or assignment): remember where the value comes from.
 function bind(name, rawInit, state) {
   const { ctx } = state;
@@ -295,7 +402,7 @@ function bind(name, rawInit, state) {
   const desc = describe(init, state);
   if (desc) {
     ctx.consts.delete(name);
-    ctx.bindings.set(name, { ...desc, names: undefined });
+    ctx.bindings.set(name, { ...desc });
     return;
   }
   // Anything else is resolved where it is used (URL, header, body…).
@@ -317,6 +424,7 @@ function expression(rawExpr, stmt, state) {
     else if (isCallTo(expr, ctx.names.check)) handleCheck(expr, state);
     else if (isCallTo(expr, ctx.names.sleep)) handleSleep(expr, state);
     else if (isCallTo(expr, ctx.names.group)) handleGroup(expr, state);
+    else if (readExportCall(expr)) addExport(readExportCall(expr), false, stmt, state);
     else if (!isConsoleCall(expr)) unsupported(stmt, state);
     return;
   }
@@ -337,7 +445,10 @@ const KIND = {
 
 function unsupported(stmt, state) {
   const kind = KIND[stmt.type] ?? "this statement";
-  state.ctx.warn(stmt, `Skipped \`${sourceOf(stmt, state.ctx)}\`: ${kind} cannot be imported.`);
+  // The requests inside are not read at all, so say so: K6UI's own conditional
+  // groups (`if (...) { ... }` from a "Run only if" row) are not read back yet.
+  const consequence = stmt.type === "IfStatement" ? ", so the requests inside it were left out" : "";
+  state.ctx.warn(stmt, `Skipped \`${sourceOf(stmt, state.ctx)}\`: ${kind} cannot be imported${consequence}.`);
 }
 
 // try { console.log(...) } catch {} — the request-log line K6UI itself generates.
@@ -360,6 +471,9 @@ function statement(stmt, state) {
       break;
     case "TryStatement":
       if (!isLoggingOnly(stmt.block)) unsupported(stmt, state);
+      break;
+    case "IfStatement":
+      if (!handleConditionalGroup(stmt, state) && !handleExportIf(stmt, state)) unsupported(stmt, state);
       break;
     case "EmptyStatement":
     case "ReturnStatement":

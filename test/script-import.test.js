@@ -271,3 +271,162 @@ test('POST /api/import-script returns the configuration and warnings, or a 400 w
   });
   assert.equal(missing.status, 400);
 });
+
+test('per-vu-iterations scenarios import as the iterations load mode', () => {
+  const script = (scenarios, extra = '') => `
+    import http from 'k6/http';
+    export const options = { ${extra} scenarios: ${scenarios} };
+    export default function () { http.get('https://x.test/a'); }
+  `;
+
+  // What K6UI's generator writes comes back as the same load profile.
+  const generated = importK6Script(generateScript({
+    load: { mode: 'iterations', vus: '5', iterations: '2' },
+    scenario: { requests: [{ method: 'GET', url: 'https://x.test/a', checkStatus: false }] },
+  }));
+  assert.deepEqual(generated.config.load, { mode: 'iterations', vus: '5', iterations: '2' });
+  assert.deepEqual(generated.warnings, []);
+
+  // A custom maxDuration is kept; k6's own defaults (1 VU, 1 iteration, 10m) apply when omitted.
+  const handwritten = importK6Script(script(`{ checkout: { executor: 'per-vu-iterations', vus: 3, iterations: 4, maxDuration: '2h' } }`));
+  assert.deepEqual(handwritten.config.load, { mode: 'iterations', vus: '3', iterations: '4', maxDuration: '2h' });
+  assert.deepEqual(importK6Script(script(`{ a: { executor: 'per-vu-iterations' } }`)).config.load,
+    { mode: 'iterations', vus: '1', iterations: '1', maxDuration: '10m' });
+
+  // Anything else is skipped with a warning.
+  const withExtras = importK6Script(script(`{ a: { executor: 'per-vu-iterations', vus: 2, startTime: '5s' } }`, 'vus: 9, duration: "1m",'));
+  assert.deepEqual(withExtras.config.load, { mode: 'iterations', vus: '2', iterations: '1', maxDuration: '10m' });
+  assert.match(messages(withExtras.warnings), /option startTime is not supported/);
+  assert.match(messages(withExtras.warnings), /options\.vus, duration and stages are ignored when scenarios are set/);
+
+  for (const [scenarios, warning] of [
+    [`{ a: { executor: 'constant-vus', vus: 2, duration: '1m' } }`, /does not use the per-vu-iterations executor/],
+    [`{ a: { executor: 'per-vu-iterations' }, b: { executor: 'per-vu-iterations' } }`, /more than one scenario/],
+  ]) {
+    const skipped = importK6Script(script(scenarios));
+    assert.equal(skipped.config.load.mode, 'simple');
+    assert.match(messages(skipped.warnings), warning);
+  }
+});
+
+test('a K6UI script with data files imports without crashing: columns return as {{column}}, the data itself is a warning', () => {
+  const script = generateScript({
+    load: { mode: 'iterations', vus: '2', iterations: '1' },
+    scenario: { requests: [{
+      method: 'POST', url: 'https://api.test/{{email}}', body: '{"p":"{{password}}"}',
+      headers: [{ key: 'X-User', value: '{{email}}' }], checkStatus: true, sleepAfter: '1',
+    }] },
+    dataSets: [{
+      name: 'login.csv', fileName: 'login.csv', delimiter: ',', skipHeader: true,
+      columns: ['email', 'password'], content: 'email,password\nuser1@example.com,pass1\n',
+      share: 'next-row', onEnd: 'stop',
+    }],
+  });
+  const { config, warnings } = importK6Script(script);
+  const [request] = config.scenario.requests;
+  assert.equal(request.url, 'https://api.test/{{email}}');
+  assert.equal(request.body, '{"p":"{{password}}"}');
+  assert.deepEqual(request.headers, [{ key: 'X-User', value: '{{email}}' }]);
+  assert.equal(config.load.mode, 'iterations');
+  assert.equal('dataSets' in config, false, 'the importer does not rebuild data files');
+
+  const text = messages(warnings);
+  assert.match(text, /import "k6\/data" was ignored; data read with SharedArray is not imported/);
+  assert.match(text, /SharedArray DATA_1 \(a data file\) is not imported; add the CSV file under Data & Rules/);
+  assert.doesNotMatch(text, /Could not convert/);
+});
+
+test('a hand-written SharedArray warns and does not crash', () => {
+  const { warnings } = importK6Script(`
+import http from 'k6/http';
+import { SharedArray } from 'k6/data';
+const users = new SharedArray('users', function () { return JSON.parse(open('./users.json')); });
+export default function () {
+  const user = users[0];
+  http.get('https://api.test/users');
+}`);
+  assert.match(messages(warnings), /SharedArray users \(a data file\) is not imported/);
+});
+
+// ── Conditional groups written by K6UI's generator ─────────────
+
+import { loadScript as loadGeneratedScript } from './helpers/load-script.js';
+
+const conditionalConfig = (runIf, extra = {}) => ({
+  load: { mode: 'iterations', vus: '1', iterations: '1' },
+  variables: [{ key: 'MODE', value: 'A' }],
+  scenario: {
+    groups: [{ id: 'grp_a', name: 'Orders', enabled: true, runIf }],
+    requests: [
+      { method: 'GET', url: 'https://api.test/before', checkStatus: false, sleepAfter: '0' },
+      {
+        groupId: 'grp_a', method: 'GET', url: 'https://api.test/login', checkStatus: false, sleepAfter: '0',
+        extractions: [{ varName: 'token', source: 'json', selector: 'token' }],
+      },
+      { groupId: 'grp_a', method: 'GET', url: 'https://api.test/me/{{token}}', checkStatus: false, sleepAfter: '0' },
+      { method: 'GET', url: 'https://api.test/after/{{token}}', checkStatus: false, sleepAfter: '0' },
+    ],
+  },
+  ...extra,
+});
+
+test('a hand-written `if` is skipped with a warning that says its requests were left out', () => {
+  const { config, warnings } = importK6Script(`
+import http from 'k6/http';
+export default function () {
+  http.get('https://api.test/a');
+  if (__ENV.FLOW === 'order') {
+    http.get('https://api.test/b');
+  }
+  http.get('https://api.test/c');
+}`);
+  assert.deepEqual(config.scenario.requests.map(r => r.url), ['https://api.test/a', 'https://api.test/c']);
+  const skipped = warnings.filter(w => /^Skipped `if/.test(w.message));
+  assert.equal(skipped.length, 1);
+  assert.match(skipped[0].message, /^Skipped `if \(__ENV\.FLOW === 'order'\) \{ http\.get\('https:\/\/api\.test\/b'\); \}`: a condition cannot be imported, so the requests inside it were left out\.$/);
+});
+
+test('the `if` K6UI writes for a "Run only if" group comes back as a group with that condition', () => {
+  for (const runIf of [
+    { variable: 'MODE', operator: 'equals', values: ['A'] },
+    { variable: 'MODE', operator: 'not-equals', values: ['A'] },
+    { variable: 'MODE', operator: 'one-of', values: ['A', 'B'] },
+  ]) {
+    const script = generateScript(conditionalConfig(runIf));
+    const { config, warnings } = importK6Script(script);
+    assert.deepEqual(warnings, [], JSON.stringify(runIf));
+    assert.equal(config.scenario.groups.length, 1);
+    assert.deepEqual(config.scenario.groups[0].runIf, runIf);
+    assert.equal(config.scenario.groups[0].name, 'Orders', 'the name comes from the comment above the if');
+    assert.deepEqual(config.scenario.requests.map(r => r.groupId), ['', 'grp_import_1', 'grp_import_1', '']);
+    // The variable the group extracts is read back as an extraction, so {{token}} still means something.
+    assert.deepEqual(config.scenario.requests[1].extractions, [{ varName: 'token', source: 'json', selector: 'token' }]);
+    assert.equal(config.scenario.requests[3].url, 'https://api.test/after/{{token}}');
+    assert.deepEqual(config.variables, [{ key: 'MODE', value: 'A' }]);
+    // …and the imported flow generates a script that behaves the same.
+    const again = loadGeneratedScript(generateScript(migrateProject(config)));
+    const original = loadGeneratedScript(script);
+    assert.deepEqual(again.iteration(1, 0).map(c => c.url), original.iteration(1, 0).map(c => c.url));
+  }
+});
+
+test('an `if` that K6UI did not write, or one with an else, nested in group(), is still skipped', () => {
+  const generated = generateScript(conditionalConfig({ variable: 'MODE', operator: 'equals', values: ['A'] }));
+  const withElse = generated.replace('\n  }\n\n  // Request 4', '\n  } else { sleep(1); }\n\n  // Request 4');
+  assert.notEqual(withElse, generated);
+  assert.match(messagesOf(importK6Script(withElse).warnings), /a condition cannot be imported/);
+  const nested = importK6Script(`
+import http from 'k6/http';
+import { group } from 'k6';
+const GLOBALS = { MODE: 'A' };
+export default function () {
+  group('outer', () => {
+    if (String(GLOBALS.MODE) === "A") { http.get('https://api.test/x'); }
+    http.get('https://api.test/y');
+  });
+}`);
+  assert.deepEqual(nested.config.scenario.requests.map(r => r.url), ['https://api.test/y']);
+  assert.match(messagesOf(nested.warnings), /a condition cannot be imported/);
+});
+
+const messagesOf = warnings => warnings.map(w => w.message).join('\n');

@@ -1,10 +1,25 @@
 // Builds the k6 `options` object (load + thresholds) from the UI configuration.
 
+// k6 aborts a per-vu-iterations scenario after maxDuration (its own default is
+// only 10m), so slower flows need a roomier cap.
+export const DEFAULT_MAX_DURATION = "1h";
+
+const wholeNumber = (value) => (Math.floor(Number(value)) >= 1 ? Math.floor(Number(value)) : 1);
+
 export function buildOptions(config) {
   const load = config.load || {};
   const options = {};
 
-  if (load.mode === "stages" && Array.isArray(load.stages) && load.stages.length > 0) {
+  if (load.mode === "iterations") {
+    options.scenarios = {
+      default: {
+        executor: "per-vu-iterations",
+        vus: wholeNumber(load.vus),
+        iterations: wholeNumber(load.iterations),
+        maxDuration: String(load.maxDuration ?? "").trim() || DEFAULT_MAX_DURATION,
+      },
+    };
+  } else if (load.mode === "stages" && Array.isArray(load.stages) && load.stages.length > 0) {
     options.stages = load.stages
       .filter((s) => s && s.duration && s.target !== "" && s.target != null)
       .map((s) => ({ duration: String(s.duration), target: Number(s.target) }));

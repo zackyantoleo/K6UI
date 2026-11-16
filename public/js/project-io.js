@@ -10,6 +10,7 @@ import { refreshFlowEmptyState } from './components/counts.js';
 import { collectConfig } from './config.js';
 import { migrateProject, projectStore, serializeProject } from './project-store.js';
 import { refreshRequestGroupOptions, restoreGroups } from './components/request-groups.js';
+import { restoreDataSets } from './data-files.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 function fillSubReq(section, req) {
@@ -27,13 +28,7 @@ function fillSubReq(section, req) {
 
   const srExtList = form.querySelector('.sr-extractions-list');
   for (const e of req.extractions || []) {
-    if (!e.varName) continue;
-    const row = extractionRow();
-    row.querySelector('.ext-name').value     = e.varName;
-    row.querySelector('.ext-source').value   = e.source   || 'json';
-    row.querySelector('.ext-selector').value = e.selector || '';
-    row.querySelector('.ext-source').dispatchEvent(new Event('change'));
-    srExtList.appendChild(row);
+    if (e?.varName) srExtList.appendChild(extractionRow(e));
   }
 }
 
@@ -93,10 +88,15 @@ export function applyConfig(cfg) {
   if (modeRadio) modeRadio.checked = true;
   $('#load-simple').classList.toggle('hidden', mode !== 'simple');
   $('#load-stages').classList.toggle('hidden', mode !== 'stages');
+  $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
 
   if (mode === 'simple') {
     $('#vus').value      = cfg.load?.vus      ?? 10;
     $('#duration').value = cfg.load?.duration ?? '30s';
+  } else if (mode === 'iterations') {
+    $('#iter-vus').value     = cfg.load?.vus        ?? 1;
+    $('#iterations').value   = cfg.load?.iterations ?? 1;
+    $('#max-duration').value = cfg.load?.maxDuration ?? '1h';
   } else {
     const stagesEl = $('#stages');
     stagesEl.innerHTML = '';
@@ -110,6 +110,8 @@ export function applyConfig(cfg) {
   for (const v of cfg.variables || []) {
     if (v && v.key) varsList.appendChild(variableRow(v.key, v.value ?? ''));
   }
+
+  restoreDataSets(cfg.dataSets || []);
 
   const gHeadersList = $('#global-headers-list');
   gHeadersList.innerHTML = '';

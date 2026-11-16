@@ -5,10 +5,21 @@
 //   assertions.js  → check() block for per-request assertions
 //   extract.js     → variable extraction from responses
 //   interpolate.js → {{varName}} interpolation
+//   data.js        → data files (CSV) → SharedArray + the row of each iteration
+//   run-if.js      → "run only if" condition of a request group → if (...) { ... }
+//   csv-export.js  → "Save to CSV" exports → one logged row after the request
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
 import { buildAssertionsCode } from "./assertions.js";
+import { EXTRACT_OR_SOURCE, extractionDefault, isExtractable } from "./extract.js";
+import { jsLiteral } from "./helpers.js";
+import {
+  buildDataDeclarations, buildDataHoists, buildDataImports, buildDataRowCode, buildGroupDataRowCode,
+  dataColumns, prepareDataSets,
+} from "./data.js";
+import { buildRunIfCondition, runIfComment } from "./run-if.js";
+import { buildExportCode, extractionDefaultsByName, validateExports } from "./csv-export.js";
 
 // Request logging is opt-in because URLs and response samples can contain
 // credentials or personal data. This helper runs inside the generated k6
@@ -114,6 +125,8 @@ export function generateScript(config) {
       .filter((group) => group && group.id)
       .map((group) => [group.id, group])
   );
+  const groupPosition = new Map([...groups.keys()].map((id, position) => [id, position]));
+  const dataSets = prepareDataSets(config.dataSets, groups);
   const withInheritedHeaders = (req) => {
     const group = req && groups.get(req.groupId);
     const groupHeaders = group?.headers || [];
@@ -121,6 +134,7 @@ export function generateScript(config) {
       ? {
           ...req,
           headers: mergeHeaders(groupHeaders, req.headers),
+          _groupId: group.id,
           _groupName: group.name || "Request group",
           _groupHeaders: groupHeaders,
         }
@@ -154,6 +168,7 @@ export function generateScript(config) {
   if (grpcIndexes.length)              out += `import grpc from 'k6/net/grpc';\n`;
   if (/\bcrypto\./.test(allScripts))   out += `import crypto from 'k6/crypto';\n`;
   if (/\bencoding\./.test(allScripts)) out += `import encoding from 'k6/encoding';\n`;
+  out += buildDataImports(dataSets);
   out += `\n`;
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
 
@@ -166,6 +181,8 @@ export function generateScript(config) {
     out += `};\n`;
   }
 
+  out += buildDataDeclarations(dataSets);
+
   if (grpcIndexes.length) {
     out += `\n// gRPC clients — connect with server reflection (no .proto files needed)\n`;
     for (const i of grpcIndexes) {
@@ -173,13 +190,29 @@ export function generateScript(config) {
     }
   }
 
+  // "Save to CSV": checked up front, so a broken export is a 400 before any code is built.
+  validateExports(mainReqs);
+  const exportDefaults = extractionDefaultsByName(mainReqs);
+
+  // extractOr() is only written when an extraction that will run has a default.
+  const hasDefault = (e) => isExtractable(e) && extractionDefault(e) !== null;
+  const subRequestDefaults = (sub) => Boolean(sub && String(sub.url || "").trim() && (sub.extractions || []).some(hasDefault));
+  if (mainReqs.some((r) => (r.extractions || []).some(hasDefault) || subRequestDefaults(r.pre) || subRequestDefaults(r.post))) {
+    out += `\n${EXTRACT_OR_SOURCE}\n`;
+  }
+
   out += `\nexport default function() {\n`;
+  out += buildDataRowCode(dataSets);
+  out += buildDataHoists(dataSets);
 
   // Variables already declared — prevents a double `let`
   const declaredVars   = new Set();
+  // Extracted by a request inside a conditional block, declared with `let` above
+  // it so requests after the block can still read them (see beginRun)
+  const hoistedVars    = new Set();
   // {{name}}s made available by processor scripts assigning vars.<name>
   const processorVars  = new Set();
-  const ctx = { localVars: declaredVars, processorVars, globalVars };
+  const ctx = { localVars: declaredVars, processorVars, dataVars: dataColumns(dataSets), globalVars, hoistedVars };
 
   const hasProcessors = mainReqs.some(
     (r) => String(r.preScript || "").trim() || String(r.postScript || "").trim()
@@ -188,10 +221,76 @@ export function generateScript(config) {
     out += `  const vars = {};  // shared by pre/post-processor scripts\n`;
   }
 
+  // Consecutive requests of one group form a "run". A run starts by choosing the
+  // rows of the group's data files and, with a "run only if" condition, opens
+  // `if (...) {` (closed after the run's last request). The condition is read
+  // when the run starts, so a group split by other requests is checked per run.
+  const groupIdOf = (req) => req._groupId || "";
+  let blockOpen = false;
+  const endRun = () => {
+    if (blockOpen) out += `  }\n`;
+    blockOpen = false;
+  };
+  const beginRun = (start) => {
+    const group = groups.get(mainReqs[start]._groupId);
+    let end = start;
+    while (end + 1 < mainReqs.length && groupIdOf(mainReqs[end + 1]) === group.id) end++;
+    const run = mainReqs.slice(start, end + 1);
+
+    if (group.runIf != null) {
+      const condition = buildRunIfCondition(group, groupPosition.get(group.id), ctx, dataSets);
+      out += hoistRunDeclarations(run);
+      out += `\n${runIfComment(group, groupPosition.get(group.id))}`;
+      out += `  if (${condition}) {\n`;
+      blockOpen = true;
+    }
+    const rows = buildGroupDataRowCode(dataSets, group.id);
+    if (rows) out += (blockOpen ? "" : "\n") + rows;
+  };
+
+  // Names a conditional run extracts or assigns would otherwise live and die
+  // inside its block. An extracted name starts at its extraction's default (the
+  // first extraction of that name in the run that has one), else empty, so a
+  // skipped group leaves the default behind.
+  const hoistRunDeclarations = (run) => {
+    const extracted = new Map(); // name → default or null
+    const assigned = new Set();
+    for (const r of run) {
+      for (const e of [...(r.pre?.extractions || []), ...(r.extractions || []), ...(r.post?.extractions || [])]) {
+        if (!isExtractable(e) || declaredVars.has(e.varName)) continue;
+        if (extracted.has(e.varName)) {
+          if (extracted.get(e.varName) === null) extracted.set(e.varName, extractionDefault(e));
+          continue;
+        }
+        if (hoistedVars.has(e.varName)) continue;
+        hoistedVars.add(e.varName);
+        extracted.set(e.varName, extractionDefault(e));
+      }
+      scanAssignedVars(String(r.preScript || ""), assigned);
+      scanAssignedVars(String(r.postScript || ""), assigned);
+    }
+    let code = "";
+    if (extracted.size) {
+      const withDefaults = [...extracted.values()].some((value) => value !== null);
+      code += `\n  // Extracted inside a conditional group: declared here so later requests can read them (${withDefaults ? "their default, or empty," : "empty"} if the group does not run)\n`;
+      for (const [name, fallback] of extracted) code += `  let ${name} = ${fallback === null ? '""' : jsLiteral(fallback)};\n`;
+    }
+    if (assigned.size) {
+      code += `\n  // Set by scripts inside a conditional group: empty until they run\n`;
+      for (const name of assigned) code += `  if (vars.${name} === undefined) vars.${name} = "";\n`;
+    }
+    return code;
+  };
+
   for (let i = 0; i < mainReqs.length; i++) {
     const req = mainReqs[i];
     const preScript  = String(req.preScript  || "").trim();
     const postScript = String(req.postScript || "").trim();
+
+    if (groupIdOf(req) !== (i ? groupIdOf(mainReqs[i - 1]) : "")) {
+      endRun();
+      if (req._groupId) beginRun(i);
+    }
 
     if (req._groupName) {
       out += `\n  // Group: ${String(req._groupName).replace(/[\r\n]+/g, " ")}\n`;
@@ -253,8 +352,12 @@ export function generateScript(config) {
     for (const e of req.extractions || []) {
       if (e && e.varName) declaredVars.add(e.varName);
     }
+
+    // ── Save to CSV (after everything of this request) ───────
+    out += buildExportCode(req.exports, ctx, exportDefaults);
   }
 
+  endRun();
   out += `}\n`;
   return out;
 }

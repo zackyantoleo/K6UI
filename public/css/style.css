@@ -401,6 +401,22 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
 .request-group-disabled { opacity: .62; }
 .group-collapsed-hidden { display: none; }
 .request-group-select { width: 120px; min-width: 105px; font-size: 11px; }
+/* "Run only if" (condition of a group): badge in the head, editor row in the body. */
+.request-group-runif {
+  max-width: 260px; padding: 2px 8px; font-size: 11.5px; color: var(--accent-text);
+  background: var(--accent-lite); border: 1px solid var(--border-2); border-radius: 999px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.request-group-runif[hidden] { display: none; }
+.request-group-runif.run-if-invalid { color: var(--warn); background: var(--warn-lite); }
+.group-run-if {
+  display: grid; grid-template-columns: auto minmax(120px, 1fr) auto minmax(140px, 1.4fr); gap: 7px; align-items: center;
+  margin-top: 10px;
+}
+.group-run-if-label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.group-run-if .run-if-message { grid-column: 1 / -1; margin: 0; color: var(--danger); }
+.group-run-if .run-if-message[hidden] { display: none; }
+.group-run-if [aria-invalid] { border-color: var(--danger); }
 
 /* ── Advanced flow outline + shared editor ───────────────────── */
 /* Presentation only: cards stay in #reqs-main and groups in #request-groups. */
@@ -439,6 +455,8 @@ html[data-ui-mode="advanced"] .flow-outline {
 .outline-skipped .outline-name { color: #9aa3bd; }
 .outline-group { grid-template-columns: minmax(0, 1fr) auto auto; }
 .outline-off { font-size: 11px; color: var(--warn); }
+.outline-cond { grid-column: 1 / -1; min-width: 0; font-size: 11.5px; color: #9aa3bd; overflow-wrap: anywhere; }
+.outline-cond[hidden] { display: none; }
 .outline-count {
   min-width: 26px; padding: 1px 6px; text-align: center; font-size: 11px;
   border: 1px solid var(--border-2); border-radius: 6px;
@@ -623,6 +641,8 @@ html[data-ui-mode="advanced"] #reqs-main > .req-card.expanded .req-card-head { c
 @media (max-width: 640px) {
   .request-groups-head, .request-group-head { align-items: stretch; flex-direction: column; }
   .request-group-name, .request-group-select { width: 100%; }
+  .request-group-runif { max-width: none; white-space: normal; }
+  .group-run-if { grid-template-columns: 1fr; }
   .request-group-collapse { align-self: flex-start; }
   .request-group-body { padding-left: 10px; }
   .req-card-head { grid-template-columns: auto minmax(0, 1fr); }
@@ -688,10 +708,12 @@ html[data-ui-mode="advanced"] #reqs-main > .req-card.expanded .req-card-head { c
 #global-headers-list .header-row { margin-bottom: 8px; }
 #global-headers-list .h-key { width: 220px; flex: none; }
 
-.extraction-row { display: flex; gap: 7px; align-items: center; }
+.extraction-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
 .extraction-row .ext-name   { width: 130px; flex-shrink: 0; }
 .extraction-row .ext-source { width: 115px; flex-shrink: 0; }
-.extraction-row .ext-selector { flex: 1; min-width: 0; }
+.extraction-row .ext-selector { flex: 1 1 160px; min-width: 0; }
+/* Optional default: wraps under the selector when the row is narrow (sub-requests). */
+.extraction-row .ext-default { flex: 0 1 180px; min-width: 110px; }
 
 .row-remove {
   background: none; border: 1px solid var(--border-2);
@@ -1072,6 +1094,10 @@ html[data-ui-mode="advanced"] #reqs-main > .req-card.expanded .req-card-head { c
   .assertion-row .row-remove { margin-left: auto; }
   .extraction-row { flex-wrap: wrap; }
   .extraction-row .ext-name, .extraction-row .ext-source { flex: 1 1 110px; width: auto; }
+  /* Phone: the selector gets its own line; the default shares the next one with the remove button. */
+  .extraction-row .ext-default { flex: 1 1 200px; }
+  /* Save to CSV: the file name keeps its remove button; "only when found" gets its own line. */
+  .export-head .export-skip { order: 1; flex-basis: 100%; }
   .titlebar { padding: 4px 12px; height: auto; min-height: var(--topbar-h); flex-wrap: wrap; gap: 8px; }
   .titlebar .k6-pill { margin-left: auto; }
   .category-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1194,3 +1220,75 @@ html[data-ui-mode="advanced"] #reqs-main > .req-card.expanded .req-card-head { c
   max-height: 200px; overflow-y: auto; border-left: 3px solid var(--accent);
 }
 
+
+/* ── Save to CSV: editor blocks (Extract tab) ─────────────────── */
+.exports-section { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 10px; border-top: 1px dashed var(--border-2); }
+.exports-title { font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin: 0; }
+.exports-list { display: flex; flex-direction: column; gap: 10px; }
+.export-block {
+  display: flex; flex-direction: column; gap: 7px; padding: 10px;
+  background: var(--surface-3); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+}
+.export-head { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.export-head .export-file { flex: 1 1 220px; min-width: 0; }
+.export-skip { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--text-muted); }
+.export-columns { display: flex; flex-direction: column; gap: 7px; }
+.export-column-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.export-column-row .export-col-name { flex: 0 1 180px; min-width: 110px; }
+.export-column-row .export-col-value { flex: 1 1 200px; min-width: 0; }
+
+/* ── Save to CSV: rows of a run (Run & Results) ──────────────── */
+.run-exports { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.run-exports[hidden] { display: none; }
+.run-exports h3 { font-size: 14px; margin: 0; }
+.run-exports-warning {
+  font-size: 12.5px; color: var(--warn); background: var(--warn-lite);
+  border: 1px solid rgba(245,165,36,.3); border-radius: var(--radius-sm);
+  padding: 8px 10px; margin: 0; line-height: 1.45;
+}
+.run-exports-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.run-export {
+  display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 12px;
+  background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+}
+.run-export-name { font-weight: 600; overflow-wrap: anywhere; }
+.run-export-count { font-size: 12.5px; color: var(--text-muted); }
+.run-export-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.run-export-status { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--text-muted); }
+.run-export-status:empty { display: none; }
+
+/* ── Data files (CSV) ────────────────────────────────────────── */
+.data-files-warning {
+  font-size: 12.5px; color: var(--warn); background: var(--warn-lite);
+  border: 1px solid rgba(245,165,36,.3); border-radius: var(--radius-sm);
+  padding: 8px 10px; margin-bottom: 14px; line-height: 1.45;
+}
+.data-file-card {
+  background: var(--surface-3); border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm); padding: 12px; margin-bottom: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.data-file-head { display: flex; gap: 7px; }
+.data-file-head .df-name { flex: 1; min-width: 0; }
+.data-file-source { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.df-file-name { font-size: 12.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+.df-paste summary { font-size: 12.5px; color: var(--text-muted); cursor: pointer; margin-bottom: 8px; }
+.df-paste textarea { width: 100%; margin-bottom: 8px; }
+.data-file-options {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px;
+}
+.data-file-options label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-muted); }
+.data-file-options .df-wide { grid-column: 1 / -1; }
+.data-file-options label.df-check { flex-direction: row; align-items: center; gap: 7px; align-self: end; }
+.df-status { font-size: 12.5px; color: var(--text-muted); line-height: 1.45; overflow-wrap: anywhere; }
+.df-status.df-error { color: var(--danger); }
+.df-preview-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.df-preview { border-collapse: collapse; width: 100%; font-size: 12px; font-family: ui-monospace, monospace; }
+.df-preview caption { text-align: left; font-family: inherit; padding: 6px 8px; color: var(--text-muted); font-size: 12px; caption-side: top; }
+.df-preview th, .df-preview td {
+  text-align: left; padding: 5px 8px; border-top: 1px solid var(--border);
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.df-preview th { color: var(--accent-text); font-weight: 600; background: var(--surface-2); }
+.df-preview th.df-unused, .df-preview td.df-unused { color: var(--text-faint); }
+.df-preview-wrap.hidden, #data-files-empty.hidden { display: none; }

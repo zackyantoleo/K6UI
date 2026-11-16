@@ -1,9 +1,10 @@
 // API endpoints. k6 process logic lives in k6-runner.js, codegen in generator/.
-import { Router } from "express";
+import express, { Router } from "express";
 import { execFile } from "node:child_process";
 
 import { generateScript } from "./generator/index.js";
 import { ScriptImportError, importK6Script } from "./importer/index.js";
+import { importJmx } from "./importer/jmx/index.js";
 import { startK6Run } from "./k6-runner.js";
 
 export const apiRouter = Router();
@@ -20,12 +21,13 @@ apiRouter.get("/k6-status", (_req, res) => {
 });
 
 // POST /api/generate — generate a k6 script from the UI configuration.
+// 400 { error } for an invalid configuration, 413 when its data files are too big.
 apiRouter.post("/generate", (req, res) => {
   try {
     const script = generateScript(req.body || {});
     res.json({ script });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.status || 400).json({ error: err.message });
   }
 });
 
@@ -40,14 +42,25 @@ apiRouter.post("/import-script", (req, res) => {
   }
 });
 
+// POST /api/import-jmx — read a JMeter test plan (raw .jmx XML body, never run) into a UI configuration.
+// Response: { config, warnings: [{ line, message }] } or 400 { error, warnings }.
+apiRouter.post("/import-jmx", express.text({ type: ["application/xml", "text/xml"], limit: "10mb" }), (req, res) => {
+  try {
+    res.json(importJmx(typeof req.body === "string" ? req.body : ""));
+  } catch (err) {
+    if (!(err instanceof ScriptImportError)) throw err;
+    res.status(400).json({ error: err.message, warnings: err.warnings });
+  }
+});
+
 // POST /api/run — run a k6 test and stream live output via Server-Sent Events.
-// Emitted events: status, log, req-log, error, done (see k6-runner.js).
+// Emitted events: status, log, req-log, export, error, done (see k6-runner.js).
 apiRouter.post("/run", async (req, res) => {
   let script;
   try {
     script = generateScript(req.body || {});
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.status || 400).json({ error: err.message });
     return;
   }
 

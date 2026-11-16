@@ -1,5 +1,6 @@
 // Compact request card with one-at-a-time expansion and lazy feature panels.
 import { headerRow, extractionRow } from './rows.js';
+import { exportBlock, readExportBlock } from './export-rows.js';
 import {
   updateExtCount,
   updateAssertCount,
@@ -197,13 +198,11 @@ export function ensureRequestPanel(card, panelId) {
     } else if (panelId === 'extractions') {
       const list = panel.querySelector('.extractions-list');
       for (const extraction of request.extractions || []) {
-        if (!extraction.varName) continue;
-        const row = extractionRow();
-        row.querySelector('.ext-name').value = extraction.varName;
-        row.querySelector('.ext-source').value = extraction.source || 'json';
-        row.querySelector('.ext-selector').value = extraction.selector || '';
-        row.querySelector('.ext-source').dispatchEvent(new Event('change'));
-        list.appendChild(row);
+        if (extraction?.varName) list.appendChild(extractionRow(extraction));
+      }
+      const exportsList = panel.querySelector('.exports-list');
+      for (const exp of request.exports || []) {
+        if (exp && typeof exp === 'object') exportsList.appendChild(exportBlock(exp));
       }
       updateExtCount(card);
     } else if (panelId === 'assertions') {
@@ -224,6 +223,14 @@ export function ensureRequestPanel(card, panelId) {
   return panel;
 }
 
+// A duplicate keeps every field as typed (untrimmed), including an empty default.
+const extractionSnapshot = row => ({
+  varName: row.querySelector('.ext-name').value,
+  source: row.querySelector('.ext-source').value,
+  selector: row.querySelector('.ext-selector').value,
+  default: row.querySelector('.ext-default').value,
+});
+
 function requestSnapshot(card) {
   const snapshot = {};
   const selectors = [
@@ -239,11 +246,9 @@ function requestSnapshot(card) {
     row.querySelector('.h-key').value,
     row.querySelector('.h-val').value,
   ]);
-  snapshot.extractions = [...card.querySelectorAll('.req-card-body .extraction-row')].map(row => [
-    row.querySelector('.ext-name').value,
-    row.querySelector('.ext-source').value,
-    row.querySelector('.ext-selector').value,
-  ]);
+  snapshot.extractions = [...card.querySelectorAll('.req-card-body .extraction-row')].map(extractionSnapshot);
+  snapshot.exports = [...card.querySelectorAll('.req-card-body .exports-list .export-block')]
+    .map(block => readExportBlock(block, { asTyped: true }));
   snapshot.assertions = [...card.querySelectorAll('.req-card-body .assertion-row')].map(row => [
     row.querySelector('.assert-type').value,
     row.querySelector('.assert-val').value,
@@ -261,11 +266,7 @@ function requestSnapshot(card) {
         row.querySelector('.h-key').value,
         row.querySelector('.h-val').value,
       ]),
-      extractions: [...form.querySelectorAll('.extraction-row')].map(row => [
-        row.querySelector('.ext-name').value,
-        row.querySelector('.ext-source').value,
-        row.querySelector('.ext-selector').value,
-      ]),
+      extractions: [...form.querySelectorAll('.extraction-row')].map(extractionSnapshot),
     };
   }
   return snapshot;
@@ -283,14 +284,7 @@ function applySubRequestSnapshot(card, position, snapshot) {
   const headers = form.querySelector('.sr-headers-list');
   for (const [key, value] of snapshot.headers) headers.appendChild(headerRow(key, value));
   const extracts = form.querySelector('.sr-extractions-list');
-  for (const [name, source, selector] of snapshot.extractions) {
-    const row = extractionRow();
-    row.querySelector('.ext-name').value = name;
-    row.querySelector('.ext-source').value = source;
-    row.querySelector('.ext-selector').value = selector;
-    row.querySelector('.ext-source').dispatchEvent(new Event('change'));
-    extracts.appendChild(row);
-  }
+  for (const extraction of snapshot.extractions) extracts.appendChild(extractionRow(extraction));
 }
 
 function applySnapshot(card, snapshot) {
@@ -314,13 +308,11 @@ function applySnapshot(card, snapshot) {
   for (const [key, value] of snapshot.headers) {
     ensureRequestPanel(card, 'headers').querySelector('.headers-list').appendChild(headerRow(key, value));
   }
-  for (const [name, source, selector] of snapshot.extractions) {
-    const row = extractionRow();
-    row.querySelector('.ext-name').value = name;
-    row.querySelector('.ext-source').value = source;
-    row.querySelector('.ext-selector').value = selector;
-    row.querySelector('.ext-source').dispatchEvent(new Event('change'));
-    ensureRequestPanel(card, 'extractions').querySelector('.extractions-list').appendChild(row);
+  for (const extraction of snapshot.extractions) {
+    ensureRequestPanel(card, 'extractions').querySelector('.extractions-list').appendChild(extractionRow(extraction));
+  }
+  for (const exp of snapshot.exports) {
+    ensureRequestPanel(card, 'extractions').querySelector('.exports-list').appendChild(exportBlock(exp));
   }
   for (const [type, value, value2] of snapshot.assertions) {
     ensureRequestPanel(card, 'assertions').querySelector('.assertions-list')

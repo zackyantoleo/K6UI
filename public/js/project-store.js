@@ -1,14 +1,19 @@
 // Lightweight versioned project state. The store owns a normalized immutable
 // snapshot; DOM adapters in config.js/project-io.js synchronize at UI boundaries.
+import { normalizeRunIf } from './run-if.js';
+import { normalizeExports } from './csv-export.js';
+
 export const CURRENT_SCHEMA_VERSION = 2;
 
 const REQUEST_ID_PATTERN = /^req_[a-z0-9_-]+$/;
 const GROUP_ID_PATTERN = /^grp_[a-z0-9_-]+$/;
+const DATA_SET_ID_PATTERN = /^ds_[a-z0-9_-]+$/;
 
 const DEFAULT_PROJECT = Object.freeze({
   schemaVersion: CURRENT_SCHEMA_VERSION,
   scenario: { groups: [], requests: [] },
   variables: [],
+  dataSets: [],
   globalHeaders: [],
   load: { mode: 'simple', vus: 10, duration: '30s', stages: [] },
   thresholds: {},
@@ -62,6 +67,9 @@ function normalizeGroup(rawGroup, index, used) {
   group.name = typeof group.name === 'string' ? group.name.trim().slice(0, 120) : '';
   group.enabled = group.enabled !== false;
   group.collapsed = group.collapsed === true;
+  // "Run only if" condition (see run-if.js): absent or null = always runs; a
+  // condition that cannot work becomes null instead of being applied partly.
+  if (group.runIf !== undefined) group.runIf = normalizeRunIf(group.runIf);
   group.headers = Array.isArray(group.headers)
     ? group.headers
       .filter(header => header && typeof header === 'object' && String(header.key || '').trim())
@@ -77,6 +85,20 @@ function normalizeGroup(rawGroup, index, used) {
   return group;
 }
 
+// An extraction's optional `default` (see CLAUDE.md): fixed text used when nothing
+// matches. Non-empty text is kept as is (a number or boolean becomes text); anything
+// else, "" included, is dropped, which means "no default". Other fields pass through.
+function normalizeExtractions(extractions) {
+  if (!Array.isArray(extractions)) return extractions;
+  return extractions.map(extraction => {
+    if (!extraction || typeof extraction !== 'object' || !Object.hasOwn(extraction, 'default')) return extraction;
+    const { default: value, ...rest } = extraction;
+    const text = typeof value === 'string' ? value
+      : (typeof value === 'number' && Number.isFinite(value)) || typeof value === 'boolean' ? String(value) : '';
+    return text ? { ...rest, default: text } : rest;
+  });
+}
+
 function normalizeRequest(rawRequest, index, used, validGroupIds) {
   if (!rawRequest || typeof rawRequest !== 'object' || Array.isArray(rawRequest)) {
     throw new TypeError(`Request ${index + 1} must be an object.`);
@@ -88,7 +110,37 @@ function normalizeRequest(rawRequest, index, used, validGroupIds) {
   request.enabled = request.enabled !== false;
   request.groupId = validGroupIds.has(request.groupId) ? request.groupId : '';
   if (!request.type) request.type = 'http';
+  if (request.extractions !== undefined) request.extractions = normalizeExtractions(request.extractions);
+  for (const position of ['pre', 'post']) {
+    const sub = request[position];
+    if (sub && typeof sub === 'object' && sub.extractions !== undefined) sub.extractions = normalizeExtractions(sub.extractions);
+  }
+  // "Save to CSV" (see csv-export.js): one shape, unknown fields kept; absent stays absent.
+  if (request.exports !== undefined) request.exports = normalizeExports(request.exports);
   return request;
+}
+
+// A CSV data file: see "Configuration object schema" in CLAUDE.md. Missing
+// fields (older projects have no data sets at all) fall back to the defaults.
+function normalizeDataSet(rawDataSet, index, used, validGroupIds) {
+  if (!rawDataSet || typeof rawDataSet !== 'object' || Array.isArray(rawDataSet)) {
+    throw new TypeError(`Data file ${index + 1} must be an object.`);
+  }
+  const dataSet = clone(rawDataSet);
+  dataSet.id = uniqueItemId(dataSet, index, used, 'ds', DATA_SET_ID_PATTERN);
+  used.add(dataSet.id);
+  dataSet.name = typeof dataSet.name === 'string' ? dataSet.name.trim().slice(0, 120) : '';
+  dataSet.fileName = typeof dataSet.fileName === 'string' ? dataSet.fileName : '';
+  dataSet.delimiter = typeof dataSet.delimiter === 'string' && dataSet.delimiter ? dataSet.delimiter : ',';
+  dataSet.skipHeader = dataSet.skipHeader === true;
+  dataSet.columns = Array.isArray(dataSet.columns) ? dataSet.columns.map(column => String(column ?? '')) : [];
+  dataSet.content = typeof dataSet.content === 'string' ? dataSet.content : '';
+  dataSet.share = dataSet.share === 'per-vu' ? 'per-vu' : 'next-row';
+  dataSet.onEnd = dataSet.onEnd === 'stop' ? 'stop' : 'recycle';
+  // Optional: the request group whose start reads this file's row. A group that
+  // no longer exists means "global" (every iteration), like a request's groupId.
+  if (dataSet.groupId !== undefined) dataSet.groupId = validGroupIds.has(dataSet.groupId) ? dataSet.groupId : '';
+  return dataSet;
 }
 
 function normalizeProject(rawProject) {
@@ -109,6 +161,7 @@ function normalizeProject(rawProject) {
   const usedGroupIds = new Set();
   const normalizedGroups = (groups || []).map((group, index) => normalizeGroup(group, index, usedGroupIds));
   const usedRequestIds = new Set();
+  const usedDataSetIds = new Set();
   return {
     ...source,
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -119,6 +172,8 @@ function normalizeProject(rawProject) {
         normalizeRequest(request, index, usedRequestIds, usedGroupIds)),
     },
     variables: Array.isArray(source.variables) ? source.variables : [],
+    dataSets: (Array.isArray(source.dataSets) ? source.dataSets : [])
+      .map((dataSet, index) => normalizeDataSet(dataSet, index, usedDataSetIds, usedGroupIds)),
     globalHeaders: Array.isArray(source.globalHeaders) ? source.globalHeaders : [],
     load: {
       ...DEFAULT_PROJECT.load,
@@ -150,6 +205,11 @@ export function createRequestId() {
 export function createRequestGroupId() {
   if (globalThis.crypto?.randomUUID) return `grp_${globalThis.crypto.randomUUID().replaceAll('-', '')}`;
   return `grp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createDataSetId() {
+  if (globalThis.crypto?.randomUUID) return `ds_${globalThis.crypto.randomUUID().replaceAll('-', '')}`;
+  return `ds_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function createProjectStore(initialProject = DEFAULT_PROJECT) {

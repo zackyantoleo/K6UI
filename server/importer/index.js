@@ -31,6 +31,8 @@ function createContext(src) {
     bindings: new Map(),    // name → where a response value came from (see flow.js)
     variables: new Map(),   // global variables created while importing: name → value
     globalsName: null,      // name of K6UI's own `const GLOBALS = {...}` object
+    dataRows: new Set(),    // K6UI's own data file rows: DATA_1_ROW → {{column}}
+    extractOr: false,       // the script declares K6UI's extractOr() helper (extraction defaults)
     requests: [],
     groups: [],
     logRequests: false,
@@ -67,6 +69,8 @@ function readImports(ast, ctx) {
           ctx.names[spec.imported.name] = spec.local.name;
         }
       }
+    } else if (from === "k6/data") {
+      ctx.warn(node, `import "${from}" was ignored; data read with SharedArray is not imported — add the CSV file under Data & Rules (Data files).`);
     } else {
       ctx.warn(node, `import "${from}" was ignored; code that uses it is not imported.`);
     }
@@ -91,9 +95,14 @@ function collectTopLevel(ast, ctx) {
         ctx.warn(stmt, `Exported function ${decl.id.name}() is not imported (only the default function is).`);
       }
       if (decl.id.name === "redactResponseSample") ctx.logRequests = true; // K6UI's request-log helper
+      if (decl.id.name === "extractOr" && !decl.async && !decl.generator && decl.params.length === 2) ctx.extractOr = true;
     } else if (decl?.type === "VariableDeclaration") {
       for (const d of decl.declarations) {
         if (d.id.type !== "Identifier" || !d.init) continue;
+        if (d.init.type === "NewExpression" && d.init.callee.name === "SharedArray") {
+          ctx.warn(d, `SharedArray ${d.id.name} (a data file) is not imported; add the CSV file under Data & Rules (Data files) and use {{column}} in the requests.`);
+          if (/^DATA_\d+$/.test(d.id.name)) ctx.dataRows.add(`${d.id.name}_ROW`);
+        }
         ctx.consts.set(d.id.name, { node: d.init, top: true });
         if (d.id.name === "options" && d.init.type === "ObjectExpression") optionsNode = d.init;
         if (d.id.name === "GLOBALS" && d.init.type === "ObjectExpression") readGlobals(d.init, ctx);

@@ -3,7 +3,11 @@
 // save-file format for projects (see the schema in CLAUDE.md).
 import { $, $$ } from './dom.js';
 import { createRequestId, projectStore } from './project-store.js';
-import { collectRequestGroups } from './components/request-groups.js';
+import { collectRequestGroups, requestGroupProblem } from './components/request-groups.js';
+import { collectDataSets, validateDataSets } from './data-files.js';
+import { readExtractionRow } from './components/rows.js';
+import { readExportBlocks } from './components/export-rows.js';
+import { exportsProblem } from './csv-export.js';
 
 // ── Row readers — used by main cards & sub-requests ────────────
 function readHeaderRows(scope) {
@@ -14,11 +18,7 @@ function readHeaderRows(scope) {
 
 function readExtractionRows(scope) {
   return $$('.extraction-row', scope)
-    .map(r => ({
-      varName:  r.querySelector('.ext-name').value.trim().replace(/\s+/g, '_'),
-      source:   r.querySelector('.ext-source').value,
-      selector: r.querySelector('.ext-selector').value.trim(),
-    }))
+    .map(readExtractionRow)
     .filter(e => e.varName);
 }
 
@@ -69,6 +69,7 @@ function collectReqList(containerId) {
       checkStatus: card.querySelector('.check-status').checked,
       sleepAfter:  card.querySelector('.sleep').value,
       extractions: readExtractionRows(body.querySelector('.extractions-list')),
+      exports:     readExportBlocks(body.querySelector('.exports-list')),
       assertions:  readAssertionRows(body.querySelector('.assertions-list')),
       preScript:   card.querySelector('.pre-script').value,
       postScript:  card.querySelector('.post-script').value,
@@ -95,6 +96,10 @@ export function collectConfig() {
   if (mode === 'simple') {
     load.vus      = $('#vus').value;
     load.duration = $('#duration').value.trim();
+  } else if (mode === 'iterations') {
+    load.vus         = $('#iter-vus').value;
+    load.iterations  = $('#iterations').value;
+    load.maxDuration = $('#max-duration').value.trim();
   } else {
     load.stages = $$('.stage-row').map(s => ({
       duration: s.querySelector('.stage-dur').value.trim(),
@@ -104,6 +109,7 @@ export function collectConfig() {
   const config = {
     scenario:      { groups: collectRequestGroups(), requests: collectReqList('reqs-main') },
     variables:     readVariableRows(),
+    dataSets:      collectDataSets(),
     globalHeaders: readHeaderRows($('#global-headers-list')),
     load,
     thresholds:    { p95: $('#p95').value, errorRate: $('#errorRate').value },
@@ -120,9 +126,24 @@ export function validate(config) {
     if (reqs[i].url && reqs[i].type === 'grpc' && !reqs[i].grpcMethod)
       return `Request ${i + 1}: enter the gRPC method (package.Service/Method).`;
   }
+  // The store drops a "Run only if" row that cannot work, so read it from the editor.
+  const groupError = requestGroupProblem();
+  if (groupError) return groupError;
+  const dataError = validateDataSets(config.dataSets);
+  if (dataError) return dataError;
+  // "Save to CSV": numbered like the generator, over the requests that will run.
+  const offGroups = new Set((config.scenario.groups || []).filter(group => group.enabled === false).map(group => group.id));
+  const runnable = config.scenario.requests.filter(r => r.enabled !== false && !offGroups.has(r.groupId) && String(r.url || '').trim());
+  const exportError = exportsProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, exports: r.exports })));
+  if (exportError) return exportError;
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
       return 'Add at least one valid stage in the Load Profile.';
+  }
+  if (config.load.mode === 'iterations') {
+    const whole = value => /^[1-9]\d*$/.test(String(value ?? '').trim());
+    if (!whole(config.load.vus) || !whole(config.load.iterations))
+      return 'Enter whole numbers of at least 1 for VUs and iterations in the Load Profile.';
   }
   return null;
 }

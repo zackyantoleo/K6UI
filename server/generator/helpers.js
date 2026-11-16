@@ -25,3 +25,9 @@ export function buildRegex(selector) {
   if (/^\/.+\/[gimsuy]*$/.test(s)) return s;
   return `/${s.replace(/\//g, "\\/").replace(/\n/g, "\\n")}/`;
 }
+
+// Any text → a JS string literal. U+2028 / U+2029 end a line in older JavaScript,
+// so they are escaped too (built from char codes to keep this file plain ASCII).
+const LINE_SEPARATORS = new RegExp(`[${String.fromCharCode(0x2028, 0x2029)}]`, "g");
+export const jsLiteral = (value) =>
+  JSON.stringify(String(value)).replace(LINE_SEPARATORS, (c) => `\\u${c.charCodeAt(0).toString(16)}`);

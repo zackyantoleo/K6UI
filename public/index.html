@@ -30,7 +30,7 @@
       <div class="project-actions" aria-label="Project file actions">
         <button type="button" class="project-action" id="save-project-btn">↓ Save</button>
         <button type="button" class="project-action" id="open-project-btn">↑ Open</button>
-        <button type="button" class="project-action project-action-wide" id="import-k6-btn">⇣ Import k6 script</button>
+        <button type="button" class="project-action project-action-wide" id="import-k6-btn">⇣ Import k6 script / JMeter .jmx</button>
       </div>
       <input type="file" id="project-file-input" accept=".json,application/json" hidden />
 
@@ -68,6 +68,7 @@
           <li><button type="button" class="nav-link" data-view="flow">Request Flow</button></li>
           <li><button type="button" class="nav-link" data-view="vars">Variables</button></li>
           <li><button type="button" class="nav-link" data-view="headers">Headers</button></li>
+          <li><button type="button" class="nav-link" data-view="datafiles">Data files</button></li>
           <li><button type="button" class="nav-link" data-view="load">Load Profile</button></li>
           <li><button type="button" class="nav-link" data-view="sla">Thresholds / SLA</button></li>
           <li><button type="button" class="nav-link" data-view="script">k6 Script</button></li>
@@ -134,6 +135,11 @@
               <span><strong>Global Headers</strong><small>Apply common headers to every HTTP request.</small></span>
               <span aria-hidden="true">→</span>
             </button>
+            <button type="button" class="data-rule-card" data-view="datafiles">
+              <span class="data-rule-icon" aria-hidden="true">▤</span>
+              <span><strong>Data Files</strong><small>Give each user a row from a CSV file, such as a login per user.</small></span>
+              <span aria-hidden="true">→</span>
+            </button>
             <button type="button" class="data-rule-card" data-view="sla">
               <span class="data-rule-icon" aria-hidden="true">◎</span>
               <span><strong>Performance Targets</strong><small>Set p95 response-time and error-rate limits.</small></span>
@@ -145,7 +151,7 @@
         <!-- VIEW: Load Profile -->
         <section id="view-load" class="view hidden">
           <p class="view-hint" data-ui-only="simple">Choose a safe starter pattern, then customize it only when you need finer control.</p>
-          <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, or stages directly. Presets are optional starting points and ask before replacing custom values.</p>
+          <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, stages, or iterations directly. Presets are optional starting points and ask before replacing custom values.</p>
           <div class="preset-strip" aria-label="Starter load presets">
             <span>Quick start:</span>
             <button type="button" class="preset-btn" data-preset="smoke" aria-pressed="false">Smoke <small>1 VU · 30s</small></button>
@@ -171,6 +177,13 @@
                     <span>Ramp up/down across stages.</span>
                   </div>
                 </label>
+                <label class="radio-card">
+                  <input type="radio" name="load-mode" value="iterations" />
+                  <div>
+                    <strong>Iterations</strong>
+                    <span>Each VU runs the flow a set number of times, then stops.</span>
+                  </div>
+                </label>
               </div>
 
               <div id="load-simple">
@@ -187,6 +200,24 @@
               <div id="load-stages" class="hidden">
                 <div id="stages"></div>
                 <button type="button" id="add-stage" class="btn ghost sm">+ Add Stage</button>
+              </div>
+
+              <div id="load-iterations" class="hidden">
+                <div class="field">
+                  <label for="iter-vus">Virtual Users (VUs)</label>
+                  <input type="number" id="iter-vus" min="1" value="1" />
+                  <span class="field-note">All VUs start together.</span>
+                </div>
+                <div class="field">
+                  <label for="iterations">Iterations per VU</label>
+                  <input type="number" id="iterations" min="1" value="1" />
+                  <span class="field-note">Each VU runs the whole flow this many times, then stops.</span>
+                </div>
+                <div class="field">
+                  <label for="max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label>
+                  <input type="text" id="max-duration" value="1h" />
+                  <span class="field-note">Safety limit: k6 stops the test if it is still running after this long.</span>
+                </div>
               </div>
               <div class="load-guidance" aria-label="Load terminology guide">
                 <p><strong>VUs</strong> simulate concurrent users running your request flow.</p>
@@ -206,6 +237,7 @@
                 <tr><td><code>1h30m</code></td><td>1 hour 30 minutes</td></tr>
               </table>
               <p class="note">Staged mode: each stage defines a transition from the current VU count to the target VU count over the given time range.</p>
+              <p class="note">Iterations mode: every VU starts at once and runs the whole flow a fixed number of times, then the test ends. Total runs = VUs × iterations.</p>
             </div>
           </div>
         </section>
@@ -292,6 +324,15 @@
               <div><dt>Errors</dt><dd id="run-error-total">0</dd></div>
             </dl>
             <div id="overview-metrics" class="metrics-grid" aria-label="Key performance metrics"></div>
+            <section id="run-exports" class="run-exports" aria-labelledby="run-exports-title" hidden>
+              <h3 id="run-exports-title">Saved to CSV</h3>
+              <p class="run-exports-warning" role="note">
+                These rows come from responses and can hold tokens or other secrets. They are kept in this
+                browser tab only (not on the server) until the next run. Treat a downloaded file, or a project
+                that uses it as a data file, like a password.
+              </p>
+              <ul id="run-exports-list" class="run-exports-list"></ul>
+            </section>
             <div class="result-shortcuts" data-ui-only="advanced" role="group" aria-label="Result details">
               <button type="button" class="btn ghost sm" data-results-tab="requests">Inspect requests</button>
               <button type="button" class="btn ghost sm" data-results-tab="metrics">All metrics</button>
@@ -396,10 +437,97 @@
           </div>
         </section>
 
+        <!-- VIEW: Data files (CSV) -->
+        <section id="view-datafiles" class="view hidden">
+          <p class="view-hint">
+            Give every iteration its own row from a CSV file — for example one login per user.
+            Use a column name as <code>{{column_name}}</code> in any URL, header, or body.
+          </p>
+          <div class="page-cols">
+            <div class="form-card">
+              <h3>Data files</h3>
+              <p class="data-files-warning" role="note">
+                The rows are saved inside the project file and written into the generated script.
+                If a file holds passwords or tokens, treat both of them as secrets.
+              </p>
+              <div id="data-files-list"></div>
+              <p id="data-files-empty" class="note">No data files yet.</p>
+              <button type="button" id="add-data-file" class="btn ghost sm">+ Add Data File</button>
+            </div>
+
+            <div class="form-card info-card">
+              <h3>How it works</h3>
+              <p class="note">Each iteration reads one row. <strong>Next row for every iteration</strong> shares the file between all users, so no two iterations get the same row; <strong>One row per user</strong> gives user n the n-th row.</p>
+              <p class="note">Column names follow the variable rules: letters, digits, and underscores, not starting with a digit. Other columns are ignored.</p>
+              <p class="note">If a request <strong>extracts</strong> a variable with the same name as a column, {{name}} reads the file until that request has run, and the extracted value after it. Both override a global variable of that name.</p>
+              <p class="note">Files up to 5 MB each (10 MB in total). A file with no rows or no usable column is ignored, and its {{placeholders}} stay as text.</p>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
   </div>
 </div>
+
+<!-- One data file card, cloned by data-files.js -->
+<template id="data-file-template">
+  <article class="data-file-card">
+    <div class="data-file-head">
+      <input class="df-name" aria-label="Data file name" placeholder="Name (e.g. Users login)" />
+      <button type="button" class="row-remove df-remove" title="Remove data file" aria-label="Remove data file">&times;</button>
+    </div>
+    <div class="data-file-source">
+      <button type="button" class="btn ghost sm df-pick">Choose .csv file…</button>
+      <input type="file" class="df-file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden />
+      <span class="df-file-name"></span>
+    </div>
+    <details class="df-paste">
+      <summary>Or paste CSV text</summary>
+      <textarea class="df-paste-text" spellcheck="false" aria-label="Pasted CSV text" placeholder="email,password&#10;user1@example.com,pass1"></textarea>
+      <button type="button" class="btn ghost sm df-paste-apply">Use this text</button>
+    </details>
+    <div class="data-file-options">
+      <label>Delimiter
+        <select class="df-delimiter">
+          <option value=",">Comma ( , )</option>
+          <option value=";">Semicolon ( ; )</option>
+          <option value="&#9;">Tab</option>
+          <option value="|">Pipe ( | )</option>
+        </select>
+      </label>
+      <label class="df-check"><input type="checkbox" class="df-skip-header" /> First row is a header</label>
+      <label class="df-wide">Column names
+        <input class="df-columns" placeholder="email, password" />
+      </label>
+      <label>Row for each iteration
+        <select class="df-share">
+          <option value="next-row">Next row (shared by all users)</option>
+          <option value="per-vu">One row per user</option>
+        </select>
+      </label>
+      <label>When the rows run out
+        <select class="df-end">
+          <option value="recycle">Start over from the first row</option>
+          <option value="stop">Stop the iteration</option>
+        </select>
+      </label>
+      <label class="df-wide">Read the row
+        <select class="df-group">
+          <option value="">At the start of every iteration</option>
+        </select>
+      </label>
+    </div>
+    <p class="df-status" role="status"></p>
+    <div class="df-preview-wrap hidden">
+      <table class="df-preview">
+        <caption class="df-preview-caption">Preview: first rows</caption>
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </article>
+</template>
 
 <!-- ── cURL import modal ────────────────────────────────────── -->
 <div id="curl-modal" class="modal-overlay hidden">
@@ -421,16 +549,16 @@
 <!-- ── k6 script import modal ───────────────────────────────── -->
 <div id="k6-import-modal" class="modal-overlay hidden">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="k6-import-title">
-    <h3 id="k6-import-title">Import k6 script</h3>
+    <h3 id="k6-import-title">Import k6 script or JMeter test plan</h3>
     <div id="k6-import-form" class="modal-section">
       <p class="note">
-        Paste a k6 script or choose a <code>.js</code> file. The script is only read, never run.
+        Paste a k6 script or a JMeter test plan, or choose a <code>.js</code> / <code>.jmx</code> file. The file is only read, never run.
         Importing replaces the current project; anything K6UI cannot represent is listed afterwards.
       </p>
-      <textarea id="k6-import-input" spellcheck="false" aria-label="k6 script" placeholder="import http from 'k6/http';&#10;import { check, sleep } from 'k6';&#10;&#10;export default function () {&#10;  http.get('https://test.k6.io');&#10;}"></textarea>
+      <textarea id="k6-import-input" spellcheck="false" aria-label="k6 script or JMeter test plan" placeholder="import http from 'k6/http';&#10;import { check, sleep } from 'k6';&#10;&#10;export default function () {&#10;  http.get('https://test.k6.io');&#10;}"></textarea>
       <div>
-        <button type="button" class="btn ghost sm" id="k6-import-pick">Choose .js file…</button>
-        <input type="file" id="k6-import-file" accept=".js,.mjs,text/javascript" hidden />
+        <button type="button" class="btn ghost sm" id="k6-import-pick">Choose .js or .jmx file…</button>
+        <input type="file" id="k6-import-file" accept=".js,.mjs,.jmx,.xml,text/javascript,application/xml,text/xml" hidden />
       </div>
     </div>
     <div id="k6-import-error" class="curl-error hidden" role="alert"></div>

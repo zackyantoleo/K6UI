@@ -15,6 +15,7 @@ import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';
 import { initScriptImport } from './script-import.js';
 import { initAdvancedNotice } from './components/advanced-notice.js';
+import { initDataFiles } from './data-files.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -42,6 +43,7 @@ function setLoadMode(mode) {
   if (radio) radio.checked = true;
   $('#load-simple').classList.toggle('hidden', mode !== 'simple');
   $('#load-stages').classList.toggle('hidden', mode !== 'stages');
+  $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
 }
 
 function setLoadEditorExpanded(expanded) {
@@ -204,6 +206,7 @@ stagesEl.appendChild(stageRow('30s', '10'));
 stagesEl.appendChild(stageRow('1m',  '20'));
 stagesEl.appendChild(stageRow('30s', '0'));
 
+initDataFiles();
 initCurlImport();
 initScriptImport();
 initAdvancedNotice();

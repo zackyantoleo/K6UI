@@ -1,6 +1,7 @@
 // k6 `options` object → K6UI load profile + thresholds. Only what K6UI can
 // represent is imported; every other option is reported as ignored.
 import { keyOf, resolveConst, tryStatic, Unresolvable } from "./values.js";
+import { DEFAULT_MAX_DURATION } from "../generator/options.js";
 
 const P95 = /^p\(\s*95\s*\)\s*<\s*(\d+(?:\.\d+)?)$/;
 const RATE = /^rate\s*<\s*(\d+(?:\.\d+)?)$/;
@@ -59,6 +60,47 @@ function readStages(value, node, ctx) {
   return stages;
 }
 
+// `scenarios: { name: { executor: "per-vu-iterations", vus, iterations, maxDuration } }`
+// (what K6UI's iterations mode generates) → the iterations load profile. Only a
+// single plain per-vu-iterations scenario fits; anything else is skipped.
+const SCENARIO_KEYS = new Set(["executor", "vus", "iterations", "maxDuration"]);
+
+function readScenarios(value, node, ctx) {
+  const names = value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value) : [];
+  if (!names.length) {
+    ctx.warn(node, "options.scenarios could not be read and was ignored.");
+    return null;
+  }
+  if (names.length > 1) {
+    ctx.warn(node, "options.scenarios has more than one scenario; K6UI imports a single per-vu-iterations scenario, so they were ignored.");
+    return null;
+  }
+  const scenario = value[names[0]];
+  if (scenario?.executor !== "per-vu-iterations") {
+    ctx.warn(node, `Scenario "${names[0]}" does not use the per-vu-iterations executor, the only one K6UI imports, so it was ignored.`);
+    return null;
+  }
+
+  // k6 defaults for this executor: 1 VU, 1 iteration, 10m maxDuration.
+  const whole = (key) => {
+    if (scenario[key] === undefined) return "1";
+    if (Number.isInteger(scenario[key]) && scenario[key] > 0) return String(scenario[key]);
+    ctx.warn(node, `Scenario "${names[0]}" ${key} is not a positive whole number; 1 was used.`);
+    return "1";
+  };
+  const load = { mode: "iterations", vus: whole("vus"), iterations: whole("iterations") };
+  const maxDuration = scenario.maxDuration === undefined ? "10m" : scenario.maxDuration;
+  if (typeof maxDuration === "string" && maxDuration.trim()) {
+    if (maxDuration.trim() !== DEFAULT_MAX_DURATION) load.maxDuration = maxDuration.trim();
+  } else {
+    ctx.warn(node, `Scenario "${names[0]}" maxDuration is not a text like "1h"; the default was used.`);
+  }
+  for (const key of Object.keys(scenario)) {
+    if (!SCENARIO_KEYS.has(key)) ctx.warn(node, `Scenario "${names[0]}" option ${key} is not supported and was ignored.`);
+  }
+  return load;
+}
+
 export function importOptions(optionsNode, ctx) {
   const load = { mode: "simple", vus: "1", duration: "30s", stages: [] };
   const thresholds = { p95: "", errorRate: "" };
@@ -72,6 +114,7 @@ export function importOptions(optionsNode, ctx) {
   let sawDuration = false;
   let sawVus = false;
   let stages = [];
+  let scenarioLoad = null;
   for (const prop of obj.properties) {
     if (prop.type !== "Property") {
       ctx.warn(prop, "A spread in `options` was ignored.");
@@ -87,6 +130,8 @@ export function importOptions(optionsNode, ctx) {
 
     if (key === "thresholds") {
       readThresholds(prop.value, thresholds, ctx);
+    } else if (key === "scenarios") {
+      scenarioLoad = readScenarios(tryStatic(prop.value, ctx), prop, ctx);
     } else if (key === "stages") {
       stages = readStages(tryStatic(prop.value, ctx), prop, ctx);
     } else if (key === "vus") {
@@ -102,6 +147,12 @@ export function importOptions(optionsNode, ctx) {
     }
   }
 
+  if (scenarioLoad) {
+    if (stages.length || sawDuration || sawVus) {
+      ctx.warn(obj, "options.vus, duration and stages are ignored when scenarios are set.");
+    }
+    return { load: scenarioLoad, thresholds };
+  }
   if (stages.length) {
     load.mode = "stages";
     load.stages = stages;
