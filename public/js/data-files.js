@@ -75,6 +75,8 @@ export function validateDataSets(dataSets) {
 }
 
 // ── Cards ──────────────────────────────────────────────────────
+// The request groups of the flow ([{ id, name }]), for each card's "Read the row" select.
+let knownGroups = [];
 const list = () => $('#data-files-list');
 const cards = () => $$('#data-files-list .data-file-card');
 const notify = () => window.dispatchEvent(new CustomEvent('k6ui:data-sets-changed'));
@@ -236,6 +238,29 @@ function setDelimiterControl(card) {
   select.value = delimiter;
 }
 
+const groupOption = (value, text) => Object.assign(document.createElement('option'), { value, textContent: text });
+
+// Fills the card's group select from the known groups. `dropMissing`: a group that
+// no longer exists means the file goes back to "every iteration" (only safe once
+// the groups are final: while a project loads, the old groups are still shown).
+function syncGroupSelect(card, dropMissing) {
+  const set = card.dataSet;
+  const select = card.querySelector('.df-group');
+  select.replaceChildren(
+    groupOption('', 'At the start of every iteration'),
+    ...knownGroups.map(group => groupOption(group.id, `Only when group "${group.name}" starts`)),
+  );
+  const exists = knownGroups.some(group => group.id === set.groupId);
+  if (!exists && dropMissing && set.groupId) set.groupId = '';
+  select.value = exists ? set.groupId : '';
+}
+
+// Called whenever the flow's group list changes (names included).
+export function refreshDataSetGroups(groups) {
+  knownGroups = groups;
+  for (const card of cards()) syncGroupSelect(card, true);
+}
+
 function bindCard(card) {
   const set = card.dataSet;
   const field = selector => card.querySelector(selector);
@@ -293,6 +318,7 @@ function bindCard(card) {
   });
   field('.df-share').addEventListener('change', event => { set.share = event.target.value; notify(); });
   field('.df-end').addEventListener('change', event => { set.onEnd = event.target.value; notify(); });
+  field('.df-group').addEventListener('change', event => { set.groupId = event.target.value; notify(); });
 }
 
 function createCard(dataSet) {
@@ -307,6 +333,7 @@ function createCard(dataSet) {
   card.querySelector('.df-columns').value = set.columns.join(', ');
   card.querySelector('.df-share').value = set.share;
   card.querySelector('.df-end').value = set.onEnd;
+  syncGroupSelect(card, false);
   setDelimiterControl(card);
   bindCard(card);
   renderCard(card);

@@ -6,13 +6,17 @@
 //   extract.js     → variable extraction from responses
 //   interpolate.js → {{varName}} interpolation
 //   data.js        → data files (CSV) → SharedArray + the row of each iteration
+//   run-if.js      → "run only if" condition of a request group → if (...) { ... }
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
 import { buildAssertionsCode } from "./assertions.js";
+import { isExtractable } from "./extract.js";
 import {
-  buildDataDeclarations, buildDataImports, buildDataRowCode, dataColumns, prepareDataSets,
+  buildDataDeclarations, buildDataHoists, buildDataImports, buildDataRowCode, buildGroupDataRowCode,
+  dataColumns, prepareDataSets,
 } from "./data.js";
+import { buildRunIfCondition, runIfComment } from "./run-if.js";
 
 // Request logging is opt-in because URLs and response samples can contain
 // credentials or personal data. This helper runs inside the generated k6
@@ -110,7 +114,6 @@ export function generateScript(config) {
   const logRequests = !!(config.options && config.options.logRequests);
   const globals     = collectGlobalVars(config.variables);
   const globalVars  = new Set(globals.keys());
-  const dataSets    = prepareDataSets(config.dataSets);
 
   const globalHeaders = (Array.isArray(config.globalHeaders) ? config.globalHeaders : [])
     .filter((h) => h && h.key && String(h.key).trim());
@@ -119,6 +122,8 @@ export function generateScript(config) {
       .filter((group) => group && group.id)
       .map((group) => [group.id, group])
   );
+  const groupPosition = new Map([...groups.keys()].map((id, position) => [id, position]));
+  const dataSets = prepareDataSets(config.dataSets, groups);
   const withInheritedHeaders = (req) => {
     const group = req && groups.get(req.groupId);
     const groupHeaders = group?.headers || [];
@@ -126,6 +131,7 @@ export function generateScript(config) {
       ? {
           ...req,
           headers: mergeHeaders(groupHeaders, req.headers),
+          _groupId: group.id,
           _groupName: group.name || "Request group",
           _groupHeaders: groupHeaders,
         }
@@ -183,12 +189,16 @@ export function generateScript(config) {
 
   out += `\nexport default function() {\n`;
   out += buildDataRowCode(dataSets);
+  out += buildDataHoists(dataSets);
 
   // Variables already declared — prevents a double `let`
   const declaredVars   = new Set();
+  // Extracted by a request inside a conditional block, declared with `let` above
+  // it so requests after the block can still read them (see beginRun)
+  const hoistedVars    = new Set();
   // {{name}}s made available by processor scripts assigning vars.<name>
   const processorVars  = new Set();
-  const ctx = { localVars: declaredVars, processorVars, dataVars: dataColumns(dataSets), globalVars };
+  const ctx = { localVars: declaredVars, processorVars, dataVars: dataColumns(dataSets), globalVars, hoistedVars };
 
   const hasProcessors = mainReqs.some(
     (r) => String(r.preScript || "").trim() || String(r.postScript || "").trim()
@@ -197,10 +207,68 @@ export function generateScript(config) {
     out += `  const vars = {};  // shared by pre/post-processor scripts\n`;
   }
 
+  // Consecutive requests of one group form a "run". A run starts by choosing the
+  // rows of the group's data files and, with a "run only if" condition, opens
+  // `if (...) {` (closed after the run's last request). The condition is read
+  // when the run starts, so a group split by other requests is checked per run.
+  const groupIdOf = (req) => req._groupId || "";
+  let blockOpen = false;
+  const endRun = () => {
+    if (blockOpen) out += `  }\n`;
+    blockOpen = false;
+  };
+  const beginRun = (start) => {
+    const group = groups.get(mainReqs[start]._groupId);
+    let end = start;
+    while (end + 1 < mainReqs.length && groupIdOf(mainReqs[end + 1]) === group.id) end++;
+    const run = mainReqs.slice(start, end + 1);
+
+    if (group.runIf != null) {
+      const condition = buildRunIfCondition(group, groupPosition.get(group.id), ctx, dataSets);
+      out += hoistRunDeclarations(run);
+      out += `\n${runIfComment(group, groupPosition.get(group.id))}`;
+      out += `  if (${condition}) {\n`;
+      blockOpen = true;
+    }
+    const rows = buildGroupDataRowCode(dataSets, group.id);
+    if (rows) out += (blockOpen ? "" : "\n") + rows;
+  };
+
+  // Names a conditional run extracts or assigns would otherwise live and die
+  // inside its block. They start empty (real fallbacks are a separate feature).
+  const hoistRunDeclarations = (run) => {
+    const extracted = [];
+    const assigned = new Set();
+    for (const r of run) {
+      for (const e of [...(r.pre?.extractions || []), ...(r.extractions || []), ...(r.post?.extractions || [])]) {
+        if (!isExtractable(e) || declaredVars.has(e.varName) || hoistedVars.has(e.varName)) continue;
+        hoistedVars.add(e.varName);
+        extracted.push(e.varName);
+      }
+      scanAssignedVars(String(r.preScript || ""), assigned);
+      scanAssignedVars(String(r.postScript || ""), assigned);
+    }
+    let code = "";
+    if (extracted.length) {
+      code += `\n  // Extracted inside a conditional group: declared here so later requests can read them (empty if the group does not run)\n`;
+      for (const name of extracted) code += `  let ${name} = "";\n`;
+    }
+    if (assigned.size) {
+      code += `\n  // Set by scripts inside a conditional group: empty until they run\n`;
+      for (const name of assigned) code += `  if (vars.${name} === undefined) vars.${name} = "";\n`;
+    }
+    return code;
+  };
+
   for (let i = 0; i < mainReqs.length; i++) {
     const req = mainReqs[i];
     const preScript  = String(req.preScript  || "").trim();
     const postScript = String(req.postScript || "").trim();
+
+    if (groupIdOf(req) !== (i ? groupIdOf(mainReqs[i - 1]) : "")) {
+      endRun();
+      if (req._groupId) beginRun(i);
+    }
 
     if (req._groupName) {
       out += `\n  // Group: ${String(req._groupName).replace(/[\r\n]+/g, " ")}\n`;
@@ -264,6 +332,7 @@ export function generateScript(config) {
     }
   }
 
+  endRun();
   out += `}\n`;
   return out;
 }

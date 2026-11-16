@@ -62,7 +62,7 @@ export function buildGrpcRequestCode(req, index, prefix, ctx, logRequests) {
     lines.push(`  check(${resVar}, { ${JSON.stringify(label)}: (r) => r && r.status === grpc.StatusOK });`);
   }
 
-  const extractCode = buildExtractionLines(req.extractions, resVar, null, ctx && ctx.localVars, "grpc");
+  const extractCode = buildExtractionLines(req.extractions, resVar, null, ctx && ctx.localVars, "grpc", ctx && ctx.hoistedVars);
   if (extractCode) lines.push(extractCode);
 
   // Same {__r:1,...} JSON shape as HTTP requests → "Request Details" table.

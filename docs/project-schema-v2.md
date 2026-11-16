@@ -96,6 +96,7 @@ only gives them `dataSets: []`, and unknown fields on a data set pass through un
 | `content` | The CSV text (quotes, CRLF, BOM and empty lines are handled). At most 5 MB per file and 10 MB in total, or generation fails with a 413 |
 | `share` | `next-row` (default): row = `exec.scenario.iterationInTest`, shared by every VU. `per-vu`: row = `__VU - 1` |
 | `onEnd` | `recycle` (default): start over after the last row. `stop`: end the iteration early (after a `sleep(1)`), with one log line |
+| `groupId` | Optional. A request group: the row is chosen, and `stop` applies, only when that group starts (see Conditional groups). Absent or `""` = every iteration. An id that matches no group means the same |
 
 Each iteration reads one row and `{{column}}` resolves to it. Precedence of `{{name}}`:
 extracted from a response > `vars.name` set by a processor script > data column > global
@@ -103,6 +104,43 @@ variable. A data set with no content, no rows or no valid column is ignored and 
 placeholders stay literal text; when two data sets share a column name the first wins.
 Because the rows are part of the project, the saved file (and the generated script) holds
 whatever the CSV holds, passwords and tokens included.
+
+## Conditional groups (`runIf`)
+
+A group can carry a "run only if" condition. It is purely additive: older projects have
+none, migration does not add the field, and a group without it (absent or `null`) always runs.
+
+```json
+{
+  "id": "grp_order", "name": "Order flow", "enabled": true,
+  "runIf": { "variable": "EXECUTION_MODE", "operator": "one-of", "values": ["ORDER_FLOW", "ALL"] }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `variable` | `[A-Za-z_]\w*`. Read with the precedence of `{{variable}}` (extracted from a response > `vars.x` of a processor > data column > global variable), **when the group starts** |
+| `operator` | `equals` and `not-equals` compare one value; `one-of` is true when the variable equals any of the values |
+| `values` | Strings (trimmed, no blanks, no repeats), compared exactly: case-sensitive, as text (a number extracted from JSON compares as its text) |
+
+The store turns a condition that cannot work (bad variable name, unknown operator, no values,
+several values for `equals` / `not-equals`, not an object) into `null` rather than applying it
+partly. The group editor reports the same problems before Run or View Script, so a half-typed
+row is never dropped silently. The generator is stricter than the store: a condition it is
+handed that cannot work, or that reads a variable not known when the group starts, is a 400
+that names the group and the variable.
+
+How it runs (`server/generator/run-if.js`): the requests of the group sit inside
+`if (...) { ... }` in the default function, with their Before/After requests, processors,
+assertions, request log, pauses, and gRPC calls. Requests of one group that are not next to
+each other are separate runs, each checked when it starts. A variable that the group extracts
+is declared above the block (`let name = "";`), so later requests can use `{{name}}`; when the
+group does not run it stays empty (a real fallback value is a separate feature).
+
+A data file with a `groupId` is read only when its group starts: inside the `if` when there
+is a condition, and a data file of a turned-off group is not used at all. The row index still
+comes from `exec.scenario.iterationInTest` (or `__VU - 1`), so it follows the iteration
+number, not how many times the group ran.
 
 ## UI mode is not project data
 
@@ -113,7 +151,7 @@ either mode. See [ui-modes.md](ui-modes.md).
 
 ## State boundary
 
-`public/js/project-store.js` owns a normalized, deeply frozen snapshot (data files are normalized there too: defaults for missing fields, unique `ds_*` ids). `collectConfig()` updates the store from the form, while `applyConfig()` migrates and replaces state before rendering it into the form. Generator and runner payloads continue to use the same configuration semantics.
+`public/js/project-store.js` owns a normalized, deeply frozen snapshot (data files are normalized there too: defaults for missing fields, unique `ds_*` ids, a `groupId` that exists; a group's `runIf` is validated with `public/js/run-if.js`). `collectConfig()` updates the store from the form, while `applyConfig()` migrates and replaces state before rendering it into the form. Generator and runner payloads continue to use the same configuration semantics.
 
 ## Verification
 

@@ -1,13 +1,20 @@
 // Codegen for extracting variables from a response (JSON path / header / regex).
 import { buildJsonAccessor, buildRegex } from "./helpers.js";
 
+const SOURCES = new Set(["json", "header", "regex"]);
+
+// An extraction that produces a variable (the others are skipped silently).
+export const isExtractable = (e) => Boolean(e && e.varName && SOURCES.has(e.source));
+
 // mode = 'http' → JSON source parses res.body; regex matches res.body.
 // mode = 'grpc' → JSON source reads the already-decoded res.message; regex
 //                 matches JSON.stringify(res.message).
 // targetPrefix = 'data' → data.varName = ...  (for setup, stored on the return value)
 // targetPrefix = null   → let varName = ...   (for the main function/teardown)
 // localVarSet prevents a double `let` for the same variable name.
-export function buildExtractionLines(extractions, resVar, targetPrefix, localVarSet, mode = "http") {
+// hoisted = names already declared with `let` above a conditional block (see
+// index.js): they are assigned, never declared again.
+export function buildExtractionLines(extractions, resVar, targetPrefix, localVarSet, mode = "http", hoisted = null) {
   if (!Array.isArray(extractions)) return "";
   const lines = [];
 
@@ -32,7 +39,7 @@ export function buildExtractionLines(extractions, resVar, targetPrefix, localVar
     if (targetPrefix) {
       lines.push(`  ${targetPrefix}.${e.varName} = ${rhs};`);
     } else {
-      const declared = localVarSet && localVarSet.has(e.varName);
+      const declared = (localVarSet && localVarSet.has(e.varName)) || (hoisted && hoisted.has(e.varName));
       lines.push(`  ${declared ? '' : 'let '}${e.varName} = ${rhs};`);
       if (localVarSet) localVarSet.add(e.varName);
     }

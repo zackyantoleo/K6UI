@@ -1,5 +1,7 @@
 // Lightweight versioned project state. The store owns a normalized immutable
 // snapshot; DOM adapters in config.js/project-io.js synchronize at UI boundaries.
+import { normalizeRunIf } from './run-if.js';
+
 export const CURRENT_SCHEMA_VERSION = 2;
 
 const REQUEST_ID_PATTERN = /^req_[a-z0-9_-]+$/;
@@ -64,6 +66,9 @@ function normalizeGroup(rawGroup, index, used) {
   group.name = typeof group.name === 'string' ? group.name.trim().slice(0, 120) : '';
   group.enabled = group.enabled !== false;
   group.collapsed = group.collapsed === true;
+  // "Run only if" condition (see run-if.js): absent or null = always runs; a
+  // condition that cannot work becomes null instead of being applied partly.
+  if (group.runIf !== undefined) group.runIf = normalizeRunIf(group.runIf);
   group.headers = Array.isArray(group.headers)
     ? group.headers
       .filter(header => header && typeof header === 'object' && String(header.key || '').trim())
@@ -95,7 +100,7 @@ function normalizeRequest(rawRequest, index, used, validGroupIds) {
 
 // A CSV data file: see "Configuration object schema" in CLAUDE.md. Missing
 // fields (older projects have no data sets at all) fall back to the defaults.
-function normalizeDataSet(rawDataSet, index, used) {
+function normalizeDataSet(rawDataSet, index, used, validGroupIds) {
   if (!rawDataSet || typeof rawDataSet !== 'object' || Array.isArray(rawDataSet)) {
     throw new TypeError(`Data file ${index + 1} must be an object.`);
   }
@@ -110,6 +115,9 @@ function normalizeDataSet(rawDataSet, index, used) {
   dataSet.content = typeof dataSet.content === 'string' ? dataSet.content : '';
   dataSet.share = dataSet.share === 'per-vu' ? 'per-vu' : 'next-row';
   dataSet.onEnd = dataSet.onEnd === 'stop' ? 'stop' : 'recycle';
+  // Optional: the request group whose start reads this file's row. A group that
+  // no longer exists means "global" (every iteration), like a request's groupId.
+  if (dataSet.groupId !== undefined) dataSet.groupId = validGroupIds.has(dataSet.groupId) ? dataSet.groupId : '';
   return dataSet;
 }
 
@@ -143,7 +151,7 @@ function normalizeProject(rawProject) {
     },
     variables: Array.isArray(source.variables) ? source.variables : [],
     dataSets: (Array.isArray(source.dataSets) ? source.dataSets : [])
-      .map((dataSet, index) => normalizeDataSet(dataSet, index, usedDataSetIds)),
+      .map((dataSet, index) => normalizeDataSet(dataSet, index, usedDataSetIds, usedGroupIds)),
     globalHeaders: Array.isArray(source.globalHeaders) ? source.globalHeaders : [],
     load: {
       ...DEFAULT_PROJECT.load,

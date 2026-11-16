@@ -7,6 +7,10 @@
 //          "per-vu":             row = __VU - 1
 //   onEnd  "recycle"  (default): start over after the last row (modulo)
 //          "stop":               end the iteration early, with one log line
+//   groupId (optional) a request group: the row is chosen, and "stop" applies, only
+//          when that group starts (inside its `if` when it has a "run only if"
+//          condition); a data set of a turned-off group is not used at all. No
+//          groupId = global: the row is chosen at the start of every iteration.
 // Column names are variable names ([A-Za-z_]\w*); other columns are ignored.
 // {{column}} resolves to the row of the current iteration (see interpolate.js).
 //
@@ -34,14 +38,18 @@ const literal = (value) => JSON.stringify(value).replace(/\u2028/g, "\\u2028").r
 
 // Raw config → the data sets the generator will use. A data set without rows
 // or without a usable column is dropped (its {{placeholders}} stay literal).
-// → [{ index, ident, row, label, columns: [name], rows: [[value]], share, onEnd }]
-export function prepareDataSets(rawSets) {
+// `groups` (Map id → group) says which groupIds exist and which groups are off.
+// → [{ index, ident, row, label, columns: [name], rows: [[value]], share, onEnd, groupId }]
+export function prepareDataSets(rawSets, groups = new Map()) {
   if (!Array.isArray(rawSets)) return [];
   const prepared = [];
   let total = 0;
 
   rawSets.forEach((raw, position) => {
     if (!raw || typeof raw !== "object") return;
+    const group = typeof raw.groupId === "string" ? groups.get(raw.groupId) : undefined;
+    // Its group never runs, so its rows are never read: it must not count towards the limits either.
+    if (group && group.enabled === false) return;
     const content = typeof raw.content === "string" ? raw.content : "";
     if (!content) return;
     const label = oneLine(raw.name || raw.fileName).slice(0, 120) || `Data file ${position + 1}`;
@@ -75,6 +83,7 @@ export function prepareDataSets(rawSets) {
       rows: rows.map((row) => columns.map(({ field }) => row[field] ?? "")),
       share: raw.share === "per-vu" ? "per-vu" : "next-row",
       onEnd: raw.onEnd === "stop" ? "stop" : "recycle",
+      groupId: group ? group.id : "",
     });
   });
   return prepared;
@@ -113,27 +122,48 @@ export function buildDataDeclarations(sets) {
   return out;
 }
 
-// Start of the default function: pick this iteration's row of every data set.
+// The lines that pick the row of one data set. `declare` = "const " at the start of
+// the default function; "" assigns a row hoisted with let (see buildDataHoists).
+function rowLines(set, declare) {
+  const { ident, row } = set;
+  const perVu = set.share === "per-vu";
+  const index = perVu ? "__VU - 1" : "exec.scenario.iterationInTest";
+  let out = `  // Data file: ${set.label} — ${perVu ? "one row per VU" : "next row for every iteration"}\n`;
+  if (set.onEnd === "recycle") {
+    return out + `  ${declare}${row} = ${ident}[(${index}) % ${ident}.length];\n`;
+  }
+  const message = literal(`Data file "${set.label}" has no more rows (${set.rows.length}); ending iterations early.`);
+  out += `  ${declare}${row} = ${ident}[${index}];\n`;
+  out += `  if (!${row}) {\n`;
+  // One log for the whole test: only one iteration number equals the row count.
+  out += perVu
+    ? `    if (!${ident}_ENDED) { ${ident}_ENDED = true; console.warn(${message}); }\n`
+    : `    if (exec.scenario.iterationInTest === ${ident}.length) console.warn(${message});\n`;
+  // Without a pause a duration-based test would spin through empty iterations.
+  out += `    sleep(1);\n    return;\n  }\n`;
+  return out;
+}
+
+// Start of the default function: pick this iteration's row of every global data set.
 export function buildDataRowCode(sets) {
-  let out = "";
-  for (const set of sets) {
-    const { ident, row } = set;
-    const perVu = set.share === "per-vu";
-    const index = perVu ? "__VU - 1" : "exec.scenario.iterationInTest";
-    out += `  // Data file: ${set.label} — ${perVu ? "one row per VU" : "next row for every iteration"}\n`;
-    if (set.onEnd === "recycle") {
-      out += `  const ${row} = ${ident}[(${index}) % ${ident}.length];\n`;
-      continue;
-    }
-    const message = literal(`Data file "${set.label}" has no more rows (${set.rows.length}); ending iterations early.`);
-    out += `  const ${row} = ${ident}[${index}];\n`;
-    out += `  if (!${row}) {\n`;
-    // One log for the whole test: only one iteration number equals the row count.
-    out += perVu
-      ? `    if (!${ident}_ENDED) { ${ident}_ENDED = true; console.warn(${message}); }\n`
-      : `    if (exec.scenario.iterationInTest === ${ident}.length) console.warn(${message});\n`;
-    // Without a pause a duration-based test would spin through empty iterations.
-    out += `    sleep(1);\n    return;\n  }\n`;
+  return sets.filter((set) => !set.groupId).map((set) => rowLines(set, "const ")).join("");
+}
+
+// Data sets that belong to a group: their row variable is declared up front with
+// empty columns, so a request outside the group (or in an iteration where the
+// group does not run) reads "" instead of failing.
+export function buildDataHoists(sets) {
+  const scoped = sets.filter((set) => set.groupId);
+  if (!scoped.length) return "";
+  let out = `  // Data files of request groups: read only when that group starts (empty until then)\n`;
+  for (const set of scoped) {
+    const empty = Object.fromEntries(set.columns.map((name) => [name, ""]));
+    out += `  let ${set.row} = ${literal(empty)};\n`;
   }
   return out;
+}
+
+// The rows of the data sets of one group, at the start of that group's run.
+export function buildGroupDataRowCode(sets, groupId) {
+  return sets.filter((set) => set.groupId === groupId).map((set) => rowLines(set, "")).join("");
 }

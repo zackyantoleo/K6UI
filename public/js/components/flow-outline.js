@@ -26,6 +26,7 @@ export function outlineModel(requests, groups) {
       id: group.id,
       name: group.name.trim() || 'Untitled group',
       enabled: group.enabled,
+      condition: group.condition || '',
       count: items.filter(item => item.groupId === group.id).length,
     })),
   };
@@ -57,7 +58,7 @@ export function resolveSelection(selection, previous, model) {
 // never hydrates lazy panels or touches the project store.
 const SUMMARY_FIELDS = [
   '.request-name', '.url', '.method', '.protocol', '.request-enabled', '.request-group-select',
-  '.request-group-name', '.request-group-enabled',
+  '.request-group-name', '.request-group-enabled', '.run-if-variable', '.run-if-operator', '.run-if-values',
 ].join(', ');
 
 function readRequests() {
@@ -77,6 +78,8 @@ function readGroups() {
     id: group.dataset.groupId,
     name: group.querySelector('.request-group-name')?.value || '',
     enabled: group.querySelector('.request-group-enabled')?.checked !== false,
+    // The head's "Runs only if ..." summary, kept in step by request-groups.js.
+    condition: group.querySelector('.request-group-runif:not([hidden])')?.textContent || '',
   }));
 }
 
@@ -105,7 +108,7 @@ function outlineEntry(kind, partClasses) {
 
 const createRequestEntry = () =>
   outlineEntry('request', ['outline-num', 'method-badge', 'outline-name', 'outline-meta', 'outline-url']);
-const createGroupEntry = () => outlineEntry('group', ['outline-name', 'outline-off', 'outline-count']);
+const createGroupEntry = () => outlineEntry('group', ['outline-name', 'outline-off', 'outline-count', 'outline-cond']);
 
 // Write only on change: a keystroke refresh then touches one entry, not all.
 function setText(element, text) {
@@ -136,11 +139,14 @@ function updateRequestEntry({ button, parts: [num, method, name, meta, url] }, i
   url.classList.toggle('empty', !item.url);
 }
 
-function updateGroupEntry({ button, parts: [name, off, count] }, item, selected) {
+function updateGroupEntry({ button, parts: [name, off, count, condition] }, item, selected) {
   setAttr(button, 'data-id', item.id);
   button.classList.toggle('outline-skipped', !item.enabled);
   setAttr(button, 'aria-label',
-    `${item.name}${item.enabled ? '' : ', off'}, ${item.count} request${item.count === 1 ? '' : 's'}`);
+    `${item.name}${item.enabled ? '' : ', off'}, ${item.count} request${item.count === 1 ? '' : 's'}${item.condition ? `, ${item.condition}` : ''}`);
+  setAttr(button, 'title', item.condition || null);
+  setText(condition, item.condition);
+  condition.hidden = !item.condition;
   setAttr(button, 'aria-current', selected ? 'true' : null);
   setText(name, item.name);
   setText(off, item.enabled ? '' : 'Off');

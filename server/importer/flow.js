@@ -5,6 +5,7 @@
 // when the variable is first used in a URL, header, or body).
 import { buildRequest, httpCallInfo } from "./request.js";
 import { convertPredicate, regexSelector } from "./checks.js";
+import { groupNameBefore, readRunIf } from "./run-if.js";
 import {
   Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, sourceOf, tryStatic, unwrap,
 } from "./values.js";
@@ -273,6 +274,22 @@ function handleGroup(call, state) {
   if (ctx.requests.some((r) => r.groupId === group.id) && !ctx.groups.includes(group)) ctx.groups.push(group);
 }
 
+// K6UI's own `if (...) { ... }` around a group with a "Run only if" row → a group with
+// that condition. Returns false for any other `if`.
+function handleConditionalGroup(stmt, state) {
+  const { ctx } = state;
+  const runIf = !state.group && !stmt.alternate && stmt.consequent.type === "BlockStatement" ? readRunIf(stmt.test) : null;
+  if (!runIf) return false;
+  const name = groupNameBefore(ctx.src, stmt.start) || `Conditional group ${ctx.groups.length + 1}`;
+  const group = { id: `grp_import_${state.groups.size + 1}`, name, enabled: true, collapsed: false, headers: [], runIf };
+  state.groups.set(`${name}#${group.id}`, group);
+  state.group = group;
+  walk(stmt.consequent.body, state);
+  state.group = null;
+  if (ctx.requests.some((r) => r.groupId === group.id) && !ctx.groups.includes(group)) ctx.groups.push(group);
+  return true;
+}
+
 // `name = <init>` (declaration or assignment): remember where the value comes from.
 function bind(name, rawInit, state) {
   const { ctx } = state;
@@ -337,7 +354,10 @@ const KIND = {
 
 function unsupported(stmt, state) {
   const kind = KIND[stmt.type] ?? "this statement";
-  state.ctx.warn(stmt, `Skipped \`${sourceOf(stmt, state.ctx)}\`: ${kind} cannot be imported.`);
+  // The requests inside are not read at all, so say so: K6UI's own conditional
+  // groups (`if (...) { ... }` from a "Run only if" row) are not read back yet.
+  const consequence = stmt.type === "IfStatement" ? ", so the requests inside it were left out" : "";
+  state.ctx.warn(stmt, `Skipped \`${sourceOf(stmt, state.ctx)}\`: ${kind} cannot be imported${consequence}.`);
 }
 
 // try { console.log(...) } catch {} — the request-log line K6UI itself generates.
@@ -360,6 +380,9 @@ function statement(stmt, state) {
       break;
     case "TryStatement":
       if (!isLoggingOnly(stmt.block)) unsupported(stmt, state);
+      break;
+    case "IfStatement":
+      if (!handleConditionalGroup(stmt, state)) unsupported(stmt, state);
       break;
     case "EmptyStatement":
     case "ReturnStatement":

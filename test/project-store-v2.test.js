@@ -168,3 +168,54 @@ test('data files round-trip through serializeProject and the frozen store', () =
   const reopened = migrateProject(JSON.parse(serializeProject(snapshot)));
   assert.deepEqual(reopened.dataSets, snapshot.dataSets);
 });
+
+// ── "Run only if" on request groups, and data files that belong to a group ──
+
+test('a valid runIf is kept in its canonical shape; an invalid one becomes null; no runIf stays absent', () => {
+  const project = migrateProject({
+    schemaVersion: 2,
+    scenario: {
+      groups: [
+        { id: 'grp_ok', name: 'ok', runIf: { variable: ' EXECUTION_MODE ', operator: 'one-of', values: [' ORDER_FLOW ', 'ALL', 'ALL', ''], extra: 1 } },
+        { id: 'grp_old', name: 'no condition' },
+        { id: 'grp_null', name: 'explicit null', runIf: null },
+        { id: 'grp_bad_name', name: 'a', runIf: { variable: 'my var', operator: 'equals', values: ['A'] } },
+        { id: 'grp_bad_op', name: 'b', runIf: { variable: 'X', operator: 'contains', values: ['A'] } },
+        { id: 'grp_no_values', name: 'c', runIf: { variable: 'X', operator: 'equals', values: [' '] } },
+        { id: 'grp_many', name: 'd', runIf: { variable: 'X', operator: 'not-equals', values: ['A', 'B'] } },
+        { id: 'grp_text', name: 'e', runIf: 'X == A' },
+      ],
+      requests: [],
+    },
+  });
+  const byId = Object.fromEntries(project.scenario.groups.map(group => [group.id, group]));
+  assert.deepEqual(byId.grp_ok.runIf, { variable: 'EXECUTION_MODE', operator: 'one-of', values: ['ORDER_FLOW', 'ALL'] });
+  assert.equal('runIf' in byId.grp_old, false, 'old projects gain nothing');
+  assert.equal(byId.grp_null.runIf, null);
+  for (const id of ['grp_bad_name', 'grp_bad_op', 'grp_no_values', 'grp_many', 'grp_text']) assert.equal(byId[id].runIf, null, id);
+});
+
+test('runIf survives serializeProject and the frozen store', () => {
+  const store = createProjectStore();
+  const snapshot = store.replace({
+    scenario: { groups: [{ id: 'grp_a', name: 'a', runIf: { variable: 'MODE', operator: 'equals', values: ['A'] } }], requests: [] },
+  });
+  assert.equal(Object.isFrozen(snapshot.scenario.groups[0].runIf), true);
+  assert.equal(Object.isFrozen(snapshot.scenario.groups[0].runIf.values), true);
+  assert.deepEqual(migrateProject(JSON.parse(serializeProject(snapshot))).scenario.groups, snapshot.scenario.groups);
+});
+
+test('a data file keeps the group it belongs to; a group that is gone means every iteration', () => {
+  const project = migrateProject({
+    schemaVersion: 2,
+    scenario: { groups: [{ id: 'grp_a', name: 'a' }], requests: [] },
+    dataSets: [
+      { id: 'ds_a', groupId: 'grp_a', content: 'h\n1\n' },
+      { id: 'ds_b', groupId: 'grp_gone', content: 'h\n1\n' },
+      { id: 'ds_c', groupId: 7, content: 'h\n1\n' },
+      { id: 'ds_d', content: 'h\n1\n' },
+    ],
+  });
+  assert.deepEqual(project.dataSets.map(set => set.groupId), ['grp_a', '', '', undefined]);
+  assert.equal('groupId' in project.dataSets[3], false, 'older data files gain no field');
+});

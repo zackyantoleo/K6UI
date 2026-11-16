@@ -8,6 +8,7 @@ import { ScriptImportError } from '../server/importer/index.js';
 import { importJmx } from '../server/importer/jmx/index.js';
 import { parse } from 'acorn';
 import { migrateProject } from '../public/js/project-store.js';
+import { loadScript } from './helpers/load-script.js';
 
 const SHOP_FLOW = readFileSync(new URL('./fixtures/shop-flow.jmx', import.meta.url), 'utf8');
 
@@ -17,10 +18,11 @@ const TG = `<ThreadGroup testname="Users">
   <stringProp name="ThreadGroup.duration">60</stringProp>
 </ThreadGroup>`;
 
-const plan = (threadChildren, { threadGroup = TG, planChildren = '' } = {}) => `<?xml version="1.0" encoding="UTF-8"?>
+// `variables`: [[name, value], ...] → the plan's User Defined Variables.
+const plan = (threadChildren, { threadGroup = TG, planChildren = '', variables = [] } = {}) => `<?xml version="1.0" encoding="UTF-8"?>
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
-    <TestPlan testname="Plan"/>
+    ${variables.length ? planVariables(...variables) : '<TestPlan testname="Plan"/>'}
     <hashTree>${planChildren}${threadGroup}<hashTree>${threadChildren}</hashTree></hashTree>
   </hashTree>
 </jmeterTestPlan>`;
@@ -497,12 +499,217 @@ test('CSV Data Set details: tab delimiter, share modes, recycle, paths, and file
   assert.doesNotMatch(text, /off\.csv|off_col/);
 });
 
-test('a CSV Data Set inside a controller warns that its row is read every iteration', () => {
+test('a CSV Data Set directly inside a controller belongs to that group and needs no warning', () => {
   const xml = plan(`<TransactionController testname="Checkout"/><hashTree>
     ${csvSet('Cards', { filename: 'cards.csv', variableNames: 'card' })}
     ${sampler('Pay', '/pay?c=${card}')}
   </hashTree>`);
   const { config, warnings } = importJmx(xml);
   assert.equal(config.dataSets.length, 1);
-  assert.match(messages(warnings), /"Cards" sits inside a controller; K6UI reads its row at the start of every iteration/);
+  assert.equal(config.dataSets[0].groupId, config.scenario.groups[0].id);
+  assert.doesNotMatch(messages(warnings), /sits inside/);
+});
+
+// ── If Controller → a group's "run only if" ────────────────────
+
+const escapeXml = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+const ifController = (testname, condition, children, { useExpression = true, evaluateAll = false, enabled = true } = {}) => `
+<IfController guiclass="IfControllerPanel" testclass="IfController" testname="${testname}"${enabled ? '' : ' enabled="false"'}>
+  <stringProp name="IfController.condition">${escapeXml(condition)}</stringProp>
+  <boolProp name="IfController.evaluateAll">${evaluateAll}</boolProp>
+  <boolProp name="IfController.useExpression">${useExpression}</boolProp>
+</IfController><hashTree>${children}</hashTree>`;
+
+// The condition the eratech flow uses, exactly as JMeter writes it.
+const ERATECH = (modes) => `\${__groovy(def m = props.get('EXECUTION_MODE') ?: vars.get('EXECUTION_MODE'); return ${modes.map((mode) => `m == '${mode}'`).join(' || ')})}`;
+
+const groupsOf = (xml) => importJmx(xml).config.scenario.groups;
+const conditionOf = (condition) => groupsOf(plan(
+  `${ifController('Branch', condition, sampler('Inside', '/inside'))}${sampler('Outside', '/outside')}`,
+  { variables: [['X', 'A']] },
+))[0]?.runIf;
+
+test('an If Controller with an EXECUTION_MODE condition becomes a group with "run only if"; a disabled one stays disabled', () => {
+  const xml = plan(`
+    ${ifController('Order Flow', ERATECH(['ORDER_FLOW', 'ALL']), `
+      ${csvSet('Users Login', { filename: '${LOGIN_CSV_FILE}', ignoreFirstLine: true, recycle: false, shareMode: 'shareMode.all', stopThread: true, variableNames: 'email,password' })}
+      ${sampler('Login', '/login?u=${email}&amp;p=${password}')}`)}
+    ${ifController('Redeem Flow', ERATECH(['REDEEM_FLOW', 'ALL']), `
+      ${csvSet('Orders CSV', { filename: '${ORDER_CSV_FILE}', ignoreFirstLine: true, recycle: false, shareMode: 'shareMode.all', stopThread: true, variableNames: 'order_number,auth' })}
+      ${sampler('Redeem', '/redeem/${order_number}?t=${auth}')}`, { enabled: false })}`,
+  { variables: [['LOGIN_CSV_FILE', 'login.csv'], ['ORDER_CSV_FILE', 'orders_created.csv'], ['EXECUTION_MODE', 'ORDER_FLOW']] });
+  const { config, warnings } = importJmx(xml);
+
+  assert.deepEqual(config.scenario.groups.map(({ id, name, enabled, runIf }) => ({ id, name, enabled, runIf })), [
+    { id: 'grp_jmx_1', name: 'Order Flow', enabled: true, runIf: { variable: 'EXECUTION_MODE', operator: 'one-of', values: ['ORDER_FLOW', 'ALL'] } },
+    { id: 'grp_jmx_2', name: 'Redeem Flow', enabled: false, runIf: { variable: 'EXECUTION_MODE', operator: 'one-of', values: ['REDEEM_FLOW', 'ALL'] } },
+  ]);
+  assert.deepEqual(config.scenario.requests.map((r) => r.groupId), ['grp_jmx_1', 'grp_jmx_2']);
+  assert.deepEqual(config.variables.find((v) => v.key === 'EXECUTION_MODE'), { key: 'EXECUTION_MODE', value: 'ORDER_FLOW' });
+  // Each CSV remembers the group it sits in; nothing about it is global.
+  assert.deepEqual(config.dataSets.map((d) => [d.fileName, d.groupId]), [['login.csv', 'grp_jmx_1'], ['orders_created.csv', 'grp_jmx_2']]);
+
+  const text = messages(warnings);
+  assert.doesNotMatch(text, /logic is not supported/);
+  assert.doesNotMatch(text, /sits inside a controller/);
+  assert.match(text, /group "Order Flow" also reads the JMeter property "EXECUTION_MODE" \(-JEXECUTION_MODE=\.\.\.\); K6UI only reads the global variable/);
+  // A column of a data file whose group is off cannot clash with anything.
+  assert.doesNotMatch(text, /Column "order_number"/);
+
+  // With synthetic rows the project generates: ORDER_FLOW runs the first group only.
+  const generate = (mode) => generateScript(migrateProject({
+    ...config,
+    variables: config.variables.map((v) => (v.key === 'EXECUTION_MODE' ? { ...v, value: mode } : v)),
+    dataSets: [
+      { ...config.dataSets[0], content: 'email,password\nuser1@example.com,pass1\n' },
+      { ...config.dataSets[1], content: 'order_number,auth\nA-1,tok1\n' },
+    ],
+  }));
+  const script = generate('ORDER_FLOW');
+  assert.doesNotThrow(() => parse(script, { ecmaVersion: 'latest', sourceType: 'module' }));
+  assert.doesNotMatch(script, /redeem/);
+  assert.doesNotMatch(script, /DATA_2/, 'the data file of a turned-off group is not in the script');
+  assert.deepEqual(urls(loadScript(script).iteration(1, 0)), ['https://api.test/login?u=user1@example.com&p=pass1']);
+  assert.deepEqual(urls(loadScript(generate('REDEEM_FLOW')).iteration(1, 0)), []);
+});
+
+const urls = (calls) => calls.map((call) => call.url);
+
+test('the condition shapes that are read: groovy lookups, ${X} forms, != and ||, in the right mode', () => {
+  const eq = (...values) => ({ variable: 'X', operator: values.length > 1 ? 'one-of' : 'equals', values });
+  // Variable expression mode (the default): the condition is a function call.
+  assert.deepEqual(conditionOf(`\${__groovy(vars.get('X') == 'A')}`), eq('A'));
+  assert.deepEqual(conditionOf(`\${__groovy(props.get("X") == "A")}`), eq('A'));
+  assert.deepEqual(conditionOf(`\${__groovy(vars.get('X') != 'A')}`), { variable: 'X', operator: 'not-equals', values: ['A'] });
+  assert.deepEqual(conditionOf(`\${__groovy(def m = vars.get('X'); m == 'A')}`), eq('A'));
+  assert.deepEqual(conditionOf(`\${__groovy(String m = props.get('X') ?: vars.get('X'); return (m == 'A' || m == 'B') || m == 'A';)}`), eq('A', 'B'));
+  assert.deepEqual(conditionOf(`\${__groovy('A' == vars.get('X'))}`), eq('A'));
+  assert.deepEqual(conditionOf(`\${__jexl3("\${X}" == "A")}`), eq('A'));
+  assert.deepEqual(conditionOf(`\${__javaScript('\${X}' != 'A')}`), { variable: 'X', operator: 'not-equals', values: ['A'] });
+  // JavaScript mode: the condition is the expression itself.
+  const jsOf = (condition) => groupsOf(plan(
+    ifController('Branch', condition, sampler('Inside', '/inside'), { useExpression: false }),
+    { variables: [['X', 'A']] },
+  ))[0]?.runIf;
+  assert.deepEqual(jsOf('${X} == "A"'), eq('A'));
+  assert.deepEqual(jsOf('"${X}" == "A"'), eq('A'));
+  assert.deepEqual(jsOf("'${X}' == 'A'"), eq('A'));
+  assert.deepEqual(jsOf('"${X}" != "A"'), { variable: 'X', operator: 'not-equals', values: ['A'] });
+  assert.deepEqual(jsOf('"${X}" == "A" || "${X}" == "B" || "${X}" == "C"'), eq('A', 'B', 'C'));
+  assert.deepEqual(jsOf('"${X}"==="A"'), eq('A'));
+});
+
+test('a condition that is not one of those shapes keeps the group always running, quotes the text, and keeps the requests', () => {
+  const unreadable = [
+    ['an empty value', `\${__jexl3("\${X}" != "")}`],
+    ['two different variables', `\${__groovy(vars.get('X') == 'A' || vars.get('Y') == 'B')}`],
+    ['and', `\${__groovy(vars.get('X') == 'A' && vars.get('Y') == 'B')}`],
+    ['!= joined by ||', `\${__groovy(vars.get('X') != 'A' || vars.get('X') != 'B')}`],
+    ['mixed == and !=', `\${__groovy(vars.get('X') == 'A' || vars.get('X') != 'B')}`],
+    ['a bound name of another variable', `\${__groovy(def m = props.get('X') ?: vars.get('Y'); m == 'A')}`],
+    ['a value with a comma', `\${__groovy(vars.get('X') == 'A,B')}`],
+    ['a value with spaces around it', `\${__groovy(vars.get('X') == ' A')}`],
+    ['a method call', `\${__groovy(vars.get('X').startsWith('A'))}`],
+    ['plain text', 'true'],
+    ['a function that is not a comparison', '${__P(run,true)}'],
+    ['a bare comparison in variable expression mode', '"${X}" == "A"'],
+    ['a function in JavaScript mode', `\${__groovy(vars.get('X') == 'A')}`, { useExpression: false }],
+    ['groovy lookups in JavaScript mode', "vars.get('X') == 'A'", { useExpression: false }],
+  ];
+  for (const [label, condition, options] of unreadable) {
+    const xml = plan(`${ifController('Branch', condition, sampler('Inside', '/inside'), options)}`, { variables: [['X', 'A']] });
+    const { config, warnings } = importJmx(xml);
+    assert.equal(config.scenario.groups[0].runIf, undefined, label);
+    assert.equal(config.scenario.requests[0].groupId, config.scenario.groups[0].id, label);
+    assert.equal(config.scenario.groups[0].enabled, true, label);
+    const text = messages(warnings);
+    assert.match(text, /IfController "Branch": its logic is not supported \(condition: /, label);
+    assert.ok(text.includes(condition.trim().slice(0, 30)), `${label}: the warning quotes the condition`);
+    assert.match(text, /imported to run once per iteration, in order/, label);
+  }
+});
+
+test('a long condition is shortened in the warning', () => {
+  const long = `\${__groovy(${Array.from({ length: 30 }, (_, i) => `vars.get('V${i}') == 'A'`).join(' || ')})}`;
+  const { warnings } = importJmx(plan(ifController('Branch', long, sampler('Inside', '/inside'))));
+  assert.match(messages(warnings), /\(condition: \$\{__groovy\(vars\.get\('V0'\) == 'A'.*\.\.\.\)/);
+});
+
+test('"Evaluate for all children" is noted; the condition is still imported', () => {
+  const { config, warnings } = importJmx(plan(
+    ifController('Branch', `\${__groovy(vars.get('X') == 'A')}`, sampler('Inside', '/inside'), { evaluateAll: true }),
+    { variables: [['X', 'A']] },
+  ));
+  assert.deepEqual(config.scenario.groups[0].runIf, { variable: 'X', operator: 'equals', values: ['A'] });
+  assert.match(messages(warnings), /IfController "Branch" checks its condition before every child in JMeter.*K6UI checks it once, when the group starts/);
+});
+
+test('a condition variable with no value in the plan becomes an empty global variable, with a warning', () => {
+  const { config, warnings } = importJmx(plan(ifController('Branch', `\${__groovy(vars.get('MODE') == 'A')}`, sampler('Inside', '/inside'))));
+  assert.deepEqual(config.variables, [{ key: 'MODE', value: '' }]);
+  assert.match(messages(warnings), /The condition of group "Branch" reads "MODE", which has no value in the plan; it became an empty global variable\. Set its value/);
+  // A variable the plan does define is left alone, and no warning is made up.
+  const defined = importJmx(plan(ifController('Branch', `\${__groovy(vars.get('MODE') == 'A')}`, sampler('Inside', '/inside')), { variables: [['MODE', 'A']] }));
+  assert.deepEqual(defined.config.variables, [{ key: 'MODE', value: 'A' }]);
+  assert.doesNotMatch(messages(defined.warnings), /no value in the plan/);
+});
+
+test('a condition variable is renamed like any other JMeter variable', () => {
+  const { config, warnings } = importJmx(plan(
+    ifController('Branch', '"${run-mode}" == "A"', sampler('Inside', '/inside'), { useExpression: false }),
+    { variables: [['run-mode', 'A']] },
+  ));
+  assert.deepEqual(config.scenario.groups[0].runIf, { variable: 'run_mode', operator: 'equals', values: ['A'] });
+  assert.deepEqual(config.variables, [{ key: 'run_mode', value: 'A' }]);
+  assert.match(messages(warnings), /JMeter variable "run-mode" was renamed to \{\{run_mode\}\}/);
+});
+
+test('an If Controller deeper than the thread group is merged into its group and its condition is ignored', () => {
+  const xml = plan(`<TransactionController testname="Checkout"/><hashTree>
+    ${ifController('Inner', `\${__groovy(vars.get('X') == 'A')}`, sampler('Pay', '/pay'))}
+    ${sampler('Receipt', '/receipt')}
+  </hashTree>`, { variables: [['X', 'A']] });
+  const { config, warnings } = importJmx(xml);
+  assert.equal(config.scenario.groups.length, 1);
+  assert.equal(config.scenario.groups[0].runIf, undefined);
+  assert.deepEqual(config.scenario.requests.map((r) => r.groupId), ['grp_jmx_1', 'grp_jmx_1']);
+  const text = messages(warnings);
+  assert.match(text, /IfController "Inner" sits inside group "Checkout": its condition was ignored, so its requests run whenever that group runs/);
+  assert.doesNotMatch(text, /logic is not supported/);
+  assert.equal(config.variables.some((v) => v.key === 'X' && v.value === 'A'), true);
+  // A nested If Controller that is turned off keeps its requests disabled.
+  const off = importJmx(plan(`<TransactionController testname="Checkout"/><hashTree>
+    ${ifController('Inner', 'true', sampler('Pay', '/pay'), { enabled: false })}
+  </hashTree>`)).config;
+  assert.equal(off.scenario.requests[0].enabled, false);
+});
+
+test('a CSV Data Set in a nested controller reads with its group; one in a disabled nested controller is dropped', () => {
+  const xml = plan(`<TransactionController testname="Checkout"/><hashTree>
+    <GenericController testname="Deeper"/><hashTree>
+      ${csvSet('Cards', { filename: 'cards.csv', variableNames: 'card' })}
+      ${sampler('Pay', '/pay?c=${card}')}
+    </hashTree>
+    <GenericController testname="Dead" enabled="false"/><hashTree>
+      ${csvSet('Ghosts', { filename: 'ghosts.csv', variableNames: 'ghost' })}
+      ${sampler('Haunt', '/haunt')}
+    </hashTree>
+    ${csvSet('Direct', { filename: 'direct.csv', variableNames: 'direct' })}
+  </hashTree>`);
+  const { config, warnings } = importJmx(xml);
+  assert.deepEqual(config.dataSets.map((d) => [d.fileName, d.groupId]).sort(), [['cards.csv', 'grp_jmx_1'], ['direct.csv', 'grp_jmx_1']]);
+  const text = messages(warnings);
+  assert.match(text, /"Cards" sits inside a controller nested in group "Checkout"; K6UI reads its row when that group starts/);
+  assert.match(text, /"Ghosts" sits inside a disabled controller inside group "Checkout" and was skipped/);
+  assert.doesNotMatch(text, /"Direct" sits inside/);
+});
+
+test('a group that only holds a CSV Data Set stays, so the data file keeps pointing at it', () => {
+  const xml = plan(`${ifController('Only data', `\${__groovy(vars.get('X') == 'A')}`, csvSet('Users', { filename: 'u.csv', variableNames: 'u' }))}
+    ${sampler('Home', '/')}`, { variables: [['X', 'A']] });
+  const { config } = importJmx(xml);
+  assert.deepEqual(config.scenario.groups.map((g) => g.id), ['grp_jmx_1']);
+  assert.equal(config.dataSets[0].groupId, 'grp_jmx_1');
+  assert.equal(migrateProject(config).dataSets[0].groupId, 'grp_jmx_1');
 });

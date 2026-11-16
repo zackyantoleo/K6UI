@@ -8,6 +8,8 @@
 //   delimiter           → delimiter ("\t" = tab)
 //   shareMode.all       → share "next-row"; any other share mode → "per-vu"
 //   recycle / stopThread → onEnd "recycle" / "stop"
+//   inside a controller   → groupId of the request group it sits in: its row is read, and
+//                          "stop" applies, only when that group runs (global otherwise)
 import { normalizeDelimiter } from "../../../public/js/csv-parse.js";
 import { bool, jmxText, k6Name, prop, resolveVariables, str, titleOf } from "./props.js";
 
@@ -64,8 +66,18 @@ export function convertCsvDataSet(el, scope, ctx) {
     ctx.warn(el, `CSV Data Set "${title}" keeps running with "<EOF>" values when the file ends; K6UI ends the iteration instead.`);
   }
 
-  if (scope.level !== "plan" && scope.level !== "thread") {
-    ctx.warn(el, `CSV Data Set "${title}" sits inside a controller; K6UI reads its row at the start of every iteration, whether or not that part of the flow runs.`);
+  const group = scope.group ?? null;
+  if (group && !scope.enabled) {
+    // JMeter never reads a data set below a disabled controller, so nothing of it is kept.
+    ctx.warn(el, `CSV Data Set "${title}" sits inside a disabled controller inside group "${group.name}" and was skipped.`);
+    return null;
+  }
+  if (group && scope.level === "nested") {
+    ctx.warn(el, `CSV Data Set "${title}" sits inside a controller nested in group "${group.name}"; K6UI reads its row when that group starts.`);
+  } else if (group && scope.level === "request") {
+    ctx.warn(el, `CSV Data Set "${title}" belongs to a single request in JMeter; K6UI reads its row when group "${group.name}" starts.`);
+  } else if (!group && scope.level === "request") {
+    ctx.warn(el, `CSV Data Set "${title}" belongs to a single request in JMeter; K6UI reads its row at the start of every iteration.`);
   }
 
   const set = {
@@ -79,6 +91,7 @@ export function convertCsvDataSet(el, scope, ctx) {
     share,
     onEnd: recycle ? "recycle" : "stop",
   };
+  if (group) set.groupId = group.id;
   ctx.dataSets.push({ set, el });
   ctx.warn(el, `CSV Data Set "${title}" was imported without data: a .jmx file does not contain the CSV rows. Upload ${fileName ? `"${fileName}"` : "the file"} under Data & Rules (Data files).`);
   return set;
@@ -87,7 +100,9 @@ export function convertCsvDataSet(el, scope, ctx) {
 // A column that shares its name with a variable extracted from a response:
 // {{name}} reads the file until that request has run, then the extracted value.
 export function warnDataConflicts(ctx) {
+  const off = new Set(ctx.groups.filter((g) => !g.enabled).map((g) => g.id));
   for (const { set, el } of ctx.dataSets) {
+    if (off.has(set.groupId)) continue; // its group never runs, so its columns never clash
     for (const column of set.columns.filter(Boolean)) {
       const owner = ctx.requests.find((req) => req.extractions.some((e) => e.varName === column));
       if (!owner) continue;

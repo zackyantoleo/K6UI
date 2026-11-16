@@ -7,6 +7,7 @@
 //   sampler.js  → HTTP Request (+ Header Manager, HTTP Request Defaults) → request
 //   rules.js    → assertions, extractors, timers
 //   data.js     → CSV Data Set Config → data file (no rows: the .jmx only names the file)
+//   condition.js → If Controller condition → a group's "run only if" (read, never evaluated)
 //
 // Scope follows JMeter: config elements, timers, assertions and extractors
 // apply to every request at their level and below. Header Managers at test
@@ -14,6 +15,7 @@
 // under the thread group becomes a request group (with its headers); deeper
 // controllers are merged into that group.
 import { ScriptImportError } from "../index.js";
+import { finishConditions, importCondition } from "./condition.js";
 import { convertCsvDataSet, warnDataConflicts } from "./data.js";
 import { importLoad } from "./load.js";
 import { argumentsOf, isEnabled, items, jmxText, k6Name, prop, resolveVariables, str, titleOf } from "./props.js";
@@ -60,6 +62,7 @@ function createContext() {
     names: new Map(),       // JMeter variable name → K6UI name
     variables: new Map(),   // global variables: K6UI name → value
     dataSets: [],           // [{ set, el }] CSV data files, see data.js
+    conditions: [],         // [{ el, group, runIf, usesProps }] If Controller conditions, see condition.js
     globalHeaders: [],
     groups: [],
     requests: [],
@@ -183,14 +186,22 @@ function addController(el, tree, scope, ctx) {
     ctx.warn(el, `${kind} "${name}" is not supported; the requests it refers to were not imported.`);
     return;
   }
-  if (!GROUPING.has(kind)) {
-    ctx.warn(el, `${kind} "${name}": its logic is not supported, so its requests were imported to run once per iteration, in order.`);
-  }
   if (scope.level === "thread") {
     const group = { id: `grp_jmx_${ctx.groups.length + 1}`, name: name.slice(0, 120), enabled: isEnabled(el), collapsed: false, headers: [] };
+    if (kind === "IfController") {
+      const runIf = importCondition(el, group, ctx);
+      if (runIf) group.runIf = runIf;
+    } else if (!GROUPING.has(kind)) {
+      ctx.warn(el, `${kind} "${name}": its logic is not supported, so its requests were imported to run once per iteration, in order.`);
+    }
     ctx.groups.push(group);
     walk(tree, { ...scope, level: "group", group }, ctx);
     return;
+  }
+  if (kind === "IfController") {
+    ctx.warn(el, `IfController "${name}" sits inside group "${scope.group.name}": its condition was ignored, so its requests run whenever that group runs (K6UI conditions apply to a group directly under the thread group).`);
+  } else if (!GROUPING.has(kind)) {
+    ctx.warn(el, `${kind} "${name}": its logic is not supported, so its requests were imported to run once per iteration, in order.`);
   }
   if (GROUPING.has(kind) && scope.group) {
     ctx.warn(el, `Nested controller "${name}" was merged into group "${scope.group.name}" (K6UI groups are one level deep).`);
@@ -284,10 +295,13 @@ export function importJmx(source) {
   if (!ctx.requests.length) {
     throw new ScriptImportError(`Thread group "${titleOf(threadGroup.el)}" has no HTTP requests to import.`, ctx.warnings);
   }
+  // A group stays while it has a request or a data file (a data file's groupId must keep pointing at a group).
+  const groups = ctx.groups.filter((g) => ctx.requests.some((r) => r.groupId === g.id) || ctx.dataSets.some(({ set }) => set.groupId === g.id));
+  finishConditions(ctx, new Set(groups.map((g) => g.id)));
   const config = {
     schemaVersion: 2,
     scenario: {
-      groups: ctx.groups.filter((g) => ctx.requests.some((r) => r.groupId === g.id)),
+      groups,
       requests: ctx.requests,
     },
     variables: [...ctx.variables].map(([key, value]) => ({ key, value })),

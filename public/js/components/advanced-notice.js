@@ -23,8 +23,10 @@ const REQUEST_CATEGORIES = [
 ];
 
 const hasGroupHeaders = group => (group.headers || []).some(header => hasText(header?.key));
+const hasRunIf = group => Boolean(group.runIf);
 
-// Pure: normalized requests/groups → { active, skipped, visible }.
+// Pure: normalized requests/groups → { active, skipped, visible }. A group counts
+// as conditional when it has a `runIf` condition (any truthy value).
 // Only runnable requests (enabled, and not in a group that is off) count as
 // active; configured-but-skipped requests and groups are tallied separately.
 // `dataFiles` = CSV data files that will be used (they feed every request).
@@ -44,15 +46,21 @@ export function summarizeAdvancedSettings(requests, groups, dataFiles = 0) {
     for (const category of matched) counts.set(category.id, counts.get(category.id) + 1);
   }
   let groupHeaders = 0;
+  let conditionalGroups = 0;
   for (const group of groups) {
-    if (!hasGroupHeaders(group)) continue;
-    if (group.enabled === false) skipped.groups += 1;
-    else groupHeaders += 1;
+    if (!hasGroupHeaders(group) && !hasRunIf(group)) continue;
+    if (group.enabled === false) {
+      skipped.groups += 1;
+      continue;
+    }
+    if (hasGroupHeaders(group)) groupHeaders += 1;
+    if (hasRunIf(group)) conditionalGroups += 1;
   }
   const active = REQUEST_CATEGORIES
     .filter(category => counts.get(category.id) > 0)
     .map(category => ({ id: category.id, label: category.label, count: counts.get(category.id), unit: 'request' }));
   if (groupHeaders) active.push({ id: 'groupHeaders', label: 'Group header defaults', count: groupHeaders, unit: 'group' });
+  if (conditionalGroups) active.push({ id: 'conditionalGroups', label: 'Conditional groups', count: conditionalGroups, unit: 'group' });
   if (dataFiles) active.push({ id: 'dataFiles', label: 'Data files', count: dataFiles, unit: 'file' });
   return { active, skipped, visible: active.length > 0 || skipped.requests > 0 || skipped.groups > 0 };
 }
@@ -99,6 +107,8 @@ function readGroupSettings() {
     id: group.dataset.groupId,
     enabled: group.querySelector('.request-group-enabled')?.checked !== false,
     headers: [...group.querySelectorAll('.group-headers-list .h-key')].map(input => ({ key: input.value })),
+    // A "Run only if" row that is filled in (the head badge is visible), valid or not.
+    runIf: group.querySelector('.request-group-runif')?.hidden === false,
   }));
 }
 

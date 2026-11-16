@@ -3,7 +3,7 @@
 // save-file format for projects (see the schema in CLAUDE.md).
 import { $, $$ } from './dom.js';
 import { createRequestId, projectStore } from './project-store.js';
-import { collectRequestGroups } from './components/request-groups.js';
+import { collectRequestGroups, requestGroupProblem } from './components/request-groups.js';
 import { collectDataSets, validateDataSets } from './data-files.js';
 
 // ── Row readers — used by main cards & sub-requests ────────────
@@ -126,6 +126,9 @@ export function validate(config) {
     if (reqs[i].url && reqs[i].type === 'grpc' && !reqs[i].grpcMethod)
       return `Request ${i + 1}: enter the gRPC method (package.Service/Method).`;
   }
+  // The store drops a "Run only if" row that cannot work, so read it from the editor.
+  const groupError = requestGroupProblem();
+  if (groupError) return groupError;
   const dataError = validateDataSets(config.dataSets);
   if (dataError) return dataError;
   if (config.load.mode === 'stages') {

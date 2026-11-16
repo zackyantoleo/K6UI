@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { parse } from 'acorn';
 
 import { generateScript } from '../server/generator/index.js';
+import { loadScript } from './helpers/load-script.js';
 import { interpolate } from '../server/generator/interpolate.js';
 import {
   DataSetError, MAX_DATA_SET_BYTES, buildDataDeclarations, buildDataRowCode, prepareDataSets,
@@ -271,47 +272,6 @@ test('columns work in gRPC requests and in Before/After sub-requests', () => {
 });
 
 // ── Running the generated script against stubbed k6 modules ───
-
-// Executes a generated script in Node. k6 modules are stubs; `http.request`
-// records its calls. The caller sets exec.scenario.iterationInTest and
-// globalThis.__VU before each iteration — the way k6 does — so the test fixes
-// the numbering it assumes (unique and sequential per scenario iteration).
-function loadScript(script) {
-  const calls = [];
-  const logs = [];
-  const sleeps = [];
-  const exec = { scenario: { iterationInTest: 0 } };
-  class SharedArray {
-    constructor(name, init) {
-      const items = init();
-      this.length = items.length;
-      items.forEach((item, i) => { this[i] = structuredClone(item); });
-    }
-  }
-  const modules = {
-    'k6/http': { request: (method, url, body, params) => { calls.push({ method, url, body, params }); return { status: 200, body: '{}', headers: {}, timings: { duration: 1 } }; } },
-    k6: { sleep: seconds => sleeps.push(seconds), check: () => true },
-    'k6/data': { SharedArray },
-    'k6/execution': exec,
-  };
-  const code = script
-    .replace(/^import (\w+) from '([^']+)';$/gm, (_, name, from) => `const ${name} = __k6[${JSON.stringify(from)}];`)
-    .replace(/^import (\{[^}]+\}) from '([^']+)';$/gm, (_, names, from) => `const ${names} = __k6[${JSON.stringify(from)}];`)
-    .replace('export const options =', 'const options =')
-    .replace('export default function()', 'const __main = function()');
-  const factory = new Function('__k6', 'console', `${code}\nreturn { options, main: __main };`);
-  const { options, main } = factory(modules, { warn: message => logs.push(message), log: message => logs.push(message) });
-  return {
-    options, calls, logs, sleeps,
-    iteration(vu, iterationInTest) {
-      globalThis.__VU = vu;
-      exec.scenario.iterationInTest = iterationInTest;
-      const before = calls.length;
-      main();
-      return calls.slice(before);
-    },
-  };
-}
 
 const userOf = call => /u=([^&]+)/.exec(call.url)?.[1];
 

@@ -401,6 +401,22 @@ textarea { resize: vertical; min-height: 72px; font-family: ui-monospace, monosp
 .request-group-disabled { opacity: .62; }
 .group-collapsed-hidden { display: none; }
 .request-group-select { width: 120px; min-width: 105px; font-size: 11px; }
+/* "Run only if" (condition of a group): badge in the head, editor row in the body. */
+.request-group-runif {
+  max-width: 260px; padding: 2px 8px; font-size: 11.5px; color: var(--accent-text);
+  background: var(--accent-lite); border: 1px solid var(--border-2); border-radius: 999px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.request-group-runif[hidden] { display: none; }
+.request-group-runif.run-if-invalid { color: var(--warn); background: var(--warn-lite); }
+.group-run-if {
+  display: grid; grid-template-columns: auto minmax(120px, 1fr) auto minmax(140px, 1.4fr); gap: 7px; align-items: center;
+  margin-top: 10px;
+}
+.group-run-if-label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.group-run-if .run-if-message { grid-column: 1 / -1; margin: 0; color: var(--danger); }
+.group-run-if .run-if-message[hidden] { display: none; }
+.group-run-if [aria-invalid] { border-color: var(--danger); }
 
 /* ── Advanced flow outline + shared editor ───────────────────── */
 /* Presentation only: cards stay in #reqs-main and groups in #request-groups. */
@@ -439,6 +455,8 @@ html[data-ui-mode="advanced"] .flow-outline {
 .outline-skipped .outline-name { color: #9aa3bd; }
 .outline-group { grid-template-columns: minmax(0, 1fr) auto auto; }
 .outline-off { font-size: 11px; color: var(--warn); }
+.outline-cond { grid-column: 1 / -1; min-width: 0; font-size: 11.5px; color: #9aa3bd; overflow-wrap: anywhere; }
+.outline-cond[hidden] { display: none; }
 .outline-count {
   min-width: 26px; padding: 1px 6px; text-align: center; font-size: 11px;
   border: 1px solid var(--border-2); border-radius: 6px;
@@ -623,6 +641,8 @@ html[data-ui-mode="advanced"] #reqs-main > .req-card.expanded .req-card-head { c
 @media (max-width: 640px) {
   .request-groups-head, .request-group-head { align-items: stretch; flex-direction: column; }
   .request-group-name, .request-group-select { width: 100%; }
+  .request-group-runif { max-width: none; white-space: normal; }
+  .group-run-if { grid-template-columns: 1fr; }
   .request-group-collapse { align-self: flex-start; }
   .request-group-body { padding-left: 10px; }
   .req-card-head { grid-template-columns: auto minmax(0, 1fr); }
