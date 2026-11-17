@@ -42,7 +42,7 @@ test('each data file card offers file or pasted text, delimiter, header, columns
   const template = html.match(/<template id="data-file-template">[\s\S]*?<\/template>/)[0];
   for (const cls of [
     'df-name', 'df-remove', 'df-pick', 'df-file', 'df-paste-text', 'df-paste-apply', 'df-delimiter',
-    'df-skip-header', 'df-columns', 'df-share', 'df-end', 'df-status', 'df-preview',
+    'df-skip-header', 'df-trim', 'df-columns', 'df-share', 'df-end', 'df-status', 'df-preview',
   ]) {
     assert.match(template, new RegExp(`class="[^"]*\\b${cls}\\b`), cls);
   }

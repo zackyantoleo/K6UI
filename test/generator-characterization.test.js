@@ -111,3 +111,16 @@ test('iterations load mode generates a per-vu-iterations scenario and keeps thre
     { executor: 'per-vu-iterations', vus: 1, iterations: 1, maxDuration: '3h' },
   );
 });
+
+test('HTTP generation trims leading and trailing whitespace on header keys and values', () => {
+  const script = generateScript({
+    scenario: {
+      requests: [{
+        type: 'http', method: 'GET', url: 'https://example.test/',
+        headers: [{ key: ' Authorization ', value: ' Bearer {{token}} ' }],
+      }],
+    },
+    variables: [{ key: 'token', value: 'abc' }],
+  });
+  assert.match(script, /"Authorization": `Bearer \$\{GLOBALS\.token\}`/);
+});

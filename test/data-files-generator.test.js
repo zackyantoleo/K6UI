@@ -328,3 +328,11 @@ test('per-vu: VU n reads row n, recycles or stops after the last row', () => {
   assert.equal(stop.iteration(5, 2).length, 0);
   assert.equal(stop.logs.length, 1, 'the flag is per VU: one VU runs this module, so one log here');
 });
+
+test('CSV values are trimmed in generated SharedArray unless trimValues is false', () => {
+  const trimmed = prepareDataSets([dataSet({ content: 'email,password\n user1@example.com , pass1 \n' })]);
+  assert.deepEqual(trimmed[0].rows, [['user1@example.com', 'pass1']]);
+
+  const raw = prepareDataSets([dataSet({ content: 'email,password\n user1@example.com , pass1 \n', trimValues: false })]);
+  assert.deepEqual(raw[0].rows, [[' user1@example.com ', ' pass1 ']]);
+});

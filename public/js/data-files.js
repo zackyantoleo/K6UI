@@ -312,6 +312,10 @@ function bindCard(card) {
     syncColumns(card);
     changed(card);
   });
+  field('.df-trim').addEventListener('change', event => {
+    set.trimValues = event.target.checked;
+    changed(card);
+  });
   field('.df-columns').addEventListener('input', event => {
     set.columns = parseColumnNames(event.target.value);
     changed(card);
@@ -330,6 +334,7 @@ function createCard(dataSet) {
   const set = card.dataSet;
   card.querySelector('.df-name').value = set.name;
   card.querySelector('.df-skip-header').checked = set.skipHeader;
+  card.querySelector('.df-trim').checked = set.trimValues !== false;
   card.querySelector('.df-columns').value = set.columns.join(', ');
   card.querySelector('.df-share').value = set.share;
   card.querySelector('.df-end').value = set.onEnd;
