@@ -100,6 +100,7 @@ export function collectConfig() {
       logRequests:    $('#log-requests')?.checked ?? true,
       logFilter:      $('#log-filter')?.value,
       logSampleEvery: $('#log-sample-every')?.value,
+      logRedact:      $('#log-redact')?.checked ?? false,
     }),
   };
   return projectStore.replace(config);

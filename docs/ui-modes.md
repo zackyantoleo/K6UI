@@ -104,7 +104,8 @@ page error, console error, or unexpected dialog. It covers:
 - a real local run: request rows capped at 500 (the server sends at most 50
   passed records a second and reports the rest), request and response detail
   with headers, live log capped at 1,500 lines, secrets redacted, response
-  markup shown as text, request details opt-in
+  markup shown as text, request details opt-in (the run uses Hide secrets, so
+  redaction is checked; it is off by default)
 - a layout and accessibility audit of every view in both modes at 1440×900,
   1024×768, 768×1024, 375×812 and zoom 200% (720×450 CSS pixels at 2× device
   scale). It checks sideways scroll, duplicate IDs, clipped or overlapping

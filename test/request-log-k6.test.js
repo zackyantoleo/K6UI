@@ -64,14 +64,14 @@ const request = (url, extra = {}) => ({
   ...extra,
 });
 
-test('real k6: a record shows the payload, both sets of headers and the response, with secrets redacted', options, async () => {
+test('real k6: with Hide secrets, a record shows the payload, both sets of headers and the response, secrets redacted', options, async () => {
   const server = target();
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   const origin = `http://127.0.0.1:${server.address().port}`;
   try {
     const events = await runStream({
       load: { mode: 'iterations', vus: '1', iterations: '2' },
-      options: { logRequests: true, logFilter: 'all' },
+      options: { logRequests: true, logFilter: 'all', logRedact: true },
       scenario: { requests: [request(`${origin}/echo`)] },
     });
     assert.equal(events.find(item => item.event === 'done')?.data.outcome, 'passed');
@@ -107,6 +107,28 @@ test('real k6: "errors" records failed requests only', options, async () => {
     const records = events.filter(item => item.event === 'req-log').map(item => item.data);
     assert.deepEqual(records.map(record => `${record.i}:${record.s}`), ['1:500', '1:500']);
     assert.equal(records[0].rb, '{"error":"boom"}');
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise(done => server.close(done));
+  }
+});
+
+test('real k6: by default nothing is redacted', options, async () => {
+  const server = target();
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const events = await runStream({
+      load: { mode: 'iterations', vus: '1', iterations: '1' },
+      options: { logRequests: true },
+      scenario: { requests: [request(`${origin}/echo`)] },
+    });
+    const [record] = events.filter(item => item.event === 'req-log').map(item => item.data);
+    assert.equal(record.rq, '{"user":"ana","password":"pw-secret"}');
+    assert.equal(record.rqh.Authorization, 'Bearer auth-secret');
+    assert.equal(record.rh['Set-Cookie'], 'sid=cookie-secret');
+    assert.equal(record.rb, '{"got":"ana","token":"tok-secret"}');
+    assert.ok(!JSON.stringify(events).includes('[REDACTED]'));
   } finally {
     server.closeAllConnections?.();
     await new Promise(done => server.close(done));

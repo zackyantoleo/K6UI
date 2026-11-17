@@ -495,7 +495,7 @@ try {
           preScript: 'for (let line = 0; line < 3; line += 1) console.log("tick " + __ITER + "." + line);',
           sleepAfter: '0', checkStatus: true,
         }] },
-        variables: [], globalHeaders: [], load: { mode: 'simple', vus: '2', duration }, thresholds: {}, options: { logRequests },
+        variables: [], globalHeaders: [], load: { mode: 'simple', vus: '2', duration }, thresholds: {}, options: { logRequests, logRedact: true },
       });
       const runPosts = [];
       page.on('request', request => { if (new URL(request.url()).pathname === '/api/run') runPosts.push(1); });

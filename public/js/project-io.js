@@ -109,6 +109,8 @@ export function applyConfig(cfg) {
   if (logFilterEl) logFilterEl.value = requestLog.logFilter;
   const logEveryEl = $('#log-sample-every');
   if (logEveryEl) logEveryEl.value = String(requestLog.logSampleEvery);
+  const logRedactEl = $('#log-redact');
+  if (logRedactEl) logRedactEl.checked = requestLog.logRedact;
   syncRequestLogFields();
 
   restoreGroups(cfg.scenario?.groups || []);

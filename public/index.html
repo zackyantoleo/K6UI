@@ -387,8 +387,12 @@
                   <label for="log-sample-every">Every Nth iteration of each VU</label>
                   <input type="number" id="log-sample-every" min="1" max="10000" step="1" value="10" inputmode="numeric" />
                 </span>
+                <label class="toggle-label log-redact-label">
+                  <input type="checkbox" id="log-redact" />
+                  Hide secrets (Authorization, cookies, tokens, passwords)
+                </label>
               </div>
-              <p>Off by default. URLs, headers, payloads, and response samples may contain sensitive data: common secret fields and headers (Authorization, Cookie, tokens, passwords) are redacted, bodies are capped at 4 KB, and up to 50 records a second reach this page. Recording every request slows k6 under heavy load; record failed requests only or a sample there.</p>
+              <p>Off by default. URLs, headers, payloads, and response samples may contain sensitive data and are shown exactly as sent and received unless Hide secrets is on. They stay in this browser tab until the next run. Bodies are capped at 4 KB, and up to 50 records a second reach this page. Recording every request slows k6 under heavy load; record failed requests only or a sample there.</p>
             </div>
             <p id="req-log-skipped" class="req-log-skipped" role="status" hidden></p>
             <div class="req-log-toolbar">
@@ -401,7 +405,7 @@
             </div>
             <div class="req-log-wrap" tabindex="0" aria-label="Scrollable request results">
               <table class="req-log-table" aria-label="Recorded request results">
-                <caption>The 500 most recent request records, added while the test runs. Activate a row to inspect its request and response: headers and bodies, redacted.</caption>
+                <caption>The 500 most recent request records, added while the test runs. Activate a row to inspect its request and response: headers and bodies.</caption>
                 <thead>
                   <tr>
                     <th scope="col">VU</th>

@@ -136,6 +136,7 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 .log-sample-every { display: inline-flex; align-items: center; gap: var(--space-2); }
 .log-sample-every[hidden] { display: none; }
 .log-sample-every input { width: 96px; }
+.log-redact-label { flex-basis: 100%; }
 .live-log-toolbar, .errors-toolbar {
   display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
   color: var(--text-muted); font-size: 13px;
