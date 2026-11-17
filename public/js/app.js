@@ -10,6 +10,7 @@ import { collectConfig, validate } from './config.js';
 import {
   runTest, stopTest, applyReqFilter, checkK6, activateResultsTab,
   clearResults, clearLiveLog, clearErrors, syncRequestLogFields, sortRequestLog,
+  downloadRunReport,
 } from './runner.js';
 import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';
@@ -167,6 +168,8 @@ $$('.req-sort-btn').forEach(button =>
 $('#log-filter')?.addEventListener('change', syncRequestLogFields);
 syncRequestLogFields();
 $('#clear-results')?.addEventListener('click', clearResults);
+$$('[data-report-format]').forEach(button =>
+  button.addEventListener('click', () => downloadRunReport(button.dataset.reportFormat)));
 $('#clear-live-log')?.addEventListener('click', clearLiveLog);
 $('#clear-errors')?.addEventListener('click', clearErrors);
 

@@ -3,7 +3,8 @@
 import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
-import { addExportRows, resetExports } from './export-results.js';
+import { addExportRows, exportSummary, resetExports } from './export-results.js';
+import { buildRunReport, reportFileName, reportToHtml } from './run-report.js';
 import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
 
 export const MAX_REQ_LOGS = 500;
@@ -27,6 +28,9 @@ let runStartedAt = null;
 let elapsedTimer = null;
 let lastElapsedMs = 0;
 let stopRequested = false;
+// The run the report describes: set when a run starts, null after Clear results.
+let lastRun = null;
+let verdictState = { status: 'idle', title: '', detail: '' };
 
 function setText(selector, value) {
   const el = $(selector);
@@ -82,6 +86,7 @@ export function setRunning(running) {
   $('#stop-btn').classList.toggle('hidden', !running);
   $('#results-run-btn').disabled = running;
   $('#results-empty-run-btn').disabled = running;
+  syncReportButtons(running);
   const dot = $('#nav-run-dot');
   if (running) {
     dot.className = 'run-dot running';
@@ -92,6 +97,7 @@ export function setRunning(running) {
 }
 
 function setVerdict({ status, title, detail, mark }) {
+  verdictState = { status, title, detail };
   const verdict = $('#run-verdict');
   verdict.className = `run-verdict ${status}`;
   setText('#run-verdict-title', title);
@@ -441,6 +447,10 @@ function finishRun(data) {
   const dot = $('#nav-run-dot');
   dot.className = 'run-dot done';
   dot.classList.remove('hidden');
+  if (lastRun) {
+    lastRun.summary = data.summary || null;
+    lastRun.exitCode = data.code ?? null;
+  }
   if (data.summary) {
     renderMetrics(data.summary);
     applySummaryMetadata(data.summary);
@@ -494,6 +504,8 @@ function resetRunWorkspace() {
 export function clearResults() {
   if (abortCtrl) return;
   resetRunWorkspace();
+  lastRun = null;
+  syncReportButtons(false);
   $('#results-empty-state').classList.remove('hidden');
   activateResultsTab('overview');
   const dot = $('#nav-run-dot');
@@ -523,6 +535,7 @@ export async function runTest() {
   activateResultsTab('overview');
   setVerdict({ status: 'running', title: 'Test is running', detail: 'Live results will update while k6 executes your flow.', mark: '…' });
   const started = new Date();
+  lastRun = { config, startedAt: started, summary: null, exitCode: null };
   setText('#run-started', started.toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' }));
   startElapsedTimer();
   setRunning(true);
@@ -581,6 +594,43 @@ export function stopTest() {
   setVerdict({ status: 'aborted', title: 'Test stopped', detail: 'You stopped this run before it completed.', mark: '■' });
   addError('Run stopped by the user.');
   setRunning(false);
+}
+
+// ── Run report ─────────────────────────────────────────────────
+// Available once a run has started and is no longer running (a stopped run too).
+function syncReportButtons(running = Boolean(abortCtrl)) {
+  const unavailable = running || !lastRun;
+  $$('[data-report-format]').forEach(button => { button.disabled = unavailable; });
+}
+
+export function runReport(now = new Date()) {
+  if (!lastRun) return null;
+  return buildRunReport({
+    ...lastRun,
+    verdict: verdictState,
+    elapsedMs: lastElapsedMs,
+    errors,
+    requests: reqLogs.map(record => record.entry),
+    requestsReceived: reqLogReceived,
+    exports: exportSummary(),
+  }, now);
+}
+
+export function downloadRunReport(format) {
+  const report = runReport();
+  if (!report) return;
+  const html = format !== 'json';
+  const blob = html
+    ? new Blob([reportToHtml(report)], { type: 'text/html;charset=utf-8' })
+    : new Blob([`${JSON.stringify(report, null, 2)}\n`], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = reportFileName(lastRun.startedAt, html ? 'html' : 'json');
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export async function checkK6() {

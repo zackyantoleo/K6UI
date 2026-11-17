@@ -123,6 +123,11 @@ export function addExportRows(data) {
   requestAnimationFrame(render);
 }
 
+// File names and row counts only (for the run report: never the values).
+export function exportSummary() {
+  return [...store.files].map(([file, entry]) => ({ file, rows: entry.rows.length, truncated: entry.truncated }));
+}
+
 export function resetExports() {
   store.clear();
   items.clear();

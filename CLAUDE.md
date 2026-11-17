@@ -73,12 +73,13 @@ public/                 Static frontend (ES modules, no bundler)
     ├── csv-parse.js    CSV reader + data-file limits, shared by the Data files panel and server/generator/data.js (pure, no DOM)
     ├── csv-export.js   "Save to CSV": normalization, validation, limits, CSV writer, download name. Shared by the store, the editor, the results panel, server/generator/csv-export.js and server/export-collector.js (pure, no DOM)
     ├── export-results.js Run & Results "Saved to CSV": rows of `export` events (this tab's memory only), Download CSV, Use as data file
+    ├── run-report.js   Run & Results "Download report": runner state → JSON report (`k6ui-run-report` v1) → self-contained HTML (inline CSS, CSP meta, no scripts); every request record with its payload and response (headers + bodies, as recorded); leaves out global variables, data rows, CSV values and the raw k6 output. In a k6 summary export a threshold `true` means it FAILED (pure, no DOM)
     ├── request-sort.js Requests table sorting: columns, compare (stable, by arrival order), heading cycle asc → desc → arrival, insert position for live records, aria-sort (pure, no DOM)
     ├── request-log.js  Request details settings (`logRequests`, `logFilter`, `logSampleEvery`): normalization + limits. Shared by the Requests tab, project-io and server/generator/index.js (pure, no DOM)
     ├── data-files.js   "Data files" view (Data & Rules): data file cards, preview, validation; state lives on each card; `useAsDataFile()` for saved rows
     ├── curl-parse.js   Parse a cURL command → { method, url, headers, body }
     ├── curl-import.js  "Import from cURL" modal: parse + fill a request card
-    ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics
+    ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics; keeps the last run for the report (`runReport()`, `downloadRunReport(format)`)
     ├── project-io.js   Save/load projects (JSON file = config object)
     ├── script-import.js "Import k6 script / JMeter .jmx" modal: text starting with "<" → POST /api/import-jmx, else /api/import-script; applyConfig, list warnings
     └── components/
