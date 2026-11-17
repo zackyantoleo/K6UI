@@ -4,12 +4,18 @@ import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
 import { addExportRows, resetExports } from './export-results.js';
+import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
 
 export const MAX_REQ_LOGS = 500;
 const MAX_LOG_LINES = 1500;
 const LOG_FLUSH_MS = 80;
 
+// Request records { entry, seq, row }: reqLogs in arrival order (the oldest is
+// dropped past MAX_REQ_LOGS), reqRows the same records in table order (reqSort).
 let reqLogs = [];
+let reqRows = [];
+let reqSeq = 0;
+let reqSort = null;
 let reqLogReceived = 0;
 let errors = [];
 let abortCtrl = null;
@@ -254,6 +260,34 @@ export function syncRequestLogFields() {
   if (field) field.hidden = $('#log-filter')?.value !== 'sample';
 }
 
+// A record's row and its open detail row move and go together.
+function rowNodes(record) {
+  const next = record.row.nextElementSibling;
+  return next?.classList.contains('req-detail-row') ? [record.row, next] : [record.row];
+}
+
+function renderSortHeadings() {
+  $$('.req-log-table th[data-sort-key]').forEach(heading => {
+    const state = ariaSortOf(reqSort, heading.dataset.sortKey);
+    if (state) heading.setAttribute('aria-sort', state);
+    else heading.removeAttribute('aria-sort');
+    heading.classList.toggle('sorted', Boolean(state));
+    const mark = heading.querySelector('.req-sort-mark');
+    if (mark) mark.textContent = state === 'ascending' ? '▲' : state === 'descending' ? '▼' : '';
+  });
+}
+
+// Column heading clicked: ascending, then descending, then arrival order. The sort
+// stays for later runs in this tab, and records that arrive later take their place in it.
+export function sortRequestLog(key) {
+  reqSort = nextSort(reqSort, key);
+  reqRows = [...reqLogs].sort((a, b) => compareRecords(a, b, reqSort));
+  const fragment = document.createDocumentFragment();
+  reqRows.forEach(record => fragment.append(...rowNodes(record)));
+  $('#req-log-tbody').appendChild(fragment);
+  renderSortHeadings();
+}
+
 function showSkippedRequestLogs(skipped) {
   const notice = $('#req-log-skipped');
   if (!notice) return;
@@ -267,6 +301,8 @@ function showSkippedRequestLogs(skipped) {
 
 function resetReqLog() {
   reqLogs = [];
+  reqRows = [];
+  reqSeq = 0;
   reqLogReceived = 0;
   showSkippedRequestLogs(0);
   $('#req-log-tbody').replaceChildren();
@@ -275,18 +311,17 @@ function resetReqLog() {
 }
 
 function addRequestLog(entry) {
-  reqLogs.push(entry);
+  const record = { entry, seq: reqSeq++, row: renderReqLogRow(entry) };
+  reqLogs.push(record);
   reqLogReceived += 1;
-  const tbody = $('#req-log-tbody');
-  tbody.appendChild(renderReqLogRow(entry));
+  const index = insertIndex(reqRows, record, reqSort);
+  const next = reqRows[index];
+  reqRows.splice(index, 0, record);
+  $('#req-log-tbody').insertBefore(record.row, next ? next.row : null);
   if (reqLogs.length > MAX_REQ_LOGS) {
-    reqLogs.shift();
-    const first = tbody.querySelector('.req-log-row');
-    if (first) {
-      const detail = first.nextElementSibling;
-      if (detail?.classList.contains('req-detail-row')) detail.remove();
-      first.remove();
-    }
+    const oldest = reqLogs.shift();
+    reqRows.splice(reqRows.indexOf(oldest), 1);
+    rowNodes(oldest).forEach(node => node.remove());
   }
   setText('#req-log-count', reqLogs.length);
   setText('#run-request-total', reqLogReceived);
