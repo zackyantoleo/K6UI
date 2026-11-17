@@ -316,6 +316,10 @@
             <p class="view-hint">Start with the verdict, then inspect only the detail you need.</p>
             <div class="results-toolbar-actions">
               <span id="run-state" class="run-state-badge" role="status" aria-live="polite"></span>
+              <div class="report-download" role="group" aria-label="Download the report of this run">
+                <button type="button" class="btn ghost sm" data-icon="save" id="download-report-html" data-report-format="html" disabled title="A page with the verdict, metrics, checks, and request records with their payloads and responses. Open it in any browser, or print it to PDF.">Download report</button>
+                <button type="button" class="btn ghost sm" id="download-report-json" data-report-format="json" disabled aria-label="Download report as JSON" title="The same report as JSON, including the full k6 summary.">JSON</button>
+              </div>
               <button type="button" class="btn ghost sm" id="clear-results">Clear results</button>
               <button type="button" class="btn ghost sm" data-icon="play" id="results-run-btn">Run Test</button>
             </div>
