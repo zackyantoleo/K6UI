@@ -156,12 +156,12 @@ test('execution: a found order is saved; a missing one (default) or a skipped gr
   assert.deepEqual(rowsOf(k6.logs), [], 'the group did not run');
 });
 
-test('the row comes after the After request, so values it extracts can be saved too', () => {
+test('an older After request becomes its own request and takes the row, so values it extracts are still saved', () => {
   const script = generated(flow('OFF', [request({
     post: { method: 'GET', url: 'https://api.test/after', extractions: [json('receipt', 'id')] },
     exports: [{ file: 'r.csv', columns: [column('receipt', '{{receipt}}')] }],
   })]));
-  assert.ok(script.indexOf('// Post: request 1') < script.indexOf('// Save a row to CSV "r.csv"'));
+  assert.ok(script.indexOf('https://api.test/after') !== -1 && script.indexOf('https://api.test/after') < script.indexOf('// Save a row to CSV "r.csv"'));
   const k6 = loadScript(script, { respond: call => ({ body: call.url.endsWith('/after') ? '{"id":"R1"}' : '{}' }) });
   k6.iteration(1, 0);
   assert.deepEqual(rowsOf(k6.logs).map(entry => entry.row), [['R1']]);

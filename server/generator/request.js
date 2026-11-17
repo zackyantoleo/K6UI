@@ -58,12 +58,10 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
   );
   if (extractCode) lines.push(extractCode);
 
-  // Per-request log as JSON tagged {__r:1,...} — parsed by the server
-  // (k6-runner.js) into req-log events for the "Request Details" table.
+  // Per-request log: logHttpRequest() (helpers in generator/index.js) prints
+  // one {__r:1,...} JSON line that k6-runner.js turns into a req-log event.
   if (logRequests) {
-    lines.push(
-      `  try { console.log(JSON.stringify({__r:1,vu:__VU,it:__ITER,i:${index},m:${JSON.stringify(method)},url:redactRequestUrl(String(${urlCode})),s:${resVar}.status,d:+(${resVar}.timings.duration.toFixed(1)),ok:${resVar}.status>=200&&${resVar}.status<400,rb:redactResponseSample(${resVar}.body)})); } catch(e) {}`
-    );
+    lines.push(`  try { logHttpRequest(${index}, ${JSON.stringify(method)}, ${urlCode}, ${resVar}); } catch (e) {}`);
   }
 
   const sleepAfter = Number(req.sleepAfter);

@@ -4,7 +4,10 @@
 // spawns `k6 run`, then emits events through onEvent(event, data):
 //   status  — progress message, e.g. "Starting k6..."
 //   log     — one raw line of k6 output
-//   req-log — details of a single request (emitted by the script via console.log JSON {__r:1,...})
+//   req-log — details of a single request: URL, status, timing, request and response
+//             headers and bodies (redacted, capped), emitted by the script as console.log
+//             JSON {__r:1,...}; rate-limited by request-log-throttle.js
+//   req-log-skipped — { skipped }: records left out by that rate limit (running total)
 //   export  — rows saved with "Save to CSV" (console.log JSON {"k6uiExport":...}, see
 //             export-collector.js); never shown as a log line, flushed before done
 //   error   — failures (k6 not installed, failed to write the file, etc.)
@@ -17,9 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createExportCollector } from "./export-collector.js";
-
-// Cap on req-log events per run so the UI doesn't get flooded.
-const MAX_REQ_LOGS = 500;
+import { createRequestLogThrottle } from "./request-log-throttle.js";
 
 export async function startK6Run(script, { onEvent, onEnd }) {
   const workDir = join(tmpdir(), `k6ui-${randomUUID()}`);
@@ -59,7 +60,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
     onEnd();
   });
 
-  let reqLogCount = 0;
+  const requestLogs = createRequestLogThrottle(onEvent);
   const exportRows = createExportCollector(onEvent);
 
   // Split the stdout/stderr streams into whole lines.
@@ -85,11 +86,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
         const raw = JSON.parse('"' + consoleMatch[1] + '"');
         if (exportRows.addLine(raw)) return;
         if (raw.startsWith('{"__r":1,')) {
-          const entry = JSON.parse(raw);
-          if (reqLogCount < MAX_REQ_LOGS) {
-            reqLogCount++;
-            onEvent("req-log", entry);
-          }
+          requestLogs.add(JSON.parse(raw));
           return;
         }
       } catch { /* fall through to a plain log line */ }
@@ -109,6 +106,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
     }
     const outcome = code === 0 ? "passed" : code === 99 ? "threshold-failed" : "failed";
     exportRows.flush();
+    requestLogs.flush();
     onEvent("done", { code, outcome, summary });
     await cleanup();
     onEnd();

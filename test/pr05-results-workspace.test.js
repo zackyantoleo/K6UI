@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { readStyles } from './helpers/styles.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
@@ -10,7 +11,7 @@ const k6Runner = read('../server/k6-runner.js');
 const generator = read('../server/generator/index.js');
 const requestGenerator = read('../server/generator/request.js');
 const grpcGenerator = read('../server/generator/grpc-request.js');
-const css = read('../public/css/style.css');
+const css = readStyles();
 
 test('results workspace separates overview, requests, metrics, errors, and optional live log', () => {
   for (const tab of ['overview', 'requests', 'metrics', 'errors', 'live']) {
@@ -58,8 +59,10 @@ test('request result rows and metrics are built with text-safe DOM APIs', () => 
 test('request logging is opt-in and warns that response samples may contain sensitive data', () => {
   assert.match(html, /id="log-requests"(?![^>]*checked)/);
   assert.match(html, /response samples may contain sensitive data/i);
-  assert.match(requestGenerator, /redactResponseSample/);
-  assert.match(grpcGenerator, /redactResponseSample/);
+  assert.match(requestGenerator, /logHttpRequest\(/);
+  assert.match(grpcGenerator, /logGrpcRequest\(/);
+  assert.match(generator, /rq: redactResponseSample\(request\.body/);
+  assert.match(generator, /rb: redactResponseSample\(res\.body/);
   assert.match(generator, /authorization|token|password/i);
 });
 
@@ -86,19 +89,18 @@ test('live-log memory retention never exceeds the advertised cap', () => {
 });
 
 test('request logging redacts sensitive values from URLs as well as response samples', () => {
-  assert.match(requestGenerator, /url:redactRequestUrl\(String\(/);
-  assert.match(grpcGenerator, /url:redactRequestUrl\(String\(/);
+  assert.equal(generator.match(/url: redactRequestUrl\(/g)?.length, 2, 'HTTP and gRPC request logs');
   assert.match(generator, /decodeURIComponent/);
 });
 
 test('expanded request editor gives the endpoint a full-width row', () => {
-  // Same open-card head in both UI modes: the URL owns its row (beside the
-  // method on wide screens, alone on phones). Browser width check:
+  // Same open-card head in both UI modes: the URL owns its row (after the
+  // protocol and method on wide screens, alone on phones). Browser width check:
   // scripts/verify-ui-modes.mjs ("URL field squeezed").
   assert.match(css, /#reqs-main > \.req-card\.expanded \.req-card-head\s*\{[^}]*display:\s*grid/s);
   const head = /#reqs-main > \.req-card\.expanded \.req-card-head\s*\{[^}]*grid-template-areas:([^}]*)\}/gs;
   const layouts = [...css.matchAll(head)].map(match => match[1]);
-  assert.ok(layouts.some(areas => /"method url url url"/.test(areas)), 'wide: URL spans the row after the method');
+  assert.ok(layouts.some(areas => /"protocol method url url url url"/.test(areas)), 'wide: URL spans the row after the protocol and method');
   assert.ok(layouts.some(areas => /"url url"/.test(areas)), 'narrow: URL alone on a full row');
   assert.match(css, /#reqs-main > \.req-card\.expanded \.req-card-head \.url\s*\{[^}]*grid-area:\s*url;[^}]*width:\s*100%/s);
   assert.doesNotMatch(css, /html\[data-ui-mode="advanced"\] #reqs-main > \.req-card\.expanded \.req-card-head\s*\{[^}]*grid-template/s,

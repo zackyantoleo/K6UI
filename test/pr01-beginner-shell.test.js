@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { readStyles } from './helpers/styles.js';
 
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
@@ -65,7 +66,7 @@ test('shell includes semantic navigation and accessible status regions', async (
 });
 
 test('keyboard, reduced-motion, and narrow/zoom fallbacks are explicit', async () => {
-  const css = await read('public/css/style.css');
+  const css = readStyles();
   assert.match(css, /:focus-visible/);
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
   assert.match(css, /@media\s*\(max-width:\s*960px\)/);

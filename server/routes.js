@@ -54,7 +54,7 @@ apiRouter.post("/import-jmx", express.text({ type: ["application/xml", "text/xml
 });
 
 // POST /api/run — run a k6 test and stream live output via Server-Sent Events.
-// Emitted events: status, log, req-log, export, error, done (see k6-runner.js).
+// Emitted events: status, log, req-log, req-log-skipped, export, error, done (see k6-runner.js).
 apiRouter.post("/run", async (req, res) => {
   let script;
   try {

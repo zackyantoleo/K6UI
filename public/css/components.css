@@ -1,0 +1,238 @@
+/* ── Cards and page columns ──────────────────────────────────── */
+.page-cols {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--space-5); align-items: start;
+}
+.page-col-stack { display: grid; gap: var(--space-5); min-width: 0; }
+@media (max-width: 820px) { .page-cols { grid-template-columns: minmax(0, 1fr); } }
+
+.form-card {
+  min-width: 0; padding: var(--space-5);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.form-card h3 { font-size: 15px; margin-bottom: var(--space-4); }
+.form-card h4 { font-size: 13px; margin: var(--space-4) 0 var(--space-2); color: var(--text); }
+/* Explanations sit beside the form without competing with it. */
+.info-card { background: transparent; color: var(--text-muted); font-size: 13.5px; }
+.info-card h3 { color: var(--text); margin-bottom: var(--space-2); }
+.note { font-size: 13px; color: var(--text-muted); margin-top: var(--space-2); line-height: 1.6; }
+.note strong { color: var(--text); font-weight: 600; }
+
+.ref-table { border-collapse: collapse; width: 100%; margin-bottom: var(--space-3); }
+.ref-table td { padding: 6px 8px; font-size: 13px; border-bottom: 1px solid var(--border); }
+.ref-table td:first-child { font-family: var(--font-mono); color: var(--accent-2); width: 96px; }
+
+/* ── Choice cards (radio) ────────────────────────────────────── */
+.radio-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-2); margin-bottom: var(--space-5); }
+.radio-card {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: var(--space-3); cursor: pointer;
+  background: var(--surface-3); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+  transition: border-color .15s, background-color .15s;
+}
+.radio-card:hover { border-color: rgba(255, 255, 255, .24); }
+.radio-card:has(input:checked) { border-color: var(--accent-line); background: var(--accent-lite); }
+.radio-card input { margin-top: 2px; }
+.radio-card strong { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
+.radio-card span { display: block; font-size: var(--text-sm); line-height: 1.45; color: var(--text-muted); }
+
+/* ── Notices ─────────────────────────────────────────────────── */
+/* Caution about secrets or sensitive data: the same look wherever it appears. */
+.data-files-warning, .run-exports-warning, .logging-control {
+  padding: 10px var(--space-3); font-size: var(--text-sm); line-height: 1.5;
+  color: var(--warn); background: var(--warn-lite);
+  border: 1px solid rgba(245, 181, 68, .28); border-radius: var(--radius-sm);
+}
+.advanced-notice {
+  display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4);
+  background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--accent-text);
+  border-radius: var(--radius); font-size: var(--text-sm); color: var(--text);
+}
+.advanced-notice[hidden], .advanced-notice [hidden] { display: none; }
+.advanced-notice h3 { font-size: 13.5px; }
+.advanced-notice ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.advanced-notice li {
+  padding: 2px 10px; border: 1px solid var(--border-2); border-radius: 999px;
+  background: var(--surface-3); overflow-wrap: anywhere;
+}
+.advanced-notice-skipped, .advanced-notice-foot { color: var(--text-muted); }
+
+/* ── Empty states ────────────────────────────────────────────── */
+.flow-empty-state, .results-empty-state {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center; gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  background: var(--surface-2); border: 1px dashed var(--border-2); border-radius: var(--radius);
+}
+.empty-state-mark {
+  display: grid; place-items: center; width: 44px; height: 44px;
+  background: var(--accent-lite); color: var(--accent-text);
+  border-radius: 12px; font-size: 18px;
+}
+.empty-state-mark::before { width: 20px; height: 20px; }
+.flow-empty-state h3, .results-empty-state h3 { font-size: 15px; margin-bottom: 2px; }
+.flow-empty-state p, .results-empty-state p { color: var(--text-muted); font-size: 13px; }
+.empty-state-actions { display: flex; gap: var(--space-2); }
+.panel-empty {
+  padding: var(--space-6); color: var(--text-muted); text-align: center; font-size: 13px;
+  border: 1px dashed var(--border-2); border-radius: var(--radius);
+}
+
+/* ── Tabs (request editor, results) ──────────────────────────── */
+.req-tabs, .results-tabs {
+  display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border);
+}
+.req-tab, .results-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 12px; margin-bottom: -1px;
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap;
+  cursor: pointer; transition: color .13s, border-color .13s;
+}
+.req-tab:hover, .results-tab:hover { color: var(--text); }
+.req-tab.active, .results-tab.active {
+  color: var(--text); border-bottom-color: var(--accent-text); font-weight: 600;
+}
+.req-tab:focus-visible, .results-tab:focus-visible { outline-offset: -2px; }
+.tab-count {
+  min-width: 18px; padding: 0 5px; border-radius: 999px;
+  background: var(--surface-4); color: var(--text);
+  font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
+}
+/* A request tab shows its count only when there is something to count. */
+.req-tab .tab-count:not(.visible) { display: none; }
+.req-tab .tab-count.visible { background: var(--accent); color: #fff; }
+
+/* ── Badges ──────────────────────────────────────────────────── */
+.method-badge {
+  display: inline-block; flex-shrink: 0; min-width: 46px; padding: 2px 6px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .02em; text-align: center;
+  background: var(--accent-lite); color: var(--accent-text);
+}
+.m-GET     { background: var(--ok-lite);     color: var(--ok); }
+.m-POST    { background: var(--accent-3l);   color: var(--accent-3); }
+.m-PUT     { background: var(--warn-lite);   color: var(--warn); }
+.m-PATCH   { background: var(--accent-lite); color: var(--accent-text); }
+.m-DELETE  { background: var(--danger-lite); color: var(--danger); }
+.m-HEAD, .m-OPTIONS { background: rgba(160, 170, 195, .13); color: var(--text-muted); }
+
+.status-code {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+}
+.status-code.s-2xx { background: var(--ok-lite);     color: var(--ok); }
+.status-code.s-3xx { background: var(--warn-lite);   color: var(--warn); }
+.status-code.s-4xx, .status-code.s-5xx { background: var(--danger-lite); color: var(--danger); }
+.status-code.s-other { background: var(--surface-3); color: var(--text-muted); }
+
+.var-pill {
+  padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; font-family: var(--font-mono);
+  background: var(--accent-lite); color: var(--accent-text); border: 1px solid var(--accent-line);
+}
+
+/* ── Key/value and rule rows ─────────────────────────────────── */
+/* A name and its value are one thing: one bar with a divider, not two boxes. */
+.header-row, .var-row { display: flex; }
+.header-row input { flex: 1; min-width: 0; }
+.header-row .h-key, .var-row .var-key {
+  font-family: var(--font-mono); font-size: 13px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.header-row .h-val, .var-row .var-val { border-left-width: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.header-row .row-remove, .var-row .row-remove { margin-left: var(--space-1); }
+
+.var-row { margin-bottom: var(--space-2); }
+.var-row .var-key { flex: 0 1 240px; min-width: 0; }
+.var-row .var-val { flex: 1; min-width: 0; }
+
+#global-headers-list .header-row { margin-bottom: var(--space-2); }
+#global-headers-list .h-key { flex: 0 1 240px; }
+#global-vars-list:not(:empty), #global-headers-list:not(:empty) { margin-bottom: var(--space-2); }
+
+.extraction-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.extraction-row .ext-name   { width: 150px; flex-shrink: 0; font-family: var(--font-mono); font-size: 13px; }
+.extraction-row .ext-source { width: 120px; flex-shrink: 0; }
+.extraction-row .ext-selector { flex: 1 1 160px; min-width: 0; font-family: var(--font-mono); font-size: 13px; }
+/* Optional default: wraps under the selector when the row is narrow. */
+.extraction-row .ext-default { flex: 0 1 180px; min-width: 110px; }
+
+.assertion-row { display: flex; gap: 7px; align-items: center; }
+/* Two classes: a bare .assert-val would lose to the width of input[type="number"]. */
+.assertion-row .assert-type { flex: 1; min-width: 0; }
+.assertion-row .assert-val { width: 170px; flex-shrink: 0; }
+.assertion-row .assert-val2 { width: 150px; flex-shrink: 0; }
+.assert-val.hidden, .assert-val2.hidden { display: none; }
+
+.ext-hint { font-size: var(--text-sm); color: var(--text-muted); }
+.ext-hint code {
+  background: var(--accent-2l); color: var(--accent-2);
+  border-radius: 4px; padding: 1px 4px; font-size: 11.5px;
+}
+
+.options-row { display: flex; align-items: center; gap: var(--space-5); flex-wrap: wrap; }
+.opt-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+.opt-label input[type="number"] { width: 84px; }
+.toggle-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 500; color: var(--text); cursor: pointer;
+}
+
+/* ── Code and log blocks ─────────────────────────────────────── */
+.code-block, .log-block {
+  padding: var(--space-4); overflow-y: auto;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius);
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.65;
+  white-space: pre-wrap; word-break: break-word;
+}
+.code-block { max-height: calc(100vh - 210px); color: var(--code-text); tab-size: 2; }
+.log-block { min-height: 220px; max-height: calc(100vh - 320px); color: var(--text-muted); }
+
+/* ── Modals ──────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: var(--space-5);
+  background: rgba(6, 8, 12, .7); backdrop-filter: blur(3px);
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  width: min(660px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; padding: var(--space-6);
+  background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+}
+.modal h3 { font-size: var(--text-lg); }
+.modal .note { margin-top: 0; }
+.modal textarea { min-height: 150px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-1); }
+.modal-actions .btn { min-width: 88px; }
+.curl-error { font-size: var(--text-sm); color: var(--danger); }
+.modal-section { display: flex; flex-direction: column; gap: 10px; }
+.modal-section.hidden, .curl-error.hidden { display: none; }
+#k6-import-input { min-height: 220px; font-size: 12px; }
+.import-warnings {
+  list-style: none; margin: 0; padding: 0;
+  max-height: 260px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: var(--text-sm); color: var(--text-muted);
+}
+.import-warnings li {
+  background: var(--surface-3); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 10px; line-height: 1.5; overflow-wrap: anywhere;
+}
+.import-warnings .import-line { color: var(--text); font-weight: 600; margin-right: 6px; }
+
+@media (max-width: 700px) {
+  .assertion-row { flex-wrap: wrap; }
+  .assertion-row .assert-type { flex: 1 1 100%; width: 100%; }
+  .assertion-row .assert-val,
+  .assertion-row .assert-val2 { flex: 1 1 180px; width: auto; min-width: 0; }
+  .assertion-row .row-remove { margin-left: auto; }
+  .extraction-row .ext-name, .extraction-row .ext-source { flex: 1 1 110px; width: auto; }
+  /* Phone: the selector gets its own line; the default shares the next one with the remove button. */
+  .extraction-row .ext-default { flex: 1 1 200px; }
+  .flow-empty-state, .results-empty-state { grid-template-columns: auto 1fr; padding: var(--space-4); }
+  .empty-state-actions, .results-empty-state > .btn { grid-column: 1 / -1; width: 100%; }
+  .empty-state-actions .btn { flex: 1; }
+  .modal { padding: var(--space-4); }
+}

@@ -2,6 +2,7 @@
 // snapshot; DOM adapters in config.js/project-io.js synchronize at UI boundaries.
 import { normalizeRunIf } from './run-if.js';
 import { normalizeExports } from './csv-export.js';
+import { expandSubRequests } from './sub-requests.js';
 
 export const CURRENT_SCHEMA_VERSION = 2;
 
@@ -111,10 +112,6 @@ function normalizeRequest(rawRequest, index, used, validGroupIds) {
   request.groupId = validGroupIds.has(request.groupId) ? request.groupId : '';
   if (!request.type) request.type = 'http';
   if (request.extractions !== undefined) request.extractions = normalizeExtractions(request.extractions);
-  for (const position of ['pre', 'post']) {
-    const sub = request[position];
-    if (sub && typeof sub === 'object' && sub.extractions !== undefined) sub.extractions = normalizeExtractions(sub.extractions);
-  }
   // "Save to CSV" (see csv-export.js): one shape, unknown fields kept; absent stays absent.
   if (request.exports !== undefined) request.exports = normalizeExports(request.exports);
   return request;
@@ -168,7 +165,8 @@ function normalizeProject(rawProject) {
     scenario: {
       ...(source.scenario || {}),
       groups: normalizedGroups,
-      requests: (requests || []).map((request, index) =>
+      // Before/After sub-requests of older projects become ordinary requests.
+      requests: expandSubRequests(requests || []).map((request, index) =>
         normalizeRequest(request, index, usedRequestIds, usedGroupIds)),
     },
     variables: Array.isArray(source.variables) ? source.variables : [],

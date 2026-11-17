@@ -4,10 +4,11 @@ import fs from 'node:fs';
 
 import { readExtractionRow } from '../public/js/components/rows.js';
 import { summarizeAdvancedSettings } from '../public/js/components/advanced-notice.js';
+import { readStyles } from './helpers/styles.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
-const css = read('../public/css/style.css');
+const css = readStyles();
 const rows = read('../public/js/components/rows.js');
 const reqCard = read('../public/js/components/req-card.js');
 const config = read('../public/js/config.js');
@@ -41,7 +42,6 @@ test('a row is read with its default as typed; an empty default is left out', ()
 
 test('the default travels everywhere a row is built or read: collect, open, lazy panels, duplicate', () => {
   assert.match(config, /\.map\(readExtractionRow\)/);
-  assert.match(projectIo, /srExtList\.appendChild\(extractionRow\(e\)\)/, 'Before/After rows from a project');
   assert.match(reqCard, /list\.appendChild\(extractionRow\(extraction\)\)/, 'lazy Extract panel from card.requestState');
   assert.match(reqCard, /default: row\.querySelector\('\.ext-default'\)\.value/, 'duplicate copies the default');
   assert.doesNotMatch(reqCard, /for \(const \[name, source, selector\] of snapshot\.extractions\)/, 'no positional snapshot that would drop it');

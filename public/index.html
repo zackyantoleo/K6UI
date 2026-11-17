@@ -9,31 +9,37 @@
 <body>
 <div class="app">
 
-  <!-- ── Titlebar ─────────────────────────────────────────────── -->
-  <header class="titlebar">
+  <!-- ── Top bar: project file, mode, k6 status, run ───────────── -->
+  <header class="topbar">
     <div class="brand">
-      <span class="brand-logo">k6</span>
+      <span class="brand-logo" aria-hidden="true">k6</span>
       <span class="brand-name">K6UI</span>
     </div>
-    <fieldset class="ui-mode-switch">
-      <legend class="sr-only">Interface mode</legend>
-      <label><input type="radio" name="ui-mode" value="simple" /><span>Simple</span></label>
-      <label><input type="radio" name="ui-mode" value="advanced" checked /><span>Advanced</span></label>
-    </fieldset>
-    <div id="k6-status" class="k6-pill checking" role="status" aria-live="polite">Checking k6…</div>
+    <div class="project-actions" role="group" aria-label="Project file actions">
+      <button type="button" class="btn quiet sm" data-icon="folder" id="open-project-btn" title="Open a saved project file">Open</button>
+      <button type="button" class="btn quiet sm" data-icon="save" id="save-project-btn" title="Save this project as a file">Save</button>
+      <button type="button" class="btn quiet sm" data-icon="import" id="import-k6-btn" title="Import a k6 script or a JMeter .jmx test plan">Import</button>
+    </div>
+    <input type="file" id="project-file-input" accept=".json,application/json" hidden />
+    <div class="topbar-end">
+      <fieldset class="ui-mode-switch">
+        <legend class="sr-only">Interface mode</legend>
+        <label><input type="radio" name="ui-mode" value="simple" /><span>Simple</span></label>
+        <label><input type="radio" name="ui-mode" value="advanced" checked /><span>Advanced</span></label>
+      </fieldset>
+      <div id="k6-status" class="k6-pill checking" role="status" aria-live="polite">Checking k6…</div>
+      <div class="run-actions">
+        <button type="button" class="btn-run" data-icon="play" id="run-btn">Run Test</button>
+        <button type="button" class="btn-stop hidden" data-icon="stop" id="stop-btn">Stop</button>
+      </div>
+    </div>
   </header>
 
   <div class="app-body">
 
-    <!-- ── Four-step beginner navigation ─────────────────────── -->
+    <!-- ── Navigation: four steps (Simple) or categories by section (Advanced).
+         A new view gets one entry here and one <section class="view"> below. -->
     <aside class="sidebar" aria-label="Test builder">
-      <div class="project-actions" aria-label="Project file actions">
-        <button type="button" class="project-action" id="save-project-btn">↓ Save</button>
-        <button type="button" class="project-action" id="open-project-btn">↑ Open</button>
-        <button type="button" class="project-action project-action-wide" id="import-k6-btn">⇣ Import k6 script / JMeter .jmx</button>
-      </div>
-      <input type="file" id="project-file-input" accept=".json,application/json" hidden />
-
       <nav id="simple-nav" data-ui-nav="simple" aria-label="Test builder steps" hidden>
       <ol class="step-list">
         <li>
@@ -64,22 +70,35 @@
       </ol>
       </nav>
       <nav id="advanced-nav" data-ui-nav="advanced" aria-label="Test builder categories">
-        <ul class="category-list">
-          <li><button type="button" class="nav-link" data-view="flow">Request Flow</button></li>
-          <li><button type="button" class="nav-link" data-view="vars">Variables</button></li>
-          <li><button type="button" class="nav-link" data-view="headers">Headers</button></li>
-          <li><button type="button" class="nav-link" data-view="datafiles">Data files</button></li>
-          <li><button type="button" class="nav-link" data-view="load">Load Profile</button></li>
-          <li><button type="button" class="nav-link" data-view="sla">Thresholds / SLA</button></li>
-          <li><button type="button" class="nav-link" data-view="script">k6 Script</button></li>
-          <li><button type="button" class="nav-link" data-view="results">Run &amp; Results</button></li>
-        </ul>
+        <div class="nav-section">
+          <p class="nav-heading" id="nav-heading-build">Build</p>
+          <ul class="category-list" aria-labelledby="nav-heading-build">
+            <li><button type="button" class="nav-link" data-icon="flow" data-view="flow">Request Flow</button></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-heading" id="nav-heading-data">Test data</p>
+          <ul class="category-list" aria-labelledby="nav-heading-data">
+            <li><button type="button" class="nav-link" data-icon="braces" data-view="vars">Variables</button></li>
+            <li><button type="button" class="nav-link" data-icon="list" data-view="headers">Headers</button></li>
+            <li><button type="button" class="nav-link" data-icon="table" data-view="datafiles">Data files</button></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-heading" id="nav-heading-load">Load &amp; targets</p>
+          <ul class="category-list" aria-labelledby="nav-heading-load">
+            <li><button type="button" class="nav-link" data-icon="ramp" data-view="load">Load Profile</button></li>
+            <li><button type="button" class="nav-link" data-icon="target" data-view="sla">Thresholds / SLA</button></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-heading" id="nav-heading-run">Run</p>
+          <ul class="category-list" aria-labelledby="nav-heading-run">
+            <li><button type="button" class="nav-link" data-icon="code" data-view="script">k6 Script</button></li>
+            <li><button type="button" class="nav-link" data-icon="chart" data-view="results">Run &amp; Results</button></li>
+          </ul>
+        </div>
       </nav>
-
-      <div class="sidebar-footer">
-        <button type="button" class="btn-run" id="run-btn">▶ Run Test</button>
-        <button type="button" class="btn-stop hidden" id="stop-btn">■ Stop</button>
-      </div>
     </aside>
 
     <!-- ── Workspace ─────────────────────────────────────────── -->
@@ -87,7 +106,7 @@
       <div class="ws-header">
         <h2 id="page-title" tabindex="-1">Build Flow</h2>
         <div class="ws-actions">
-          <button class="btn ghost sm" id="preview-btn">&lt;/&gt; View Script</button>
+          <button type="button" class="btn ghost sm" data-icon="code" id="preview-btn">View Script</button>
         </div>
       </div>
 
@@ -108,13 +127,13 @@
             <p class="advanced-notice-foot">Switching between Simple and Advanced changes only the layout, never what runs. Open a request's tabs to review its settings.</p>
           </section>
           <div id="flow-empty-state" class="flow-empty-state" role="status">
-            <div class="empty-state-mark" aria-hidden="true">⇄</div>
+            <div class="empty-state-mark" data-icon="flow" aria-hidden="true"></div>
             <div>
               <h3>Start with your first request</h3>
               <p>Add a blank HTTP request or import a cURL command from DevTools or your API documentation.</p>
             </div>
             <div class="empty-state-actions">
-              <button id="empty-add-request" type="button" class="btn primary">+ Add Request</button>
+              <button id="empty-add-request" type="button" class="btn primary" data-icon="plus">Add Request</button>
               <button id="empty-import-curl" type="button" class="btn ghost">Import cURL</button>
             </div>
           </div>
@@ -126,24 +145,24 @@
           <p class="view-hint">Configure reusable test data and pass/fail targets. Request-specific headers, checks, extraction, scripts, and pacing stay inside each request.</p>
           <div class="data-rule-grid">
             <button type="button" class="data-rule-card" data-view="vars">
-              <span class="data-rule-icon" aria-hidden="true">$</span>
+              <span class="data-rule-icon" data-icon="braces" aria-hidden="true"></span>
               <span><strong>Global Variables</strong><small>Reuse base URLs, tokens, and environment values.</small></span>
-              <span aria-hidden="true">→</span>
+              <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
             </button>
             <button type="button" class="data-rule-card" data-view="headers">
-              <span class="data-rule-icon" aria-hidden="true">#</span>
+              <span class="data-rule-icon" data-icon="list" aria-hidden="true"></span>
               <span><strong>Global Headers</strong><small>Apply common headers to every HTTP request.</small></span>
-              <span aria-hidden="true">→</span>
+              <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
             </button>
             <button type="button" class="data-rule-card" data-view="datafiles">
-              <span class="data-rule-icon" aria-hidden="true">▤</span>
+              <span class="data-rule-icon" data-icon="table" aria-hidden="true"></span>
               <span><strong>Data Files</strong><small>Give each user a row from a CSV file, such as a login per user.</small></span>
-              <span aria-hidden="true">→</span>
+              <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
             </button>
             <button type="button" class="data-rule-card" data-view="sla">
-              <span class="data-rule-icon" aria-hidden="true">◎</span>
+              <span class="data-rule-icon" data-icon="target" aria-hidden="true"></span>
               <span><strong>Performance Targets</strong><small>Set p95 response-time and error-rate limits.</small></span>
-              <span aria-hidden="true">→</span>
+              <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
             </button>
           </div>
         </section>
@@ -199,7 +218,7 @@
 
               <div id="load-stages" class="hidden">
                 <div id="stages"></div>
-                <button type="button" id="add-stage" class="btn ghost sm">+ Add Stage</button>
+                <button type="button" id="add-stage" class="btn ghost sm" data-icon="plus">Add Stage</button>
               </div>
 
               <div id="load-iterations" class="hidden">
@@ -225,6 +244,18 @@
               </div>
             </div>
 
+            <div class="page-col-stack">
+            <section class="form-card load-shape" aria-labelledby="load-shape-title">
+              <h3 id="load-shape-title">Load shape</h3>
+              <p id="load-shape-summary" class="load-shape-summary"></p>
+              <svg id="load-chart" class="load-chart" viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true"></svg>
+              <div class="load-axis" aria-hidden="true"><span>0s</span><span id="load-axis-end"></span></div>
+              <dl class="load-stats">
+                <div><dt>Peak</dt><dd id="load-peak">—</dd></div>
+                <div><dt>Total time</dt><dd id="load-total">—</dd></div>
+                <div><dt>Mode</dt><dd id="load-mode-name">—</dd></div>
+              </dl>
+            </section>
             <div class="form-card info-card">
               <h3>What these terms mean</h3>
               <p class="note"><strong>VUs simulate concurrent users.</strong> One VU repeatedly runs the complete request flow.</p>
@@ -238,6 +269,7 @@
               </table>
               <p class="note">Staged mode: each stage defines a transition from the current VU count to the target VU count over the given time range.</p>
               <p class="note">Iterations mode: every VU starts at once and runs the whole flow a fixed number of times, then the test ends. Total runs = VUs × iterations.</p>
+            </div>
             </div>
           </div>
         </section>
@@ -263,7 +295,7 @@
             <div class="form-card info-card">
               <h3>What are Thresholds?</h3>
               <p class="note">Thresholds are the pass criteria for the test. If they are not met, k6 exits with <strong>exit code 99</strong>.</p>
-              <p class="note">Example: if you set p95 = 500ms and 5% of requests exceed it, the test is marked <strong style="color:var(--danger)">FAILED</strong>.</p>
+              <p class="note">Example: if you set p95 = 500ms and 5% of requests exceed it, the test is marked <strong class="text-danger">FAILED</strong>.</p>
             </div>
           </div>
         </section>
@@ -272,8 +304,8 @@
         <section id="view-script" class="view hidden">
           <div class="ws-toolbar">
             <span class="toolbar-label">Script generated from your configuration:</span>
-            <button class="btn ghost sm" id="copy-script">Copy</button>
-            <button class="btn ghost sm" id="refresh-script">↻ Refresh</button>
+            <button type="button" class="btn ghost sm" id="copy-script">Copy</button>
+            <button type="button" class="btn ghost sm" data-icon="refresh" id="refresh-script">Refresh</button>
           </div>
           <pre id="script-preview" class="code-block">Click "Refresh" or "View Script" to load the script.</pre>
         </section>
@@ -281,24 +313,21 @@
         <!-- VIEW: Focused run and results workspace -->
         <section id="view-results" class="view hidden">
           <div class="results-toolbar">
-            <div>
-              <h2>Run &amp; Results</h2>
-              <p>Start with the verdict, then inspect only the detail you need.</p>
-            </div>
+            <p class="view-hint">Start with the verdict, then inspect only the detail you need.</p>
             <div class="results-toolbar-actions">
-              <button type="button" class="btn ghost" id="clear-results">Clear results</button>
-              <button type="button" class="btn primary" id="results-run-btn">Run Test</button>
               <span id="run-state" class="run-state-badge" role="status" aria-live="polite"></span>
+              <button type="button" class="btn ghost sm" id="clear-results">Clear results</button>
+              <button type="button" class="btn ghost sm" data-icon="play" id="results-run-btn">Run Test</button>
             </div>
           </div>
 
           <div id="results-empty-state" class="results-empty-state" role="status">
-            <div class="empty-state-mark" aria-hidden="true">▶</div>
+            <div class="empty-state-mark" data-icon="play" aria-hidden="true"></div>
             <div>
               <h3>Ready when your flow is ready</h3>
               <p>Run the test to get a plain-language verdict, request details, metrics, and errors.</p>
             </div>
-            <button type="button" class="btn primary" id="results-empty-run-btn">Run Test</button>
+            <button type="button" class="btn primary" data-icon="play" id="results-empty-run-btn">Run Test</button>
           </div>
 
           <div class="results-tabs" role="tablist" aria-label="Test results">
@@ -347,8 +376,21 @@
                 <input type="checkbox" id="log-requests" />
                 Record request details on the next run
               </label>
-              <p>Off by default. URLs and response samples may contain sensitive data; common secret fields are redacted and response samples are capped.</p>
+              <div class="logging-options" role="group" aria-label="Which requests to record">
+                <label for="log-filter">Record</label>
+                <select id="log-filter">
+                  <option value="all">Every request</option>
+                  <option value="errors">Failed requests only</option>
+                  <option value="sample">A sample, plus every failed request</option>
+                </select>
+                <span class="log-sample-every" id="log-sample-every-field" hidden>
+                  <label for="log-sample-every">Every Nth iteration of each VU</label>
+                  <input type="number" id="log-sample-every" min="1" max="10000" step="1" value="10" inputmode="numeric" />
+                </span>
+              </div>
+              <p>Off by default. URLs, headers, payloads, and response samples may contain sensitive data: common secret fields and headers (Authorization, Cookie, tokens, passwords) are redacted, bodies are capped at 4 KB, and up to 50 records a second reach this page. Recording every request slows k6 under heavy load; record failed requests only or a sample there.</p>
             </div>
+            <p id="req-log-skipped" class="req-log-skipped" role="status" hidden></p>
             <div class="req-log-toolbar">
               <label class="req-filter-label">
                 <input type="checkbox" id="filter-errors-only" />
@@ -359,7 +401,7 @@
             </div>
             <div class="req-log-wrap" tabindex="0" aria-label="Scrollable request results">
               <table class="req-log-table" aria-label="Recorded request results">
-                <caption>Up to the 500 most recent request records. Activate a row to inspect its redacted response sample.</caption>
+                <caption>The 500 most recent request records, added while the test runs. Activate a row to inspect its request and response: headers and bodies, redacted.</caption>
                 <thead>
                   <tr>
                     <th scope="col">VU</th>
@@ -382,13 +424,13 @@
           </div>
 
           <div id="tab-errors" class="results-tab-panel hidden" role="tabpanel" aria-labelledby="results-tab-errors">
-            <div class="errors-toolbar"><p>Runtime errors and failed requests appear here.</p><button type="button" class="btn ghost" id="clear-errors">Clear errors</button></div>
+            <div class="errors-toolbar"><p>Runtime errors and failed requests appear here.</p><button type="button" class="btn ghost sm" id="clear-errors">Clear errors</button></div>
             <ol id="run-errors" class="error-list" aria-live="polite"></ol>
             <p id="errors-empty" class="panel-empty">No errors recorded.</p>
           </div>
 
           <div id="tab-live" class="results-tab-panel hidden" role="tabpanel" aria-labelledby="results-tab-live">
-            <div class="live-log-toolbar"><p>Raw k6 output. Retention is limited to the 1,500 most recent lines.</p><button type="button" class="btn ghost" id="clear-live-log">Clear log</button></div>
+            <div class="live-log-toolbar"><p>Raw k6 output. Retention is limited to the 1,500 most recent lines.</p><button type="button" class="btn ghost sm" id="clear-live-log">Clear log</button></div>
             <pre id="log-output" class="log-block" tabindex="0" aria-label="Live k6 output"></pre>
           </div>
         </section>
@@ -403,7 +445,7 @@
             <div class="form-card">
               <h3>Variables</h3>
               <div id="global-vars-list"></div>
-              <button type="button" id="add-global-var" class="btn ghost sm">+ Add Variable</button>
+              <button type="button" id="add-global-var" class="btn ghost sm" data-icon="plus">Add Variable</button>
             </div>
 
             <div class="form-card info-card">
@@ -425,7 +467,7 @@
             <div class="form-card">
               <h3>Headers</h3>
               <div id="global-headers-list"></div>
-              <button type="button" id="add-global-header" class="btn ghost sm">+ Add Header</button>
+              <button type="button" id="add-global-header" class="btn ghost sm" data-icon="plus">Add Header</button>
             </div>
 
             <div class="form-card info-card">
@@ -452,7 +494,7 @@
               </p>
               <div id="data-files-list"></div>
               <p id="data-files-empty" class="note">No data files yet.</p>
-              <button type="button" id="add-data-file" class="btn ghost sm">+ Add Data File</button>
+              <button type="button" id="add-data-file" class="btn ghost sm" data-icon="plus">Add Data File</button>
             </div>
 
             <div class="form-card info-card">
@@ -541,8 +583,8 @@
     <textarea id="curl-input" placeholder="curl 'https://api.example.com/users' -H 'Accept: application/json'"></textarea>
     <div id="curl-error" class="curl-error hidden"></div>
     <div class="modal-actions">
-      <button type="button" class="btn ghost sm" id="curl-cancel">Cancel</button>
-      <button type="button" class="btn primary sm" id="curl-apply">Import</button>
+      <button type="button" class="btn ghost" id="curl-cancel">Cancel</button>
+      <button type="button" class="btn primary" id="curl-apply">Import</button>
     </div>
   </div>
 </div>
@@ -567,8 +609,8 @@
       <ul id="k6-import-warnings" class="import-warnings"></ul>
     </div>
     <div class="modal-actions">
-      <button type="button" class="btn ghost sm" id="k6-import-cancel">Cancel</button>
-      <button type="button" class="btn primary sm" id="k6-import-apply">Import</button>
+      <button type="button" class="btn ghost" id="k6-import-cancel">Cancel</button>
+      <button type="button" class="btn primary" id="k6-import-apply">Import</button>
     </div>
   </div>
 </div>

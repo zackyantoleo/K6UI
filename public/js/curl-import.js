@@ -1,6 +1,6 @@
 // "Import from cURL" modal: parse a pasted cURL command and fill a request
 // card's method, URL, headers, and body with the result (extractions,
-// assertions, scripts, and sub-requests are left untouched).
+// assertions, and scripts are left untouched).
 import { $ } from './dom.js';
 import { headerRow } from './components/rows.js';
 import { parseCurl } from './curl-parse.js';

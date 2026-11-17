@@ -28,7 +28,6 @@ const NOTICE_FIXTURE = {
         extractions: [{ varName: 'token', source: 'json', selector: 'data.token' }],
         assertions: [{ type: 'status-eq', value: '200', value2: '' }],
         preScript: 'vars.ts = "pre-secret";', postScript: '', checkStatus: true, sleepAfter: '0.5',
-        pre: { method: 'GET', url: 'https://api.example.test/setup', headers: [], body: '', extractions: [] },
       },
       { id: 'req_cart', name: 'Cart', groupId: '', type: 'http', method: 'GET', url: 'https://api.example.test/cart' },
       {
@@ -116,7 +115,6 @@ try {
   assert.equal(state.visible, true, 'Simple shows the notice for imported settings');
   assert.equal(await hydratedPanels(), hydratedBefore, 'Notice reads requestState; it never hydrates lazy panels');
   assert.deepEqual(state.items, {
-    subRequests: 'Before/After requests: 1 request',
     extractions: 'Response extraction: 1 request',
     checks: 'Custom checks: 1 request',
     scripts: 'Pre/post scripts: 1 request',
@@ -147,8 +145,6 @@ try {
   await login.locator('.req-tab[data-tab="assertions"]').click();
   await login.locator('.assertions-list .row-remove').click();
   assert.equal((await noticeState()).items.checks, undefined, 'Removing the only check (a click) refreshes the notice');
-  await login.locator('.subreq-pre .row-remove').click();
-  assert.equal((await noticeState()).items.subRequests, undefined, 'Removing the Before request refreshes the notice');
   assert.equal(await page.evaluate(async () => window.storeBeforeTyping
     === (await import('/js/project-store.js')).projectStore.getState()), true, 'No collectConfig() per keystroke');
 
@@ -375,6 +371,8 @@ try {
     assert.deepEqual([stopped.state, stopped.stopVisible, stopped.runVisible], ['STOPPED', false, true]);
     assert.match(stopped.verdict, /\baborted\b/);
     assert.equal(runPosts.length, 3);
+    // The browser reports the aborted request a moment after the click.
+    for (let wait = 0; wait < 40 && runFailures.length < 1; wait += 1) await page.waitForTimeout(50);
     assert.equal(runFailures.length, 1, 'Only the user Stop aborts the stream');
     await page.waitForTimeout(1500);
     const hitsAfterStop = hits.get('/ok');

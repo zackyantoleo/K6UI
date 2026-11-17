@@ -14,7 +14,6 @@ const pauseSeconds = value => {
 // Request categories in display order. Each test receives one normalized request.
 const REQUEST_CATEGORIES = [
   { id: 'grpc', label: 'gRPC requests', test: request => request.type === 'grpc' },
-  { id: 'subRequests', label: 'Before/After requests', test: request => hasText(request.pre?.url) || hasText(request.post?.url) },
   { id: 'extractions', label: 'Response extraction', test: request => (request.extractions || []).some(item => hasText(item?.varName)) },
   { id: 'exports', label: 'Save to CSV', test: request => (request.exports || []).some(item => hasText(item?.file)) },
   { id: 'checks', label: 'Custom checks', test: request => (request.assertions || []).length > 0 },
@@ -73,12 +72,6 @@ export function summarizeAdvancedSettings(requests, groups, dataFiles = 0) {
 const panelReady = (card, panelId) =>
   card.querySelector(`.req-tab-panel[data-panel="${panelId}"]`)?.dataset.panelReady === 'true';
 
-function liveSubRequest(card, position) {
-  const form = card.querySelector(`.subreq-${position} .subreq-form`);
-  if (!form || form.classList.contains('hidden')) return null;
-  return { url: form.querySelector('.sr-url')?.value || '' };
-}
-
 export function readRequestSettings(card) {
   const saved = card.requestState || {};
   const field = selector => card.querySelector(selector);
@@ -101,8 +94,6 @@ export function readRequestSettings(card) {
     postScript: scriptsReady ? field('.post-script').value : saved.postScript,
     sleepAfter: optionsReady ? field('.sleep').value : saved.sleepAfter,
     checkStatus: optionsReady ? field('.check-status').checked : saved.checkStatus !== false,
-    pre: liveSubRequest(card, 'pre'),
-    post: liveSubRequest(card, 'post'),
   };
 }
 
@@ -156,7 +147,7 @@ export function initAdvancedNotice() {
     pending = true;
     queueMicrotask(render);
   }
-  // Clicks cover row/sub-request removal and template buttons, which fire no input event.
+  // Clicks cover row removal and template buttons, which fire no input event.
   for (const type of ['input', 'change', 'click']) view.addEventListener(type, schedule);
   for (const type of ['k6ui:flow-changed', 'k6ui:project-applied', 'k6ui:ui-mode-changed', 'k6ui:request-group-changed', 'k6ui:data-sets-changed']) {
     window.addEventListener(type, schedule);

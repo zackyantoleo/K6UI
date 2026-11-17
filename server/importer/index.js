@@ -10,6 +10,7 @@ import { parse } from "acorn";
 import { importOptions } from "./options.js";
 import { importFlow } from "./flow.js";
 import { VALID_VAR_NAME, sourceOf, staticValue, Unresolvable } from "./values.js";
+import { normalizeRequestLog } from "../../public/js/request-log.js";
 
 export class ScriptImportError extends Error {
   constructor(message, warnings = []) {
@@ -129,6 +130,23 @@ function readGlobals(node, ctx) {
   }
 }
 
+// K6UI's request-log helpers: `function redactResponseSample` turns logging on,
+// `const REQUEST_LOG = { filter, every }` (newer scripts) says which requests it logs.
+function requestLogOptions(ctx) {
+  if (!ctx.logRequests) return { logRequests: false };
+  const options = { logRequests: true };
+  const entry = ctx.consts.get("REQUEST_LOG");
+  if (entry?.top && entry.node.type === "ObjectExpression") {
+    try {
+      const value = staticValue(entry.node, ctx);
+      Object.assign(options, normalizeRequestLog({ ...options, logFilter: value.filter, logSampleEvery: value.every }));
+    } catch (e) {
+      if (!(e instanceof Unresolvable)) throw e;
+    }
+  }
+  return options;
+}
+
 const isFunction = (node) =>
   node?.type === "FunctionDeclaration" || node?.type === "FunctionExpression" || node?.type === "ArrowFunctionExpression";
 
@@ -174,7 +192,7 @@ export function importK6Script(source) {
     globalHeaders: [],
     load,
     thresholds,
-    options: { logRequests: ctx.logRequests },
+    options: requestLogOptions(ctx),
   };
   return { config, warnings: ctx.warnings };
 }

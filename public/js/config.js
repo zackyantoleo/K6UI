@@ -8,8 +8,9 @@ import { collectDataSets, validateDataSets } from './data-files.js';
 import { readExtractionRow } from './components/rows.js';
 import { readExportBlocks } from './components/export-rows.js';
 import { exportsProblem } from './csv-export.js';
+import { normalizeRequestLog } from './request-log.js';
 
-// ── Row readers — used by main cards & sub-requests ────────────
+// ── Row readers ────────────────────────────────────────────────
 function readHeaderRows(scope) {
   return $$('.header-row', scope)
     .map(r => ({ key: r.querySelector('.h-key').value.trim(), value: r.querySelector('.h-val').value }))
@@ -31,22 +32,6 @@ function readAssertionRows(scope) {
 }
 
 // ── Per card ───────────────────────────────────────────────────
-// Scoped to panels inside .req-card-body so rows belonging to
-// sub-requests (inside .subreq-form) are not picked up.
-function collectSubReq(card, position) {
-  const form = card.querySelector(`.subreq-${position} .subreq-form`);
-  if (!form || form.classList.contains('hidden')) return null;
-  const url = form.querySelector('.sr-url').value.trim();
-  if (!url) return null;
-  return {
-    method:      form.querySelector('.sr-method').value,
-    url,
-    headers:     readHeaderRows(form),
-    body:        form.querySelector('.sr-body').value,
-    extractions: readExtractionRows(form),
-  };
-}
-
 function collectReqList(containerId) {
   return $$(`#${containerId} .req-card`).map(card => {
     for (const panelId of ['headers', 'body', 'extractions', 'assertions', 'scripts', 'options']) {
@@ -73,8 +58,6 @@ function collectReqList(containerId) {
       assertions:  readAssertionRows(body.querySelector('.assertions-list')),
       preScript:   card.querySelector('.pre-script').value,
       postScript:  card.querySelector('.post-script').value,
-      pre:         collectSubReq(card, 'pre'),
-      post:        collectSubReq(card, 'post'),
     };
   });
 }
@@ -113,7 +96,11 @@ export function collectConfig() {
     globalHeaders: readHeaderRows($('#global-headers-list')),
     load,
     thresholds:    { p95: $('#p95').value, errorRate: $('#errorRate').value },
-    options:       { logRequests: $('#log-requests')?.checked ?? true },
+    options:       normalizeRequestLog({
+      logRequests:    $('#log-requests')?.checked ?? true,
+      logFilter:      $('#log-filter')?.value,
+      logSampleEvery: $('#log-sample-every')?.value,
+    }),
   };
   return projectStore.replace(config);
 }

@@ -9,13 +9,14 @@ import { addRequest, buildFlowView, stageRow } from './components/flow-view.js';
 import { collectConfig, validate } from './config.js';
 import {
   runTest, stopTest, applyReqFilter, checkK6, activateResultsTab,
-  clearResults, clearLiveLog, clearErrors,
+  clearResults, clearLiveLog, clearErrors, syncRequestLogFields,
 } from './runner.js';
 import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';
 import { initScriptImport } from './script-import.js';
 import { initAdvancedNotice } from './components/advanced-notice.js';
 import { initDataFiles } from './data-files.js';
+import { initLoadChart } from './components/load-chart.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -161,6 +162,8 @@ $$('.result-shortcuts [data-results-tab]').forEach(button =>
 
 $('#filter-errors-only')?.addEventListener('change', applyReqFilter);
 $('#filter-url')?.addEventListener('input', applyReqFilter);
+$('#log-filter')?.addEventListener('change', syncRequestLogFields);
+syncRequestLogFields();
 $('#clear-results')?.addEventListener('click', clearResults);
 $('#clear-live-log')?.addEventListener('click', clearLiveLog);
 $('#clear-errors')?.addEventListener('click', clearErrors);
@@ -207,6 +210,7 @@ stagesEl.appendChild(stageRow('1m',  '20'));
 stagesEl.appendChild(stageRow('30s', '0'));
 
 initDataFiles();
+initLoadChart();
 initCurlImport();
 initScriptImport();
 initAdvancedNotice();

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import { generateScript } from '../server/generator/index.js';
 import { migrateProject } from '../public/js/project-store.js';
+import { readStyles } from './helpers/styles.js';
 
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
@@ -105,7 +106,7 @@ test('flow UI exposes one-level groups, membership moves, collapse, and group he
     read('public/js/components/request-groups.js'),
     read('public/js/config.js'),
     read('public/js/project-io.js'),
-    read('public/css/style.css'),
+    readStyles(),
   ]);
   const source = `${flowView}\n${requestCard}\n${requestGroups}\n${config}\n${projectIo}`;
 

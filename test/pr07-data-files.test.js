@@ -4,10 +4,11 @@ import fs from 'node:fs';
 
 import { summarizeAdvancedSettings } from '../public/js/components/advanced-notice.js';
 import { describeDataSet, guessDelimiter, parseColumnNames, validateDataSets } from '../public/js/data-files.js';
+import { readStyles } from './helpers/styles.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
-const css = read('../public/css/style.css');
+const css = readStyles();
 const dataFiles = read('../public/js/data-files.js');
 const config = read('../public/js/config.js');
 const projectIo = read('../public/js/project-io.js');
