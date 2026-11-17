@@ -131,15 +131,18 @@ function readGlobals(node, ctx) {
 }
 
 // K6UI's request-log helpers: `function redactResponseSample` turns logging on,
-// `const REQUEST_LOG = { filter, every }` (newer scripts) says which requests it logs.
+// `const REQUEST_LOG = { filter, every, redact }` (newer scripts) says which requests it
+// logs and whether it hides secrets. Scripts from before `redact` existed always hid them.
 function requestLogOptions(ctx) {
   if (!ctx.logRequests) return { logRequests: false };
-  const options = { logRequests: true };
+  const options = { logRequests: true, logRedact: true };
   const entry = ctx.consts.get("REQUEST_LOG");
   if (entry?.top && entry.node.type === "ObjectExpression") {
     try {
       const value = staticValue(entry.node, ctx);
-      Object.assign(options, normalizeRequestLog({ ...options, logFilter: value.filter, logSampleEvery: value.every }));
+      Object.assign(options, normalizeRequestLog({
+        ...options, logFilter: value.filter, logSampleEvery: value.every, logRedact: value.redact ?? true,
+      }));
     } catch (e) {
       if (!(e instanceof Unresolvable)) throw e;
     }

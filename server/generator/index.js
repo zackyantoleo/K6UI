@@ -26,13 +26,15 @@ import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/request-log
 // Request logging is opt-in because URLs, headers and bodies can contain
 // credentials or personal data. These helpers run inside the generated k6
 // script: they pick which requests to log (REQUEST_LOG, see
-// public/js/request-log.js), redact common secrets, cap the bodies, and print
+// public/js/request-log.js), redact common secrets when REQUEST_LOG.redact is
+// on ("Hide secrets"; off by default: values are shown as sent), cap the bodies, and print
 // one {__r:1,...} JSON line that k6-runner.js turns into a req-log event.
 const REQUEST_LOG_HELPERS = String.raw`
 // Bearer tokens first ("Authorization: Bearer x" would otherwise hide only the word Bearer).
 // A secret field keeps its quotes ("password":"[REDACTED]"), so a JSON body stays JSON;
 // a quoted value cut at the size cap (no closing quote) is redacted to its end.
 function redactText(value) {
+  if (!REQUEST_LOG.redact) return String(value == null ? '' : value);
   return String(value == null ? '' : value)
     .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi, '$1[REDACTED]')
     .replace(/(["']?(?:authorization|proxy-authorization|token|access_token|refresh_token|api[_-]?key|password|passwd|secret)["']?\s*[:=]\s*)("(?:[^"\\]|\\.)*"?|'[^']*'?|[^,"'&\s}]+)/gi, function (match, key, secret) {
@@ -50,6 +52,7 @@ function redactResponseSample(value, limit) {
 
 function redactRequestUrl(value) {
   const text = redactText(String(value == null ? '' : value).slice(0, 2048));
+  if (!REQUEST_LOG.redact) return text;
   const queryStart = text.indexOf('?');
   if (queryStart < 0) return text;
   return text.slice(0, queryStart + 1) + text.slice(queryStart + 1)
@@ -67,7 +70,7 @@ function redactRequestUrl(value) {
     .join('&');
 }
 
-// Header names whose value is never logged (Authorization, Cookie, Set-Cookie, X-Api-Key, ...).
+// With "Hide secrets": header names whose value is not logged (Authorization, Cookie, Set-Cookie, X-Api-Key, ...).
 const SECRET_HEADER_NAME = /authorization|cookie|token|secret|password|passwd|api[_-]?key|session|signature|credential/i;
 
 function redactHeaders(headers) {
@@ -76,7 +79,7 @@ function redactHeaders(headers) {
   Object.keys(headers).forEach(function (name) {
     const value = headers[name];
     const text = Array.isArray(value) ? value.join(', ') : String(value == null ? '' : value);
-    out[name] = SECRET_HEADER_NAME.test(name) ? '[REDACTED]' : redactResponseSample(text, 1024);
+    out[name] = REQUEST_LOG.redact && SECRET_HEADER_NAME.test(name) ? '[REDACTED]' : redactResponseSample(text, 1024);
   });
   return out;
 }
@@ -118,7 +121,9 @@ function logGrpcRequest(i, address, method, message, metadata, res, duration) {
 }`;
 
 function requestLogSource(settings, withGrpc) {
-  const config = { filter: settings.logFilter, every: settings.logSampleEvery, bodyLimit: LOG_BODY_LIMIT };
+  const config = {
+    filter: settings.logFilter, every: settings.logSampleEvery, redact: settings.logRedact, bodyLimit: LOG_BODY_LIMIT,
+  };
   return `\n// Request details for K6UI (Run & Results → Requests)\nconst REQUEST_LOG = ${JSON.stringify(config)};\n`
     + REQUEST_LOG_HELPERS
     + (withGrpc ? `\n${GRPC_REQUEST_LOG_HELPER}` : "")

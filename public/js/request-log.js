@@ -6,6 +6,8 @@
 //   logFilter      — "all": every request; "errors": failed requests only;
 //                    "sample": every Nth iteration of each VU, plus every failed request
 //   logSampleEvery — N for "sample" (whole number, 1 to MAX_SAMPLE_EVERY)
+//   logRedact      — "Hide secrets": replace Authorization, cookies, tokens, passwords, API keys
+//                    with [REDACTED] (off by default: the records show what was sent and received)
 
 export const LOG_FILTERS = ['all', 'errors', 'sample'];
 export const DEFAULT_SAMPLE_EVERY = 10;
@@ -20,5 +22,5 @@ export function normalizeRequestLog(options) {
   const logSampleEvery = Number.isInteger(every) && every >= 1
     ? Math.min(every, MAX_SAMPLE_EVERY)
     : DEFAULT_SAMPLE_EVERY;
-  return { logRequests: !!source.logRequests, logFilter, logSampleEvery };
+  return { logRequests: !!source.logRequests, logFilter, logSampleEvery, logRedact: source.logRedact === true };
 }

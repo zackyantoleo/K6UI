@@ -41,9 +41,11 @@ function respond(status, body, headers = {}) {
 const records = (script) => script.logs.map(line => JSON.parse(line));
 
 test('settings: unknown filter → all, sample interval is a whole number in range', () => {
-  assert.deepEqual(normalizeRequestLog(undefined), { logRequests: false, logFilter: 'all', logSampleEvery: DEFAULT_SAMPLE_EVERY });
-  assert.deepEqual(normalizeRequestLog({ logRequests: true, logFilter: 'errors', logSampleEvery: '3' }),
-    { logRequests: true, logFilter: 'errors', logSampleEvery: 3 });
+  assert.deepEqual(normalizeRequestLog(undefined),
+    { logRequests: false, logFilter: 'all', logSampleEvery: DEFAULT_SAMPLE_EVERY, logRedact: false });
+  assert.deepEqual(normalizeRequestLog({ logRequests: true, logFilter: 'errors', logSampleEvery: '3', logRedact: true }),
+    { logRequests: true, logFilter: 'errors', logSampleEvery: 3, logRedact: true });
+  assert.equal(normalizeRequestLog({ logRedact: 'yes' }).logRedact, false, 'only true turns Hide secrets on');
   assert.equal(normalizeRequestLog({ logFilter: 'nope' }).logFilter, 'all');
   for (const bad of ['0', '-2', '1.5', 'abc', '']) {
     assert.equal(normalizeRequestLog({ logSampleEvery: bad }).logSampleEvery, DEFAULT_SAMPLE_EVERY, bad);
@@ -56,8 +58,8 @@ test('no request log code at all while recording is off', () => {
   assert.doesNotMatch(script, /REQUEST_LOG|logHttpRequest|redact/);
 });
 
-test('a record carries the request payload and headers and the response headers and body, redacted', () => {
-  const script = loadScript(generateScript(configOf([post], { logRequests: true })), {
+test('with Hide secrets, a record carries the request payload and headers and the response headers and body, redacted', () => {
+  const script = loadScript(generateScript(configOf([post], { logRequests: true, logRedact: true })), {
     respond: respond(200, '{"token":"tok-1","name":"<b>ana</b>"}', {
       'Content-Type': 'application/json', 'Set-Cookie': 'sid=secret', 'X-Trace': 'abc',
     }),
@@ -75,6 +77,27 @@ test('a record carries the request payload and headers and the response headers 
   assert.deepEqual(record.rh, { 'Content-Type': 'application/json', 'Set-Cookie': '[REDACTED]', 'X-Trace': 'abc' });
   assert.equal(record.rb, '{"token":"[REDACTED]","name":"<b>ana</b>"}');
   assert.ok(!JSON.stringify(record).includes('hunter2') && !JSON.stringify(record).includes('tok-1'));
+});
+
+test('by default (Hide secrets off) a record shows every value exactly as sent and received', () => {
+  const script = loadScript(generateScript(configOf([post], { logRequests: true })), {
+    respond: respond(200, '{"token":"tok-1"}', { 'Set-Cookie': 'sid=secret', 'X-Trace': 'abc' }),
+  });
+  script.iteration(1, 0);
+  const [record] = records(script);
+  assert.equal(record.url, 'https://api.test/login?api_key=k-123&page=2');
+  assert.deepEqual(record.rqh, { Authorization: 'Bearer abc.def', 'Content-Type': 'application/json' });
+  assert.equal(record.rq, '{"user":"ana","password":"hunter2"}');
+  assert.deepEqual(record.rh, { 'Set-Cookie': 'sid=secret', 'X-Trace': 'abc' });
+  assert.equal(record.rb, '{"token":"tok-1"}');
+  assert.ok(!JSON.stringify(record).includes('[REDACTED]'));
+});
+
+test('a K6UI script from before Hide secrets existed imports with it on (those scripts always redacted)', () => {
+  const script = generateScript(configOf([post], { logRequests: true }))
+    .replace(/"redact":false,/, '');
+  assert.doesNotMatch(script, /"redact"/);
+  assert.equal(importK6Script(script).config.options.logRedact, true);
 });
 
 test('bodies are capped at 4 KB with a note of what was left out', () => {
@@ -118,7 +141,7 @@ test('a gRPC record carries the message, metadata, response message and the meas
     type: 'grpc', url: 'localhost:50051', grpcMethod: 'hello.Greeter/SayHello', grpcPlaintext: true,
     body: '{"name":"ana"}', headers: [{ key: 'x-request-id', value: 'r1' }, { key: 'authorization', value: 'secret' }],
   };
-  const script = loadScript(generateScript(configOf([grpc], { logRequests: true })), {
+  const script = loadScript(generateScript(configOf([grpc], { logRequests: true, logRedact: true })), {
     grpcResponse: { message: { reply: 'hi ana' }, headers: { 'content-type': ['application/grpc'] } },
   });
   script.iteration(1, 0);
@@ -135,8 +158,8 @@ test('a gRPC record carries the message, metadata, response message and the meas
 
 test('importing a K6UI script keeps which requests it records, without warnings', () => {
   for (const options of [
-    { logRequests: true, logFilter: 'sample', logSampleEvery: 7 },
-    { logRequests: true, logFilter: 'errors', logSampleEvery: 10 },
+    { logRequests: true, logFilter: 'sample', logSampleEvery: 7, logRedact: false },
+    { logRequests: true, logFilter: 'errors', logSampleEvery: 10, logRedact: true },
   ]) {
     const { config, warnings } = importK6Script(generateScript(configOf([post], options)));
     assert.deepEqual(config.options, options);
@@ -172,7 +195,7 @@ test('flush reports nothing when no record was left out', () => {
 });
 
 test('"Authorization: Bearer <token>" in a body hides the token, not just the word Bearer', () => {
-  const script = loadScript(generateScript(configOf([post], { logRequests: true })), {
+  const script = loadScript(generateScript(configOf([post], { logRequests: true, logRedact: true })), {
     respond: respond(200, 'echo Authorization: Bearer secret-777'),
   });
   script.iteration(1, 0);
