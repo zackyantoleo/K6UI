@@ -188,6 +188,9 @@
 .req-tab-panel { padding: var(--space-4); }
 .req-tab-panel > div { display: flex; flex-direction: column; gap: 10px; }
 .req-tab-panel.hidden { display: none; }
+/* Payload editors open tall enough to read a real JSON body without dragging. */
+.req-tab-panel textarea.body { height: clamp(320px, 60vh, 900px); }
+.req-tab-panel :is(textarea.pre-script, textarea.post-script) { height: clamp(180px, 28vh, 420px); }
 .headers-list, .extractions-list, .assertions-list, .group-headers-list {
   display: flex; flex-direction: column; gap: var(--space-2);
 }
