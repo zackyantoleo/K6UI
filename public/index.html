@@ -376,8 +376,21 @@
                 <input type="checkbox" id="log-requests" />
                 Record request details on the next run
               </label>
-              <p>Off by default. URLs and response samples may contain sensitive data; common secret fields are redacted and response samples are capped.</p>
+              <div class="logging-options" role="group" aria-label="Which requests to record">
+                <label for="log-filter">Record</label>
+                <select id="log-filter">
+                  <option value="all">Every request</option>
+                  <option value="errors">Failed requests only</option>
+                  <option value="sample">A sample, plus every failed request</option>
+                </select>
+                <span class="log-sample-every" id="log-sample-every-field" hidden>
+                  <label for="log-sample-every">Every Nth iteration of each VU</label>
+                  <input type="number" id="log-sample-every" min="1" max="10000" step="1" value="10" inputmode="numeric" />
+                </span>
+              </div>
+              <p>Off by default. URLs, headers, payloads, and response samples may contain sensitive data: common secret fields and headers (Authorization, Cookie, tokens, passwords) are redacted, bodies are capped at 4 KB, and up to 50 records a second reach this page. Recording every request slows k6 under heavy load; record failed requests only or a sample there.</p>
             </div>
+            <p id="req-log-skipped" class="req-log-skipped" role="status" hidden></p>
             <div class="req-log-toolbar">
               <label class="req-filter-label">
                 <input type="checkbox" id="filter-errors-only" />
@@ -388,7 +401,7 @@
             </div>
             <div class="req-log-wrap" tabindex="0" aria-label="Scrollable request results">
               <table class="req-log-table" aria-label="Recorded request results">
-                <caption>Up to the 500 most recent request records. Activate a row to inspect its redacted response sample.</caption>
+                <caption>The 500 most recent request records, added while the test runs. Activate a row to inspect its request and response: headers and bodies, redacted.</caption>
                 <thead>
                   <tr>
                     <th scope="col">VU</th>

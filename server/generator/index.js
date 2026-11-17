@@ -21,20 +21,35 @@ import {
 import { buildRunIfCondition, runIfComment } from "./run-if.js";
 import { buildExportCode, extractionDefaultsByName, validateExports } from "./csv-export.js";
 import { expandSubRequests } from "../../public/js/sub-requests.js";
+import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/request-log.js";
 
-// Request logging is opt-in because URLs and response samples can contain
-// credentials or personal data. This helper runs inside the generated k6
-// script before a response sample is emitted to K6UI.
-const RESPONSE_REDACTOR_SOURCE = `
-function redactResponseSample(value) {
-  let text = String(value == null ? '' : value).slice(0, 500);
-  text = text.replace(/(["']?(?:authorization|proxy-authorization|token|access_token|refresh_token|api[_-]?key|password|passwd|secret)["']?\\s*[:=]\\s*)["']?[^,"'&\\s}]+/gi, '$1[REDACTED]');
-  text = text.replace(/(Bearer\\s+)[A-Za-z0-9._~+\\/-]+=*/gi, '$1[REDACTED]');
-  return text;
+// Request logging is opt-in because URLs, headers and bodies can contain
+// credentials or personal data. These helpers run inside the generated k6
+// script: they pick which requests to log (REQUEST_LOG, see
+// public/js/request-log.js), redact common secrets, cap the bodies, and print
+// one {__r:1,...} JSON line that k6-runner.js turns into a req-log event.
+const REQUEST_LOG_HELPERS = String.raw`
+// Bearer tokens first ("Authorization: Bearer x" would otherwise hide only the word Bearer).
+// A secret field keeps its quotes ("password":"[REDACTED]"), so a JSON body stays JSON;
+// a quoted value cut at the size cap (no closing quote) is redacted to its end.
+function redactText(value) {
+  return String(value == null ? '' : value)
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi, '$1[REDACTED]')
+    .replace(/(["']?(?:authorization|proxy-authorization|token|access_token|refresh_token|api[_-]?key|password|passwd|secret)["']?\s*[:=]\s*)("(?:[^"\\]|\\.)*"?|'[^']*'?|[^,"'&\s}]+)/gi, function (match, key, secret) {
+      const quote = secret.charAt(0) === '"' || secret.charAt(0) === "'" ? secret.charAt(0) : '';
+      return key + quote + '[REDACTED]' + quote;
+    });
+}
+
+function redactResponseSample(value, limit) {
+  const text = String(value == null ? '' : value);
+  const max = limit || 500;
+  if (text.length <= max) return redactText(text);
+  return redactText(text.slice(0, max)) + '\n… [' + (text.length - max) + ' more characters not shown]';
 }
 
 function redactRequestUrl(value) {
-  const text = redactResponseSample(value);
+  const text = redactText(String(value == null ? '' : value).slice(0, 2048));
   const queryStart = text.indexOf('?');
   if (queryStart < 0) return text;
   return text.slice(0, queryStart + 1) + text.slice(queryStart + 1)
@@ -43,13 +58,72 @@ function redactRequestUrl(value) {
       const separator = part.indexOf('=');
       if (separator < 0) return part;
       const key = part.slice(0, separator);
-      const decodedKey = decodeURIComponent(key.replace(/\\+/g, ' '));
+      let decodedKey = key;
+      try { decodedKey = decodeURIComponent(key.replace(/\+/g, ' ')); } catch (e) {}
       return /(?:authorization|token|api[_-]?key|password|passwd|secret)/i.test(decodedKey)
         ? key + '=[REDACTED]'
         : part;
     })
     .join('&');
+}
+
+// Header names whose value is never logged (Authorization, Cookie, Set-Cookie, X-Api-Key, ...).
+const SECRET_HEADER_NAME = /authorization|cookie|token|secret|password|passwd|api[_-]?key|session|signature|credential/i;
+
+function redactHeaders(headers) {
+  const out = {};
+  if (!headers || typeof headers !== 'object') return out;
+  Object.keys(headers).forEach(function (name) {
+    const value = headers[name];
+    const text = Array.isArray(value) ? value.join(', ') : String(value == null ? '' : value);
+    out[name] = SECRET_HEADER_NAME.test(name) ? '[REDACTED]' : redactResponseSample(text, 1024);
+  });
+  return out;
+}
+
+function errorText(error) {
+  if (!error) return '';
+  return redactResponseSample(typeof error === 'object' ? (error.message || JSON.stringify(error)) : error, 500);
+}
+
+function shouldLogRequest(ok) {
+  if (REQUEST_LOG.filter === 'errors') return !ok;
+  if (REQUEST_LOG.filter === 'sample') return !ok || __ITER % REQUEST_LOG.every === 0;
+  return true;
+}
+
+function logHttpRequest(i, method, url, res) {
+  const ok = res.status >= 200 && res.status < 400;
+  if (!shouldLogRequest(ok)) return;
+  const request = res.request || {};
+  console.log(JSON.stringify({
+    __r: 1, vu: __VU, it: __ITER, i: i, m: method, url: redactRequestUrl(url),
+    s: res.status, d: +(res.timings.duration.toFixed(1)), ok: ok, er: errorText(res.error),
+    rqh: redactHeaders(request.headers), rq: redactResponseSample(request.body, REQUEST_LOG.bodyLimit),
+    rh: redactHeaders(res.headers), rb: redactResponseSample(res.body, REQUEST_LOG.bodyLimit),
+  }));
 }`;
+
+// Only in scripts with a gRPC request.
+const GRPC_REQUEST_LOG_HELPER = String.raw`
+function logGrpcRequest(i, address, method, message, metadata, res, duration) {
+  const ok = !!res && res.status === 0;
+  if (!shouldLogRequest(ok)) return;
+  console.log(JSON.stringify({
+    __r: 1, vu: __VU, it: __ITER, i: i, m: 'gRPC', url: redactRequestUrl(String(address) + '/' + String(method)),
+    s: res ? res.status : null, d: duration, ok: ok, er: errorText(res && res.error),
+    rqh: redactHeaders(metadata), rq: redactResponseSample(JSON.stringify(message || {}), REQUEST_LOG.bodyLimit),
+    rh: redactHeaders(res && res.headers), rb: redactResponseSample(JSON.stringify((res && res.message) || {}), REQUEST_LOG.bodyLimit),
+  }));
+}`;
+
+function requestLogSource(settings, withGrpc) {
+  const config = { filter: settings.logFilter, every: settings.logSampleEvery, bodyLimit: LOG_BODY_LIMIT };
+  return `\n// Request details for K6UI (Run & Results → Requests)\nconst REQUEST_LOG = ${JSON.stringify(config)};\n`
+    + REQUEST_LOG_HELPERS
+    + (withGrpc ? `\n${GRPC_REQUEST_LOG_HELPER}` : "")
+    + "\n";
+}
 
 // Global variables must be valid JS identifiers: they are emitted as object
 // keys on GLOBALS and referenced via dot access ({{name}} → GLOBALS.name).
@@ -114,7 +188,8 @@ function mergeHeaders(globalHeaders, reqHeaders) {
 export function generateScript(config) {
   const scenario    = config.scenario || {};
   const options     = buildOptions(config);
-  const logRequests = !!(config.options && config.options.logRequests);
+  const requestLog  = normalizeRequestLog(config.options);
+  const logRequests = requestLog.logRequests;
   const globals     = collectGlobalVars(config.variables);
   const globalVars  = new Set(globals.keys());
 
@@ -164,13 +239,13 @@ export function generateScript(config) {
   let out = "";
   out += `import http from 'k6/http';\n`;
   out += `import { sleep, check } from 'k6';\n\n`;
-  if (logRequests) out += `${RESPONSE_REDACTOR_SOURCE}\n\n`;
   if (grpcIndexes.length)              out += `import grpc from 'k6/net/grpc';\n`;
   if (/\bcrypto\./.test(allScripts))   out += `import crypto from 'k6/crypto';\n`;
   if (/\bencoding\./.test(allScripts)) out += `import encoding from 'k6/encoding';\n`;
   out += buildDataImports(dataSets);
   out += `\n`;
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
+  if (logRequests) out += requestLogSource(requestLog, grpcIndexes.length > 0);
 
   if (globals.size > 0) {
     out += `\n// Global variables — used via {{name}} in URLs, headers, and bodies\n`;

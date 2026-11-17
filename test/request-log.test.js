@@ -1,0 +1,181 @@
+// Request details (Run & Results → Requests): settings, the helpers the generated
+// script uses to log each request (run in Node through test/helpers/load-script.js),
+// the import round trip, and the server-side rate limit.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { generateScript } from '../server/generator/index.js';
+import { importK6Script } from '../server/importer/index.js';
+import { createRequestLogThrottle } from '../server/request-log-throttle.js';
+import { normalizeRequestLog, DEFAULT_SAMPLE_EVERY, MAX_SAMPLE_EVERY } from '../public/js/request-log.js';
+import { loadScript } from './helpers/load-script.js';
+
+const configOf = (requests, options) => ({
+  scenario: { requests },
+  load: { mode: 'simple', vus: '1', duration: '1s' },
+  options,
+});
+
+const post = {
+  method: 'POST', url: 'https://api.test/login?api_key=k-123&page=2', sleepAfter: '0',
+  headers: [{ key: 'Authorization', value: 'Bearer abc.def' }, { key: 'Content-Type', value: 'application/json' }],
+  body: '{"user":"ana","password":"hunter2"}',
+};
+
+// What k6 hands back: res.request carries the sent headers (name → array) and body.
+function respond(status, body, headers = {}) {
+  return (call) => ({
+    status,
+    body,
+    headers,
+    error: status === 0 ? 'dial: connection refused' : '',
+    request: {
+      method: call.method,
+      url: call.url,
+      body: call.body ?? '',
+      headers: Object.fromEntries(Object.entries(call.params?.headers || {}).map(([name, value]) => [name, [value]])),
+    },
+  });
+}
+
+const records = (script) => script.logs.map(line => JSON.parse(line));
+
+test('settings: unknown filter → all, sample interval is a whole number in range', () => {
+  assert.deepEqual(normalizeRequestLog(undefined), { logRequests: false, logFilter: 'all', logSampleEvery: DEFAULT_SAMPLE_EVERY });
+  assert.deepEqual(normalizeRequestLog({ logRequests: true, logFilter: 'errors', logSampleEvery: '3' }),
+    { logRequests: true, logFilter: 'errors', logSampleEvery: 3 });
+  assert.equal(normalizeRequestLog({ logFilter: 'nope' }).logFilter, 'all');
+  for (const bad of ['0', '-2', '1.5', 'abc', '']) {
+    assert.equal(normalizeRequestLog({ logSampleEvery: bad }).logSampleEvery, DEFAULT_SAMPLE_EVERY, bad);
+  }
+  assert.equal(normalizeRequestLog({ logSampleEvery: 10 ** 9 }).logSampleEvery, MAX_SAMPLE_EVERY);
+});
+
+test('no request log code at all while recording is off', () => {
+  const script = generateScript(configOf([post], { logRequests: false, logFilter: 'errors' }));
+  assert.doesNotMatch(script, /REQUEST_LOG|logHttpRequest|redact/);
+});
+
+test('a record carries the request payload and headers and the response headers and body, redacted', () => {
+  const script = loadScript(generateScript(configOf([post], { logRequests: true })), {
+    respond: respond(200, '{"token":"tok-1","name":"<b>ana</b>"}', {
+      'Content-Type': 'application/json', 'Set-Cookie': 'sid=secret', 'X-Trace': 'abc',
+    }),
+  });
+  script.iteration(1, 0);
+  const [record] = records(script);
+  assert.equal(record.__r, 1);
+  assert.equal(record.m, 'POST');
+  assert.equal(record.s, 200);
+  assert.equal(record.ok, true);
+  assert.equal(record.er, '');
+  assert.equal(record.url, 'https://api.test/login?api_key=[REDACTED]&page=2');
+  assert.deepEqual(record.rqh, { Authorization: '[REDACTED]', 'Content-Type': 'application/json' });
+  assert.equal(record.rq, '{"user":"ana","password":"[REDACTED]"}');
+  assert.deepEqual(record.rh, { 'Content-Type': 'application/json', 'Set-Cookie': '[REDACTED]', 'X-Trace': 'abc' });
+  assert.equal(record.rb, '{"token":"[REDACTED]","name":"<b>ana</b>"}');
+  assert.ok(!JSON.stringify(record).includes('hunter2') && !JSON.stringify(record).includes('tok-1'));
+});
+
+test('bodies are capped at 4 KB with a note of what was left out', () => {
+  const big = 'x'.repeat(5000);
+  const script = loadScript(generateScript(configOf([{ ...post, body: big, headers: [] }], { logRequests: true })), {
+    respond: respond(200, big),
+  });
+  script.iteration(1, 0);
+  const [record] = records(script);
+  assert.equal(record.rq, `${'x'.repeat(4096)}\n… [904 more characters not shown]`);
+  assert.equal(record.rb, record.rq);
+});
+
+test('a failed connection is logged with its error message', () => {
+  const script = loadScript(generateScript(configOf([post], { logRequests: true })), { respond: respond(0, null) });
+  script.iteration(1, 0);
+  const [record] = records(script);
+  assert.equal(record.s, 0);
+  assert.equal(record.ok, false);
+  assert.equal(record.er, 'dial: connection refused');
+  assert.equal(record.rb, '');
+});
+
+test('"errors" logs failed requests only; "sample" logs every Nth iteration plus every failure', () => {
+  const statuses = [200, 500, 200, 200, 404, 200];
+  const run = (options) => {
+    let call = 0;
+    const script = loadScript(generateScript(configOf([post], { logRequests: true, ...options })), {
+      respond: (request) => respond(statuses[call++], '{}')(request),
+    });
+    statuses.forEach((_, iteration) => script.iteration(1, iteration));
+    return records(script).map(record => `${record.it}:${record.s}`);
+  };
+  assert.deepEqual(run({ logFilter: 'all' }), ['0:200', '1:500', '2:200', '3:200', '4:404', '5:200']);
+  assert.deepEqual(run({ logFilter: 'errors' }), ['1:500', '4:404']);
+  assert.deepEqual(run({ logFilter: 'sample', logSampleEvery: 3 }), ['0:200', '1:500', '3:200', '4:404']);
+});
+
+test('a gRPC record carries the message, metadata, response message and the measured duration', () => {
+  const grpc = {
+    type: 'grpc', url: 'localhost:50051', grpcMethod: 'hello.Greeter/SayHello', grpcPlaintext: true,
+    body: '{"name":"ana"}', headers: [{ key: 'x-request-id', value: 'r1' }, { key: 'authorization', value: 'secret' }],
+  };
+  const script = loadScript(generateScript(configOf([grpc], { logRequests: true })), {
+    grpcResponse: { message: { reply: 'hi ana' }, headers: { 'content-type': ['application/grpc'] } },
+  });
+  script.iteration(1, 0);
+  const [record] = records(script);
+  assert.equal(record.m, 'gRPC');
+  assert.equal(record.url, 'localhost:50051/hello.Greeter/SayHello');
+  assert.equal(record.ok, true);
+  assert.equal(typeof record.d, 'number');
+  assert.equal(record.rq, '{"name":"ana"}');
+  assert.deepEqual(record.rqh, { 'x-request-id': 'r1', authorization: '[REDACTED]' });
+  assert.deepEqual(record.rh, { 'content-type': 'application/grpc' });
+  assert.equal(record.rb, '{"reply":"hi ana"}');
+});
+
+test('importing a K6UI script keeps which requests it records, without warnings', () => {
+  for (const options of [
+    { logRequests: true, logFilter: 'sample', logSampleEvery: 7 },
+    { logRequests: true, logFilter: 'errors', logSampleEvery: 10 },
+  ]) {
+    const { config, warnings } = importK6Script(generateScript(configOf([post], options)));
+    assert.deepEqual(config.options, options);
+    assert.deepEqual(warnings, []);
+  }
+  const { config } = importK6Script(generateScript(configOf([post], { logRequests: false })));
+  assert.deepEqual(config.options, { logRequests: false });
+});
+
+test('the server forwards at most `rate` passed and `rate` failed records a second and counts the rest', () => {
+  let time = 0;
+  const events = [];
+  const throttle = createRequestLogThrottle((event, data) => events.push({ event, data }), { rate: 2, now: () => time });
+  for (let i = 0; i < 4; i++) throttle.add({ i, ok: true });
+  throttle.add({ i: 'e1', ok: false });
+  throttle.add({ i: 'e2', ok: false });
+  throttle.add({ i: 'e3', ok: false });
+  time = 1000;
+  throttle.add({ i: 'next', ok: true });
+  throttle.flush();
+
+  assert.deepEqual(events.filter(e => e.event === 'req-log').map(e => e.data.i), [0, 1, 'e1', 'e2', 'next']);
+  const skipped = events.filter(e => e.event === 'req-log-skipped').map(e => e.data.skipped);
+  assert.deepEqual(skipped, [1, 3], 'reported once in the first second, then the total on flush');
+});
+
+test('flush reports nothing when no record was left out', () => {
+  const events = [];
+  const throttle = createRequestLogThrottle((event, data) => events.push({ event, data }));
+  throttle.add({ ok: true });
+  throttle.flush();
+  assert.deepEqual(events.map(e => e.event), ['req-log']);
+});
+
+test('"Authorization: Bearer <token>" in a body hides the token, not just the word Bearer', () => {
+  const script = loadScript(generateScript(configOf([post], { logRequests: true })), {
+    respond: respond(200, 'echo Authorization: Bearer secret-777'),
+  });
+  script.iteration(1, 0);
+  const [record] = records(script);
+  assert.ok(!record.rb.includes('secret-777'), record.rb);
+});

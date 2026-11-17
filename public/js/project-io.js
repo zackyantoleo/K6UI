@@ -11,6 +11,8 @@ import { collectConfig } from './config.js';
 import { migrateProject, projectStore, serializeProject } from './project-store.js';
 import { refreshRequestGroupOptions, restoreGroups } from './components/request-groups.js';
 import { restoreDataSets } from './data-files.js';
+import { normalizeRequestLog } from './request-log.js';
+import { syncRequestLogFields } from './runner.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 export function hydrateRequestCard(card, req) {
@@ -100,8 +102,14 @@ export function applyConfig(cfg) {
 
   $('#p95').value       = cfg.thresholds?.p95       ?? '';
   $('#errorRate').value = cfg.thresholds?.errorRate ?? '';
+  const requestLog = normalizeRequestLog(cfg.options);
   const logReqEl = $('#log-requests');
-  if (logReqEl) logReqEl.checked = cfg.options?.logRequests ?? false;
+  if (logReqEl) logReqEl.checked = requestLog.logRequests;
+  const logFilterEl = $('#log-filter');
+  if (logFilterEl) logFilterEl.value = requestLog.logFilter;
+  const logEveryEl = $('#log-sample-every');
+  if (logEveryEl) logEveryEl.value = String(requestLog.logSampleEvery);
+  syncRequestLogFields();
 
   restoreGroups(cfg.scenario?.groups || []);
   restoreZone(cfg.scenario?.requests || []);

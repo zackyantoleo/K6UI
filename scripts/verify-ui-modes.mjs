@@ -513,14 +513,22 @@ try {
         rows: document.querySelectorAll('#req-log-tbody .req-log-row').length,
         count: document.querySelector('#req-log-count').textContent,
         urls: [...document.querySelectorAll('#req-log-tbody .req-url-cell')].map(cell => cell.textContent),
-        detail: document.querySelector('#req-log-tbody .req-detail-body')?.textContent || '',
+        detail: document.querySelector('#req-log-tbody .req-detail-row')?.textContent || '',
+        detailSections: [...document.querySelectorAll('#req-log-tbody .req-detail-row .req-detail-section h4')].map(h => h.textContent),
+        detailHeaders: document.querySelectorAll('#req-log-tbody .req-detail-row .req-detail-headers dt').length,
+        skippedShown: !document.querySelector('#req-log-skipped').hidden,
         log: document.querySelector('#log-output').textContent,
         images: document.querySelectorAll('img').length,
         xss: window.__k6uiXss,
         verdict: document.querySelector('#run-verdict').className,
       }));
-      assert.equal(results.rows, 500, 'Request detail rows are capped at 500');
-      assert.equal(results.count, '500');
+      // The server sends at most 50 passed records a second (the rest are counted in a notice),
+      // the browser keeps the 500 most recent.
+      assert.ok(results.rows > 0 && results.rows <= 500, `Request detail rows are capped at 500 (${results.rows})`);
+      assert.equal(results.count, String(results.rows));
+      assert.ok(results.skippedShown, 'Records over the rate limit are reported');
+      assert.deepEqual(results.detailSections, ['Request', 'Response'], 'Detail shows request and response');
+      assert.ok(results.detailHeaders > 0, 'Detail lists headers');
       assert.ok(results.urls.every(text => text.includes('[REDACTED]') && !text.includes('abc-secret-key')), 'Query secrets redacted');
       assert.match(results.detail, /\[REDACTED\]/);
       assert.ok(!results.detail.includes('tok-secret-123'), 'Response token redacted');
@@ -542,7 +550,7 @@ try {
       await page.waitForFunction(() => document.querySelector('#run-state').textContent === 'PASSED', null, { timeout: 30000 });
       assert.equal(await page.locator('#req-log-count').textContent(), '0', 'Request details are opt-in');
       assert.equal(runPosts.length, 2, 'One POST /api/run per run');
-      checks.push(`A8/A9 real local run (127.0.0.1 only, switch mid-run): request rows capped at 500, live log capped at 1500 lines with notice; query/response secrets [REDACTED]; response and request-name markup stays text (0 <img>, no script ran); PASSED verdict; request details off → 0 rows`);
+      checks.push(`A8/A9 real local run (127.0.0.1 only, switch mid-run): request rows capped at 500 (50/s from the server, skipped ones reported), request and response detail, live log capped at 1500 lines with notice; query/response secrets [REDACTED]; response and request-name markup stays text (0 <img>, no script ran); PASSED verdict; request details off → 0 rows`);
     } finally {
       target.closeAllConnections?.();
       await new Promise(done => target.close(done));

@@ -451,9 +451,14 @@ function unsupported(stmt, state) {
   state.ctx.warn(stmt, `Skipped \`${sourceOf(stmt, state.ctx)}\`: ${kind} cannot be imported${consequence}.`);
 }
 
-// try { console.log(...) } catch {} — the request-log line K6UI itself generates.
+// try { console.log(...) } catch {} or try { logHttpRequest(...) } catch {} — the
+// request-log line K6UI itself generates (helpers: server/generator/index.js).
+const REQUEST_LOG_CALLS = new Set(["logHttpRequest", "logGrpcRequest"]);
+const isRequestLogCall = (node) =>
+  isConsoleCall(node)
+  || (node?.type === "CallExpression" && node.callee.type === "Identifier" && REQUEST_LOG_CALLS.has(node.callee.name));
 const isLoggingOnly = (block) =>
-  block.body.length > 0 && block.body.every((s) => s.type === "ExpressionStatement" && isConsoleCall(unwrap(s.expression)));
+  block.body.length > 0 && block.body.every((s) => s.type === "ExpressionStatement" && isRequestLogCall(unwrap(s.expression)));
 
 function statement(stmt, state) {
   switch (stmt.type) {

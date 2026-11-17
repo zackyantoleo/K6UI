@@ -131,6 +131,11 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 .mc-value.bad { color: var(--danger); }
 
 .logging-control p { margin-top: 4px; color: var(--text-muted); }
+.logging-options { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-2); font-size: 13px; }
+.logging-options select { width: auto; max-width: 100%; }
+.log-sample-every { display: inline-flex; align-items: center; gap: var(--space-2); }
+.log-sample-every[hidden] { display: none; }
+.log-sample-every input { width: 96px; }
 .live-log-toolbar, .errors-toolbar {
   display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
   color: var(--text-muted); font-size: 13px;
@@ -149,7 +154,7 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 }
 .req-filter-label input { accent-color: var(--danger); }
 .req-filter-input { flex: 1; max-width: 340px; }
-.req-log-wrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.req-log-wrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); container-type: inline-size; }
 .req-log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .req-log-table caption { padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: var(--text-sm); text-align: left; caption-side: bottom; }
 .req-log-table thead th {
@@ -173,11 +178,40 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
   font-family: var(--font-mono); font-size: 12px;
 }
 .req-detail-row td { padding: 0; background: var(--code-bg) !important; }
-.req-detail-body {
-  margin: 0; padding: var(--space-3) var(--space-4); font-size: 12px; line-height: 1.6;
-  color: var(--text-muted); white-space: pre-wrap; word-break: break-all;
-  max-height: 220px; overflow-y: auto; border-left: 3px solid var(--accent-text);
+/* One record, expanded: Request and Response side by side (stacked on narrow screens). */
+/* The table can be wider than its scroll box (narrow screens): the detail stays in view,
+   as wide as the box (100cqi of .req-log-wrap), and its two sections stack. */
+.req-detail {
+  position: sticky; left: 0; box-sizing: border-box; width: 100cqi; max-width: 100%;
+  display: grid; gap: var(--space-3); padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--accent-text); white-space: normal;
 }
+.req-detail-error {
+  margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  background: var(--danger-lite); color: var(--danger); font-size: 13px; overflow-wrap: anywhere;
+}
+.req-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--space-4); }
+.req-detail-section { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.req-detail-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px var(--space-2); }
+.req-detail-section h4 { margin: 0; font-size: 13px; color: var(--text); }
+.req-detail-section h5 { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); }
+.req-detail-summary { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
+.req-detail-headers {
+  display: grid; grid-template-columns: minmax(80px, max-content) minmax(0, 1fr); gap: 2px var(--space-3);
+  margin: 0; max-height: 160px; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+}
+.req-detail-headers dt { color: var(--text-muted); overflow-wrap: anywhere; }
+.req-detail-headers dd { margin: 0; color: var(--code-text); overflow-wrap: anywhere; }
+.req-detail-empty { margin: 0; font-size: 12px; color: var(--text-muted); }
+.req-detail-body-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 28px; }
+.req-detail-body {
+  margin: 0; padding: var(--space-2) var(--space-3); font-size: 12px; line-height: 1.6;
+  color: var(--code-text); background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  white-space: pre-wrap; word-break: break-all; max-height: 320px; overflow: auto;
+}
+.req-detail-body:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.req-log-skipped { margin: 0; font-size: var(--text-sm); color: var(--warn); }
+.req-log-skipped[hidden] { display: none; }
 
 /* Save to CSV: rows of a run */
 .run-exports { display: flex; flex-direction: column; gap: 10px; }

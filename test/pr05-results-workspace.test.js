@@ -59,8 +59,10 @@ test('request result rows and metrics are built with text-safe DOM APIs', () => 
 test('request logging is opt-in and warns that response samples may contain sensitive data', () => {
   assert.match(html, /id="log-requests"(?![^>]*checked)/);
   assert.match(html, /response samples may contain sensitive data/i);
-  assert.match(requestGenerator, /redactResponseSample/);
-  assert.match(grpcGenerator, /redactResponseSample/);
+  assert.match(requestGenerator, /logHttpRequest\(/);
+  assert.match(grpcGenerator, /logGrpcRequest\(/);
+  assert.match(generator, /rq: redactResponseSample\(request\.body/);
+  assert.match(generator, /rb: redactResponseSample\(res\.body/);
   assert.match(generator, /authorization|token|password/i);
 });
 
@@ -87,8 +89,7 @@ test('live-log memory retention never exceeds the advertised cap', () => {
 });
 
 test('request logging redacts sensitive values from URLs as well as response samples', () => {
-  assert.match(requestGenerator, /url:redactRequestUrl\(String\(/);
-  assert.match(grpcGenerator, /url:redactRequestUrl\(String\(/);
+  assert.equal(generator.match(/url: redactRequestUrl\(/g)?.length, 2, 'HTTP and gRPC request logs');
   assert.match(generator, /decodeURIComponent/);
 });
 

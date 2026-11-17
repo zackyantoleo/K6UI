@@ -101,9 +101,10 @@ page error, console error, or unexpected dialog. It covers:
   an unknown `schemaVersion`
 - one action per click after many switches (Add Request, k6 Script, Save)
 - focus after deleting a request or group
-- a real local run: request rows capped at 500, live log capped at 1,500
-  lines, secrets redacted, response markup shown as text, request details
-  opt-in
+- a real local run: request rows capped at 500 (the server sends at most 50
+  passed records a second and reports the rest), request and response detail
+  with headers, live log capped at 1,500 lines, secrets redacted, response
+  markup shown as text, request details opt-in
 - a layout and accessibility audit of every view in both modes at 1440×900,
   1024×768, 768×1024, 375×812 and zoom 200% (720×450 CSS pixels at 2× device
   scale). It checks sideways scroll, duplicate IDs, clipped or overlapping

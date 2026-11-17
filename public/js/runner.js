@@ -10,6 +10,7 @@ const MAX_LOG_LINES = 1500;
 const LOG_FLUSH_MS = 80;
 
 let reqLogs = [];
+let reqLogReceived = 0;
 let errors = [];
 let abortCtrl = null;
 let logLines = [];
@@ -112,6 +113,84 @@ export function activateResultsTab(tabId, { focus = false } = {}) {
   if (focus) target.focus();
 }
 
+// A JSON body is shown indented; anything else (or a body cut at the size cap) as it came.
+function prettyBody(text) {
+  const value = String(text ?? '');
+  const trimmed = value.trim();
+  if (!/^[[{]/.test(trimmed)) return value;
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return value;
+  }
+}
+
+function makeElement(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = String(text);
+  return node;
+}
+
+function copyButton(label, text) {
+  const button = makeElement('button', 'btn ghost sm', 'Copy');
+  button.type = 'button';
+  button.setAttribute('aria-label', `Copy ${label}`);
+  if (!navigator.clipboard) button.hidden = true;
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      button.textContent = 'Copied';
+    } catch {
+      button.textContent = 'Copy failed';
+    }
+    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+  });
+  return button;
+}
+
+// One side of a record: "Request" (headers + payload) or "Response" (headers + body).
+function detailSection(title, summary, headers, body) {
+  const section = makeElement('section', 'req-detail-section');
+  section.setAttribute('aria-label', title);
+  const head = makeElement('div', 'req-detail-head');
+  head.append(makeElement('h4', '', title), makeElement('span', 'req-detail-summary', summary));
+  section.appendChild(head);
+
+  const recorded = headers && typeof headers === 'object';
+  const names = recorded ? Object.keys(headers) : [];
+  section.appendChild(makeElement('h5', '', `Headers (${names.length})`));
+  if (names.length) {
+    const list = makeElement('dl', 'req-detail-headers');
+    for (const name of names) list.append(makeElement('dt', '', name), makeElement('dd', '', headers[name]));
+    section.appendChild(list);
+  } else {
+    section.appendChild(makeElement('p', 'req-detail-empty', recorded ? 'No headers.' : 'Not recorded.'));
+  }
+
+  const bodyHead = makeElement('div', 'req-detail-body-head');
+  const bodyText = String(body ?? '');
+  bodyHead.appendChild(makeElement('h5', '', 'Body'));
+  if (bodyText) bodyHead.appendChild(copyButton(`${title.toLowerCase()} body`, bodyText));
+  section.appendChild(bodyHead);
+  const pre = makeElement('pre', 'req-detail-body', bodyText ? prettyBody(bodyText) : '(empty)');
+  pre.tabIndex = 0;
+  section.appendChild(pre);
+  return section;
+}
+
+function renderRequestDetail(entry) {
+  const detail = makeElement('div', 'req-detail');
+  if (entry.er) detail.appendChild(makeElement('p', 'req-detail-error', entry.er));
+  const grid = makeElement('div', 'req-detail-grid');
+  grid.append(
+    detailSection('Request', `${entry.m || 'request'} ${entry.url || ''}`, entry.rqh, entry.rq),
+    detailSection('Response', `Status ${entry.s ?? 'unknown'} · ${entry.d ?? 0} ms`, entry.rh, entry.rb),
+  );
+  detail.appendChild(grid);
+  return detail;
+}
+
 function renderReqLogRow(entry) {
   const row = document.createElement('tr');
   row.className = `req-log-row${entry.ok ? '' : ' req-row-err'}`;
@@ -145,10 +224,7 @@ function renderReqLogRow(entry) {
     detail.className = 'req-detail-row';
     const cell = appendCell(detail, '');
     cell.colSpan = 7;
-    const pre = document.createElement('pre');
-    pre.className = 'req-detail-body';
-    pre.textContent = entry.rb || '(empty response sample)';
-    cell.appendChild(pre);
+    cell.appendChild(renderRequestDetail(entry));
     row.after(detail);
   };
   row.addEventListener('click', toggleDetail);
@@ -173,8 +249,26 @@ export function applyReqFilter() {
   });
 }
 
+export function syncRequestLogFields() {
+  const field = $('#log-sample-every-field');
+  if (field) field.hidden = $('#log-filter')?.value !== 'sample';
+}
+
+function showSkippedRequestLogs(skipped) {
+  const notice = $('#req-log-skipped');
+  if (!notice) return;
+  const count = Number(skipped) || 0;
+  notice.hidden = count === 0;
+  notice.textContent = count
+    ? `${count} request ${count === 1 ? 'record was' : 'records were'} not shown: more than 50 a second arrived. `
+      + 'Record failed requests only, or a sample, to keep the ones that matter.'
+    : '';
+}
+
 function resetReqLog() {
   reqLogs = [];
+  reqLogReceived = 0;
+  showSkippedRequestLogs(0);
   $('#req-log-tbody').replaceChildren();
   setText('#req-log-count', '0');
   setText('#run-request-total', '0');
@@ -182,6 +276,7 @@ function resetReqLog() {
 
 function addRequestLog(entry) {
   reqLogs.push(entry);
+  reqLogReceived += 1;
   const tbody = $('#req-log-tbody');
   tbody.appendChild(renderReqLogRow(entry));
   if (reqLogs.length > MAX_REQ_LOGS) {
@@ -194,7 +289,7 @@ function addRequestLog(entry) {
     }
   }
   setText('#req-log-count', reqLogs.length);
-  setText('#run-request-total', reqLogs.length);
+  setText('#run-request-total', reqLogReceived);
   applyReqFilter();
   if (!entry.ok) addError(`${entry.m || 'Request'} ${entry.url || ''} returned status ${entry.s}.`);
 }
@@ -335,6 +430,7 @@ function handleSSE(event, data) {
     addError(data.message);
     setVerdict({ status: 'failed', title: 'Test failed to run', detail: data.message, mark: '×' });
   } else if (event === 'req-log') addRequestLog(data);
+  else if (event === 'req-log-skipped') showSkippedRequestLogs(data.skipped);
   else if (event === 'export') addExportRows(data);
   else if (event === 'done') finishRun(data);
 }

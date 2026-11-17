@@ -65,10 +65,11 @@ export function buildGrpcRequestCode(req, index, prefix, ctx, logRequests) {
   const extractCode = buildExtractionLines(req.extractions, resVar, null, ctx && ctx.localVars, "grpc", ctx && ctx.hoistedVars);
   if (extractCode) lines.push(extractCode);
 
-  // Same {__r:1,...} JSON shape as HTTP requests → "Request Details" table.
+  // Same {__r:1,...} JSON line as HTTP requests (logGrpcRequest() in generator/index.js).
   if (logRequests) {
+    const metadataObject = metadataCode ? `{ ${metadataCode} }` : "{}";
     lines.push(
-      `  try { console.log(JSON.stringify({__r:1,vu:__VU,it:__ITER,i:${index},m:"gRPC",url:redactRequestUrl(String(${addrCode})+"/"+String(${methodCode})),s:${resVar}.status,d:+(${resVar}.timings.duration.toFixed(1)),ok:${resVar}.status===0,rb:redactResponseSample(JSON.stringify(${resVar}.message||{}))})); } catch(e) {}`
+      `  try { logGrpcRequest(${index}, ${addrCode}, ${methodCode}, ${msgVar}, ${metadataObject}, ${resVar}, d_${prefix}_${index}); } catch (e) {}`
     );
   }
 

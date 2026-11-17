@@ -8,6 +8,7 @@ import { collectDataSets, validateDataSets } from './data-files.js';
 import { readExtractionRow } from './components/rows.js';
 import { readExportBlocks } from './components/export-rows.js';
 import { exportsProblem } from './csv-export.js';
+import { normalizeRequestLog } from './request-log.js';
 
 // ── Row readers ────────────────────────────────────────────────
 function readHeaderRows(scope) {
@@ -95,7 +96,11 @@ export function collectConfig() {
     globalHeaders: readHeaderRows($('#global-headers-list')),
     load,
     thresholds:    { p95: $('#p95').value, errorRate: $('#errorRate').value },
-    options:       { logRequests: $('#log-requests')?.checked ?? true },
+    options:       normalizeRequestLog({
+      logRequests:    $('#log-requests')?.checked ?? true,
+      logFilter:      $('#log-filter')?.value,
+      logSampleEvery: $('#log-sample-every')?.value,
+    }),
   };
   return projectStore.replace(config);
 }
