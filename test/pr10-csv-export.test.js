@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 import { summarizeAdvancedSettings } from '../public/js/components/advanced-notice.js';
+import { readStyles } from './helpers/styles.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
-const css = read('../public/css/style.css');
+const css = readStyles();
 const exportRows = read('../public/js/components/export-rows.js');
 const extractPanel = read('../public/js/components/request-editor/extract.js');
 const reqCard = read('../public/js/components/req-card.js');

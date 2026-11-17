@@ -7,7 +7,7 @@ never changes what a test sends, how it runs, or what is saved.
 | | Simple | Advanced |
 |---|---|---|
 | Navigation | Four steps: Build Flow, Data & Rules, Load, Run & Results | Direct categories: Request Flow, Variables, Headers, Data files, Load Profile, Thresholds / SLA, k6 Script, Run & Results |
-| Request flow | Request cards in execution order, expand one to edit | Outline on the left (execution order + group label; a group also shows its condition), the selected request or group editor on the right |
+| Request flow | Request cards in execution order, click one to edit; request groups sit below the list | Outline on the left (execution order + group label; a group also shows its condition), the selected request or group editor on the right |
 | Hidden settings | An **Advanced settings configured** notice lists categories and counts (never values) | Every setting is reachable from the outline and editor tabs |
 | Load | Presets first, **Customize** opens the editor | The custom editor is always open; presets are optional and ask before replacing custom values |
 | Results | Overview first, detail tabs available | Same panel plus shortcuts to Requests, Metrics, Errors, Live log |
@@ -50,7 +50,8 @@ when changing either mode.
 | `public/js/components/export-rows.js` | "Save to CSV" blocks in the Extract tab, one DOM for both modes; values are DOM properties |
 | `public/js/export-results.js` | "Saved to CSV" in the Overview of Run & Results, shown in both modes; rows live in this tab's memory until the next run, names are rendered with `textContent` |
 | `public/js/components/advanced-notice.js` | Simple notice: pure `summarizeAdvancedSettings()` plus a DOM adapter that reads live panels when hydrated, otherwise `card.requestState` |
-| `public/css/style.css` | `[data-ui-only="simple|advanced"]` hides one-mode pieces; `html[data-ui-mode="advanced"]` rules lay out the outline and editor |
+| `public/css/base.css`, `flow.css`, `views.css` | `[data-ui-only="simple|advanced"]` hides one-mode pieces (`base.css`); `html[data-ui-mode="advanced"]` rules lay out the outline and editor (`flow.css`) and keep the load editor open (`views.css`) |
+| `public/js/components/load-chart.js` | "Load shape" on the Load view, shown in both modes; it reads the load inputs as typed and never the store or the mode |
 
 Structural edits (add, duplicate, move, delete, cURL import, group changes)
 call `notifyFlowChanged()` from `components/counts.js`. The outline and notice
@@ -65,7 +66,6 @@ Shown in Simple only, under the Build Flow hint. It counts requests (or groups)
 that will run with:
 
 - gRPC protocol
-- Before/After sub-requests
 - response extraction
 - Save to CSV (requests that save rows; never the file name)
 - custom checks
@@ -95,7 +95,7 @@ page error, console error, or unexpected dialog. It covers:
 
 - config and generated-script parity across switches and selections for a rich
   project (interleaved groups, collapsed and disabled items, gRPC,
-  Before/After, lazy scripts, stages, thresholds), plus header precedence
+  lazy scripts, stages, thresholds), plus header precedence
   `global < group < request`
 - Save in Simple → Open in Advanced → Save → Open in Simple, v1 migration, and
   an unknown `schemaVersion`

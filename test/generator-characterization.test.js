@@ -28,12 +28,10 @@ test('HTTP generation preserves load, thresholds, headers, extraction, assertion
           { key: 'x-override', value: 'request' },
         ],
         body: '{"name":"zack"}', checkStatus: true, sleepAfter: 1,
-        pre: { method: 'GET', url: '{{baseUrl}}/before', headers: [], body: '', extractions: [] },
         preScript: "vars.seed = 'x';",
         extractions: [{ varName: 'token', source: 'json', selector: 'token' }],
         assertions: [{ type: 'body-contains', value: 'ok', value2: '' }],
         postScript: 'vars.done = res.status;',
-        post: { method: 'GET', url: '{{baseUrl}}/after', headers: [], body: '', extractions: [] },
       }],
     },
   });
@@ -49,14 +47,12 @@ test('HTTP generation preserves load, thresholds, headers, extraction, assertion
   assert.match(script, /let token = JSON\.parse\(res_main_0\.body\)/);
   assert.match(script, /"body contains \\"ok\\""/);
   indexInOrder(script, [
-    '// Pre: request 1',
     '// Pre-processor: request 1',
     '// Request 1: POST',
     'let token =',
     'sleep(1);',
     'body contains',
     '// Post-processor: request 1',
-    '// Post: request 1',
   ]);
 });
 

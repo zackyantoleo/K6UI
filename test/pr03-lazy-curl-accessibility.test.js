@@ -28,9 +28,7 @@ test('lazy request tabs implement linked tabpanels and keyboard navigation', () 
   assert.match(reqCard, /End/);
 });
 
-test('request duplication retains its fresh ID and includes before/after request data', () => {
+test('request duplication retains its fresh ID; the editor has no Before/After sub-requests', () => {
   assert.doesNotMatch(reqCard, /clone\.dataset\.requestId\s*=\s*''/);
-  assert.match(reqCard, /snapshot\.subRequests/);
-  assert.match(reqCard, /applySubRequestSnapshot\(card, 'pre'/);
-  assert.match(reqCard, /applySubRequestSnapshot\(card, 'post'/);
+  assert.doesNotMatch(reqCard, /subreq|subRequests/);
 });

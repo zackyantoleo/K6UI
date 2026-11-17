@@ -121,8 +121,7 @@ does not add the field, and an extraction without it (or with `""`) behaves exac
 | `default` | Fixed text (never an expression), used when nothing matches: a missing JSON path or header, no regex match, a body that is not JSON, or no body. A match that is `""`, `0` or `false` is kept. Also the value a skipped conditional group leaves behind (see below) |
 
 The store keeps a non-empty string as typed (no trimming), turns a number or boolean into text,
-and drops anything else, `""` included. It applies to the extractions of a request and of its
-Before/After requests. Without a default the old fallbacks stay: `""` for a regex with no match,
+and drops anything else, `""` included. Without a default the old fallbacks stay: `""` for a regex with no match,
 `undefined` for a missing JSON path or header, and an error that ends the k6 iteration for a body
 that is not JSON. The generated script reads a value with a default through one small helper,
 `extractOr(() => <read>, "<default>")`, written only when it is used.
@@ -184,7 +183,7 @@ handed that cannot work, or that reads a variable not known when the group start
 that names the group and the variable.
 
 How it runs (`server/generator/run-if.js`): the requests of the group sit inside
-`if (...) { ... }` in the default function, with their Before/After requests, processors,
+`if (...) { ... }` in the default function, with their processors,
 assertions, request log, pauses, and gRPC calls. Requests of one group that are not next to
 each other are separate runs, each checked when it starts. A variable that the group extracts
 is declared above the block (`let name = "";`), so later requests can use `{{name}}`; when the

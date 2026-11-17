@@ -53,7 +53,7 @@ test('UI preference accepts only simple/advanced and defaults to Advanced', () =
 const noticeModule = () => import('../public/js/components/advanced-notice.js');
 const req = (extra = {}) => ({
   enabled: true, groupId: '', type: 'http', preScript: '', postScript: '', extractions: [],
-  assertions: [], sleepAfter: undefined, checkStatus: true, pre: null, post: null, ...extra,
+  assertions: [], sleepAfter: undefined, checkStatus: true, ...extra,
 });
 const activeCounts = summary => Object.fromEntries(summary.active.map(item => [item.id, item.count]));
 
@@ -73,19 +73,19 @@ test('notice summary counts each advanced category once per runnable request', a
   const summary = summarizeAdvancedSettings([
     req({ type: 'grpc', preScript: 'vars.secret = "s3cr3t";' }),
     req({ postScript: 'vars.id = 1;', extractions: [{ varName: 'token' }, { varName: 'id' }] }),
-    req({ pre: { url: 'http://127.0.0.1/setup' }, post: { url: '  ' }, assertions: [{ type: 'status-eq' }] }),
+    req({ assertions: [{ type: 'status-eq' }] }),
     req({ sleepAfter: '0', checkStatus: false }),
-    req({ sleepAfter: '', post: { url: 'http://127.0.0.1/logout' } }),
+    req({ sleepAfter: '' }),
     req({ sleepAfter: '2.5', groupId: 'grp_auth' }),
   ], [
     { id: 'grp_auth', enabled: true, headers: [{ key: 'Authorization' }] },
     { id: 'grp_plain', enabled: true, headers: [] },
   ]);
   assert.deepEqual(activeCounts(summary), {
-    grpc: 1, subRequests: 2, extractions: 1, checks: 1, scripts: 2, pacing: 3, statusCheck: 1, groupHeaders: 1,
+    grpc: 1, extractions: 1, checks: 1, scripts: 2, pacing: 3, statusCheck: 1, groupHeaders: 1,
   });
   assert.deepEqual(summary.active.map(item => item.unit), [
-    'request', 'request', 'request', 'request', 'request', 'request', 'request', 'group',
+    'request', 'request', 'request', 'request', 'request', 'request', 'group',
   ]);
   assert.deepEqual(summary.skipped, { requests: 0, groups: 0 });
   assert.equal(summary.visible, true);

@@ -41,73 +41,6 @@ function button(label, className, text) {
   return control;
 }
 
-function buildSubReqSection(position) {
-  const isPost = position === 'post';
-  const wrapper = document.createElement('div');
-  wrapper.className = `subreq-section subreq-${position}`;
-  const addButton = button(`Add ${isPost ? 'after' : 'before'} request`, 'add-subreq-btn', `+ ${isPost ? 'After' : 'Before'} request`);
-  const form = document.createElement('div');
-  form.className = 'subreq-form hidden';
-
-  const mainRow = document.createElement('div');
-  mainRow.className = 'subreq-main-row';
-  const method = document.createElement('select');
-  method.className = 'sr-method';
-  for (const value of METHODS) {
-    const option = document.createElement('option');
-    option.value = option.textContent = value;
-    method.appendChild(option);
-  }
-  const url = document.createElement('input');
-  url.className = 'sr-url';
-  url.placeholder = isPost ? 'Cleanup / logout URL' : 'Setup / authentication URL';
-  const remove = button(`Remove ${isPost ? 'after' : 'before'} request`, 'row-remove', '×');
-  mainRow.append(method, url, remove);
-
-  const detailsButton = button(`Show ${isPost ? 'after' : 'before'} request details`, 'subreq-expand', 'Headers, body & extraction');
-  detailsButton.setAttribute('aria-expanded', 'false');
-  const details = document.createElement('div');
-  details.className = 'subreq-details hidden';
-  const headers = document.createElement('div');
-  headers.className = 'sr-headers-list';
-  const addHeader = button('Add sub-request header', 'add-row-btn', '+ Header');
-  addHeader.addEventListener('click', () => headers.appendChild(headerRow()));
-  const body = document.createElement('textarea');
-  body.className = 'sr-body';
-  body.placeholder = 'Optional request body';
-  const extracts = document.createElement('div');
-  extracts.className = 'sr-extractions-list';
-  const addExtract = button('Add sub-request extraction', 'add-row-btn', '+ Extract Variable');
-  addExtract.addEventListener('click', () => extracts.appendChild(extractionRow()));
-  details.append(headers, addHeader, body, extracts, addExtract);
-  form.append(mainRow, detailsButton, details);
-  wrapper.append(addButton, form);
-
-  addButton.addEventListener('click', () => {
-    addButton.classList.add('hidden');
-    form.classList.remove('hidden');
-    url.focus();
-  });
-  detailsButton.addEventListener('click', () => {
-    const expanded = details.classList.toggle('hidden') === false;
-    detailsButton.classList.toggle('active', expanded);
-    detailsButton.setAttribute('aria-expanded', String(expanded));
-  });
-  remove.addEventListener('click', () => {
-    method.value = 'GET';
-    url.value = '';
-    headers.replaceChildren();
-    body.value = '';
-    extracts.replaceChildren();
-    details.classList.add('hidden');
-    detailsButton.classList.remove('active');
-    detailsButton.setAttribute('aria-expanded', 'false');
-    form.classList.add('hidden');
-    addButton.classList.remove('hidden');
-  });
-  return wrapper;
-}
-
 function updateExpandedState(card, expanded) {
   card.classList.toggle('collapsed', !expanded);
   card.classList.toggle('expanded', expanded);
@@ -254,37 +187,7 @@ function requestSnapshot(card) {
     row.querySelector('.assert-val').value,
     row.querySelector('.assert-val2').value,
   ]);
-  snapshot.subRequests = {};
-  for (const position of ['pre', 'post']) {
-    const form = card.querySelector(`.subreq-${position} .subreq-form`);
-    if (!form || form.classList.contains('hidden')) continue;
-    snapshot.subRequests[position] = {
-      method: form.querySelector('.sr-method').value,
-      url: form.querySelector('.sr-url').value,
-      body: form.querySelector('.sr-body').value,
-      headers: [...form.querySelectorAll('.header-row')].map(row => [
-        row.querySelector('.h-key').value,
-        row.querySelector('.h-val').value,
-      ]),
-      extractions: [...form.querySelectorAll('.extraction-row')].map(extractionSnapshot),
-    };
-  }
   return snapshot;
-}
-
-function applySubRequestSnapshot(card, position, snapshot) {
-  if (!snapshot) return;
-  const section = card.querySelector(`.subreq-${position}`);
-  section.querySelector('.add-subreq-btn').classList.add('hidden');
-  const form = section.querySelector('.subreq-form');
-  form.classList.remove('hidden');
-  form.querySelector('.sr-method').value = snapshot.method;
-  form.querySelector('.sr-url').value = snapshot.url;
-  form.querySelector('.sr-body').value = snapshot.body;
-  const headers = form.querySelector('.sr-headers-list');
-  for (const [key, value] of snapshot.headers) headers.appendChild(headerRow(key, value));
-  const extracts = form.querySelector('.sr-extractions-list');
-  for (const extraction of snapshot.extractions) extracts.appendChild(extractionRow(extraction));
 }
 
 function applySnapshot(card, snapshot) {
@@ -318,8 +221,6 @@ function applySnapshot(card, snapshot) {
     ensureRequestPanel(card, 'assertions').querySelector('.assertions-list')
       .appendChild(assertionRow(type, value, value2, () => updateAssertCount(card)));
   }
-  applySubRequestSnapshot(card, 'pre', snapshot.subRequests.pre);
-  applySubRequestSnapshot(card, 'post', snapshot.subRequests.post);
   card.querySelector('.protocol').dispatchEvent(new Event('change'));
   card.querySelector('.url').dispatchEvent(new Event('input'));
   updateExtCount(card);
@@ -396,7 +297,13 @@ export function reqCard(index, context, requestId = '') {
   expand.setAttribute('aria-expanded', 'false');
   const remove = button(`Remove request ${index + 1}`, 'req-action-btn del', '✕');
   actions.append(moveUp, moveDown, duplicate, curl, expand, remove);
-  head.append(num, namePreview, methodPreview, nameInput, protocol, method, url, preview, groupSelect, enabledLabel, actions);
+  // The icon says "group"; the select keeps its own accessible name.
+  const groupLabel = document.createElement('label');
+  groupLabel.className = 'request-group-label';
+  groupLabel.dataset.icon = 'folder';
+  groupLabel.title = 'Request group';
+  groupLabel.appendChild(groupSelect);
+  head.append(num, namePreview, methodPreview, nameInput, protocol, method, url, preview, groupLabel, enabledLabel, actions);
 
   const grpcRow = document.createElement('div');
   grpcRow.className = 'grpc-row hidden';
@@ -414,7 +321,6 @@ export function reqCard(index, context, requestId = '') {
   plaintextLabel.append(plaintext, ' Plaintext (no TLS)');
   grpcRow.append(grpcLabel, grpcMethod, plaintextLabel);
 
-  const preSection = buildSubReqSection('pre');
   const body = document.createElement('div');
   body.className = 'req-card-body';
   const tabs = document.createElement('div');
@@ -450,8 +356,7 @@ export function reqCard(index, context, requestId = '') {
     body.appendChild(panel);
   }
   body.prepend(tabs);
-  const postSection = buildSubReqSection('post');
-  card.append(head, grpcRow, preSection, body, postSection);
+  card.append(head, grpcRow, body);
   card.ensureRequestPanel = panelId => ensureRequestPanel(card, panelId);
 
   function syncProtocol() {
@@ -487,10 +392,11 @@ export function reqCard(index, context, requestId = '') {
     event.stopPropagation();
     setRequestExpanded(card, !card.classList.contains('expanded'));
   });
-  head.addEventListener('dblclick', event => {
-    // Advanced always shows the selected request's editor; collapsing is a Simple presentation.
-    if (document.documentElement.dataset.uiMode === 'advanced') return;
-    if (!event.target.closest('button, input, select, label')) setRequestExpanded(card, !card.classList.contains('expanded'));
+  head.addEventListener('click', event => {
+    // Simple: a click on a closed card's summary opens it (the chevron closes it).
+    // Advanced always shows the selected request's editor.
+    if (document.documentElement.dataset.uiMode === 'advanced' || card.classList.contains('expanded')) return;
+    if (!event.target.closest('button, input, select, label')) setRequestExpanded(card, true);
   });
   moveUp.addEventListener('click', () => {
     const previous = card.previousElementSibling;

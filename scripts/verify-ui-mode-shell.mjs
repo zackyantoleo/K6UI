@@ -103,7 +103,8 @@ try {
   assert.equal(await page.locator('#page-title').evaluate(node => node === document.activeElement), true);
   for (const mode of ['simple', 'advanced']) {
     await radio(mode).check();
-    await page.locator('#open-project-btn').focus();
+    // Run is the last control of the top bar; the visible navigation follows it.
+    await page.locator('#run-btn').focus();
     await page.keyboard.press('Tab');
     assert.equal(await page.evaluate(() => document.activeElement.closest('[data-ui-nav]')?.dataset.uiNav), mode);
   }

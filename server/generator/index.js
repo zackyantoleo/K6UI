@@ -20,6 +20,7 @@ import {
 } from "./data.js";
 import { buildRunIfCondition, runIfComment } from "./run-if.js";
 import { buildExportCode, extractionDefaultsByName, validateExports } from "./csv-export.js";
+import { expandSubRequests } from "../../public/js/sub-requests.js";
 
 // Request logging is opt-in because URLs and response samples can contain
 // credentials or personal data. This helper runs inside the generated k6
@@ -95,9 +96,8 @@ function buildProcessorBlock(code, label, resVar) {
   return lines.join("\n") + "\n";
 }
 
-// Headers are merged global → group → request (including pre/post
-// sub-requests) at codegen time. Later levels override earlier levels using
-// case-insensitive HTTP header names.
+// Headers are merged global → group → request at codegen time. Later levels
+// override earlier levels using case-insensitive HTTP header names.
 function mergeHeaders(globalHeaders, reqHeaders) {
   const out = [];
   const byName = new Map(); // lowercase name → index in out
@@ -136,15 +136,15 @@ export function generateScript(config) {
           headers: mergeHeaders(groupHeaders, req.headers),
           _groupId: group.id,
           _groupName: group.name || "Request group",
-          _groupHeaders: groupHeaders,
         }
-      : { ...req, _groupHeaders: [] };
+      : { ...req };
     return globalHeaders.length
       ? { ...grouped, headers: mergeHeaders(globalHeaders, grouped.headers) }
       : grouped;
   };
 
-  const mainReqs = (scenario.requests || [])
+  // A payload with Before/After sub-requests (`pre` / `post`) runs them as ordinary requests.
+  const mainReqs = (expandSubRequests(scenario.requests) || [])
     .filter((r) => {
       const group = r && groups.get(r.groupId);
       return r && r.enabled !== false && (!group || group.enabled !== false) && String(r.url || "").trim();
@@ -196,8 +196,7 @@ export function generateScript(config) {
 
   // extractOr() is only written when an extraction that will run has a default.
   const hasDefault = (e) => isExtractable(e) && extractionDefault(e) !== null;
-  const subRequestDefaults = (sub) => Boolean(sub && String(sub.url || "").trim() && (sub.extractions || []).some(hasDefault));
-  if (mainReqs.some((r) => (r.extractions || []).some(hasDefault) || subRequestDefaults(r.pre) || subRequestDefaults(r.post))) {
+  if (mainReqs.some((r) => (r.extractions || []).some(hasDefault))) {
     out += `\n${EXTRACT_OR_SOURCE}\n`;
   }
 
@@ -256,7 +255,7 @@ export function generateScript(config) {
     const extracted = new Map(); // name → default or null
     const assigned = new Set();
     for (const r of run) {
-      for (const e of [...(r.pre?.extractions || []), ...(r.extractions || []), ...(r.post?.extractions || [])]) {
+      for (const e of r.extractions || []) {
         if (!isExtractable(e) || declaredVars.has(e.varName)) continue;
         if (extracted.has(e.varName)) {
           if (extracted.get(e.varName) === null) extracted.set(e.varName, extractionDefault(e));
@@ -296,18 +295,6 @@ export function generateScript(config) {
       out += `\n  // Group: ${String(req._groupName).replace(/[\r\n]+/g, " ")}\n`;
     }
 
-    // ── Pre sub-request ──────────────────────────────────────
-    const preReq = req.pre && String(req.pre.url || "").trim() ? req.pre : null;
-    if (preReq) {
-      out += `\n  // Pre: request ${i + 1}\n`;
-      const preHeaders = mergeHeaders(globalHeaders, mergeHeaders(req._groupHeaders, preReq.headers));
-      out += buildRequestCode({ ...preReq, headers: preHeaders }, i, `pre${i}`, ctx, null, false);
-      out += "\n";
-      for (const e of preReq.extractions || []) {
-        if (e && e.varName) declaredVars.add(e.varName);
-      }
-    }
-
     // ── Pre-processor ────────────────────────────────────────
     if (preScript) {
       validateProcessor(preScript, `Pre-processor of request ${i + 1}`, false);
@@ -334,18 +321,6 @@ export function generateScript(config) {
       validateProcessor(postScript, `Post-processor of request ${i + 1}`, true);
       out += "\n" + buildProcessorBlock(postScript, `Post-processor: request ${i + 1}`, `res_main_${i}`);
       scanAssignedVars(postScript, processorVars);
-    }
-
-    // ── Post sub-request ─────────────────────────────────────
-    const postReq = req.post && String(req.post.url || "").trim() ? req.post : null;
-    if (postReq) {
-      out += `\n  // Post: request ${i + 1}\n`;
-      const postHeaders = mergeHeaders(globalHeaders, mergeHeaders(req._groupHeaders, postReq.headers));
-      out += buildRequestCode({ ...postReq, headers: postHeaders }, i, `post${i}`, ctx, null, false);
-      out += "\n";
-      for (const e of postReq.extractions || []) {
-        if (e && e.varName) declaredVars.add(e.varName);
-      }
     }
 
     // Add variables extracted by the main request to the declared set

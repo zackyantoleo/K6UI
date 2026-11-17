@@ -2,7 +2,7 @@
 // it back: refill the entire form from a config object.
 import { $ } from './dom.js';
 import { navigate } from './nav.js';
-import { headerRow, extractionRow, variableRow } from './components/rows.js';
+import { headerRow, variableRow } from './components/rows.js';
 import { reqCard, refreshRequestSummary, setRequestExpanded } from './components/req-card.js';
 import { renumberMain } from './components/counts.js';
 import { stageRow } from './components/flow-view.js';
@@ -13,25 +13,6 @@ import { refreshRequestGroupOptions, restoreGroups } from './components/request-
 import { restoreDataSets } from './data-files.js';
 
 // ── Internal helpers ───────────────────────────────────────────
-function fillSubReq(section, req) {
-  if (!section || !req) return;
-  section.querySelector('.add-subreq-btn')?.classList.add('hidden');
-  const form = section.querySelector('.subreq-form');
-  if (!form) return;
-  form.classList.remove('hidden');
-  form.querySelector('.sr-method').value = req.method || 'GET';
-  form.querySelector('.sr-url').value    = req.url    || '';
-  form.querySelector('.sr-body').value   = req.body   || '';
-
-  const srHList = form.querySelector('.sr-headers-list');
-  for (const h of req.headers || []) { if (h.key) srHList.appendChild(headerRow(h.key, h.value)); }
-
-  const srExtList = form.querySelector('.sr-extractions-list');
-  for (const e of req.extractions || []) {
-    if (e?.varName) srExtList.appendChild(extractionRow(e));
-  }
-}
-
 export function hydrateRequestCard(card, req) {
   card.dataset.requestId = req.id || card.dataset.requestId;
   card.requestState = req;
@@ -52,8 +33,6 @@ export function hydrateRequestCard(card, req) {
   url.value = req.url || '';
   url.dispatchEvent(new Event('input'));
   refreshRequestSummary(card);
-  if (req.pre) fillSubReq(card.querySelector('.subreq-pre'), req.pre);
-  if (req.post) fillSubReq(card.querySelector('.subreq-post'), req.post);
 }
 
 function restoreZone(requests) {

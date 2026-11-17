@@ -384,7 +384,8 @@ test('store: a default is kept as text, "" and non-text are dropped, and nothing
       ],
     },
   });
-  const [a, b] = project.scenario.requests;
+  // The Before/After sub-requests of an older project are ordinary requests now.
+  const [before, a, after, b] = project.scenario.requests;
   assert.deepEqual(a.extractions, [
     json('a', 'a', { default: ' spaced ' }),
     json('b', 'b'),
@@ -393,8 +394,9 @@ test('store: a default is kept as text, "" and non-text are dropped, and nothing
     json('e', 'e', { note: 'kept' }),
     json('f', 'f'),
   ]);
-  assert.deepEqual(a.pre.extractions, [json('g', 'g', { default: 'true' })]);
-  assert.deepEqual(a.post.extractions, [json('h', 'h', { default: 'H' })]);
+  assert.deepEqual(before.extractions, [json('g', 'g', { default: 'true' })]);
+  assert.deepEqual(after.extractions, [json('h', 'h', { default: 'H' })]);
+  assert.equal('pre' in a || 'post' in a, false);
   assert.equal(Object.hasOwn(b, 'extractions'), false, 'a request without extractions gets none');
   assert.deepEqual(migrateProject(project), project, 'migration is stable');
 });

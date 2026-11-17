@@ -25,7 +25,6 @@ const FIXTURE = {
         body: '{"user":"{{user}}"}', extractions: [{ varName: 'token', source: 'json', selector: 'data.token' }],
         assertions: [{ type: 'status-eq', value: '200', value2: '' }], preScript: 'vars.ts = Date.now();',
         postScript: '', checkStatus: true, sleepAfter: '0.5',
-        pre: { method: 'GET', url: 'https://api.example.test/setup', headers: [], body: '', extractions: [] },
       },
       { id: 'req_cart', name: 'Cart', groupId: 'grp_checkout', type: 'http', method: 'GET', url: 'https://api.example.test/cart' },
       { id: 'req_profile', name: 'Profile', groupId: 'grp_auth', type: 'http', method: 'GET', url: 'https://api.example.test/profile', enabled: false },
@@ -137,7 +136,7 @@ try {
   await cart.locator('.req-tab[data-tab="body"]').click();
   await cart.locator('textarea.body').fill('  {"draft": true}  ');
   await cart.locator('.req-tab[data-tab="extractions"]').click();
-  await cart.locator('.req-tab-panel[data-panel="extractions"] .add-row-btn').click();
+  await cart.locator('.req-tab-panel[data-panel="extractions"] .add-row-btn[aria-label="Add extraction"]').click();
   await cart.locator('.extractions-list .ext-name').fill('cart_id');
   await cart.locator('.extractions-list .ext-selector').fill('data.id');
   await cart.locator('.req-tab[data-tab="assertions"]').click();
@@ -148,10 +147,6 @@ try {
   await cart.locator('.req-tab[data-tab="options"]').click();
   await cart.locator('.sleep').fill('2.5');
   await cart.locator('.check-status').uncheck();
-  await cart.locator('.subreq-pre .add-subreq-btn').click();
-  await cart.locator('.subreq-pre .sr-url').fill('https://api.example.test/warmup');
-  await cart.locator('.subreq-post .add-subreq-btn').click();
-  await cart.locator('.subreq-post .sr-url').fill('https://api.example.test/logout');
   const unsaved = await collect();
   await outlineRequest('req_login').click();
   await outlineGroup('grp_checkout').click();
@@ -168,10 +163,8 @@ try {
   assert.deepEqual(cartConfig.headers, [{ key: 'X-Unsaved', value: '  header value  ' }]);
   assert.equal(cartConfig.sleepAfter, '2.5');
   assert.equal(cartConfig.checkStatus, false);
-  assert.equal(cartConfig.pre.url, 'https://api.example.test/warmup');
-  assert.equal(cartConfig.post.url, 'https://api.example.test/logout');
   assert.equal(cartConfig.assertions.length, 1);
-  checks.push('Unsaved Headers/Body/Extract/Checks/Scripts/Options and Before/After survive selection and two switches');
+  checks.push('Unsaved Headers/Body/Extract/Checks/Scripts/Options survive selection and two switches');
 
   // 4. Existing request handlers keep the outline and selection in sync.
   await cart.locator('.request-name').fill('Cart <renamed>');

@@ -69,7 +69,7 @@ export function buildFlowView() {
   const layout = document.createElement('div');
   layout.className = 'flow-layout';
   const zone = buildZone('main', 'Main Scenario', 'Repeated per VU', 'badge-loop',
-    'Run repeatedly by every virtual user. Each request can have optional <em>Before</em> and <em>After</em> sub-requests.');
+    'Every virtual user runs these requests in order, again and again, for as long as the test lasts.');
   layout.append(createFlowOutline({ view, onAddRequest: () => addRequest(), onAddGroup: addRequestGroup }), zone);
   view.appendChild(layout);
 }
@@ -116,7 +116,7 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   const groupsTitle = document.createElement('strong');
   groupsTitle.textContent = 'Request groups';
   const groupsHint = document.createElement('small');
-  groupsHint.textContent = 'Optional one-level organization and shared header defaults.';
+  groupsHint.textContent = 'Optional. Share headers between requests, or run some only on a condition.';
   groupsIntro.append(groupsTitle, groupsHint);
   const addGroup = document.createElement('button');
   addGroup.type = 'button';
@@ -141,7 +141,8 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   addBtn.addEventListener('click', () => addRequest());
 
   zBody.append(reqCont, addBtn);
-  zone.append(zHead, zDesc, groupsPanel, zBody);
+  // Requests first: groups are optional and sit below the list they organize.
+  zone.append(zHead, zDesc, zBody, groupsPanel);
   window.addEventListener('k6ui:project-applied', applyRequestGroupVisibility);
   return zone;
 }

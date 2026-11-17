@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { readStyles } from './helpers/styles.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
 const app = read('../public/js/app.js');
 const checks = read('../public/js/components/request-editor/checks.js');
-const css = read('../public/css/style.css');
+const css = readStyles();
 const config = read('../public/js/config.js');
 const projectIo = read('../public/js/project-io.js');
 

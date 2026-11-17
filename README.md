@@ -4,7 +4,7 @@ A simple UI for building and running [k6](https://k6.io) load tests **without wr
 
 ## Features
 
-- **Request flow** — one or many sequential requests (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS) with headers and body; each request can have optional *Before* and *After* sub-requests.
+- **Request flow** — one or many sequential requests (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS) with headers and body, run in the order you arrange them.
 - **Extraction & variables** — pull values out of responses (JSON path, header, or regex), then use them in later requests with `{{variable_name}}` in the URL, headers, or body (e.g. a login token). An extraction can have a **default** (for example `TOKEN_NOT_FOUND`), used when the response has no match — a missing JSON path or header, no regex match, or a body that is not JSON — instead of an empty or broken value.
 - **Data files (CSV)** — give every iteration its own row from a CSV file (for example one login per user): choose a `.csv` file or paste its text, pick the delimiter, header row and column names, then use a column as `{{email}}` in any URL, header, or body. Rows are shared by all users (next row for every iteration) or fixed per user, and wrap around or stop when they run out. The rows are written into the generated script, so View Script and standalone runs need no extra file; they are also saved in the project file, so keep credentials in mind. Up to 5 MB per file; running it needs k6 0.38 or newer.
 - **Conditional groups ("Run only if")** — group requests and give the group a condition, for example `EXECUTION_MODE` *is one of* `ORDER_FLOW, ALL`. The variable can be a global variable, a data file column, or a value extracted by an earlier request, and it is read when the group starts. When the condition is false the whole group is skipped (including its Before/After requests and pauses) and the rest of the flow carries on; values the group would have extracted keep their default, or stay empty when they have none. A data file can be tied to a group so its rows are only read when that group runs. Change the variable's value to choose which flow a run takes.
@@ -22,7 +22,7 @@ A simple UI for building and running [k6](https://k6.io) load tests **without wr
 
 A switch in the top bar picks the layout. Both show the same project:
 
-- **Simple** — four steps (Build Flow, Data & Rules — variables, headers, data files, targets —, Load, Run & Results). If a flow has settings that are not obvious at a glance (scripts, extraction, Before/After requests, gRPC…), a notice lists them by category.
+- **Simple** — four steps (Build Flow, Data & Rules — variables, headers, data files, targets —, Load, Run & Results). If a flow has settings that are not obvious at a glance (scripts, extraction, gRPC…), a notice lists them by category.
 - **Advanced** (default) — direct categories, plus a request outline next to the selected request's editor.
 
 Switching never changes what runs or what is saved; the choice is remembered in your browser only. Details: [docs/ui-modes.md](docs/ui-modes.md).
@@ -61,7 +61,7 @@ server/                 Express backend
 
 public/                 Frontend (vanilla JS, no build step)
 ├── index.html          Markup for every view
-├── css/style.css       Styling
+├── css/                Styling: style.css lists the files (tokens, base, shell, components, flow, views)
 └── js/                 One module per feature + components/ for DOM builders
 ```
 

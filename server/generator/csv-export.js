@@ -20,7 +20,7 @@ export function validateExports(requests) {
 export function extractionDefaultsByName(requests) {
   const byName = new Map();
   for (const req of requests) {
-    for (const e of [...(req.pre?.extractions || []), ...(req.extractions || []), ...(req.post?.extractions || [])]) {
+    for (const e of req.extractions || []) {
       if (!isExtractable(e)) continue;
       if (!byName.has(e.varName)) byName.set(e.varName, new Set());
       const fallback = extractionDefault(e);

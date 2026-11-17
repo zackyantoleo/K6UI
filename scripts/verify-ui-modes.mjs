@@ -28,7 +28,7 @@ const sections = new Set((process.env.K6UI_VERIFY_SECTIONS
 const LONG_PATH = `/catalog/${'segment-'.repeat(30)}end?page=1&sort=price`;
 // Rich generation-only fixture: interleaved Auth–Checkout–Auth, a collapsed
 // group (its request is hidden in Simple), a disabled request, a gRPC request
-// in a turned-off group, lazy scripts/extractions/checks, before/after,
+// in a turned-off group, lazy scripts/extractions/checks,
 // header precedence global < group < request, staged load and thresholds.
 const RICH = {
   schemaVersion: 2,
@@ -45,17 +45,12 @@ const RICH = {
         extractions: [{ varName: 'token', source: 'json', selector: 'data.token' }],
         assertions: [{ type: 'status-eq', value: '200', value2: '' }],
         preScript: 'vars.started = Date.now();', postScript: '', checkStatus: true, sleepAfter: '0.5',
-        pre: {
-          method: 'GET', url: '{{base_url}}/csrf', headers: [{ key: 'X-Pre', value: '1' }], body: '',
-          extractions: [{ varName: 'csrf', source: 'header', selector: 'X-CSRF' }],
-        },
       },
       {
         id: 'req_cart', name: 'Cart', groupId: 'grp_checkout', type: 'http', method: 'PUT', url: `{{base_url}}${LONG_PATH}`,
         headers: [{ key: 'x-trace', value: 'request-cart' }, { key: 'Authorization', value: 'Bearer {{token}}' }],
         body: '{"sku":"A1","qty":2}', assertions: [{ type: 'body-contains', value: 'ok', value2: '' }],
         checkStatus: false, sleepAfter: '0',
-        post: { method: 'DELETE', url: '{{base_url}}/cart/tmp', headers: [], body: '', extractions: [] },
       },
       {
         id: 'req_profile', name: 'Profile', groupId: 'grp_auth', type: 'http', method: 'GET', url: '{{base_url}}/profile',
@@ -327,7 +322,6 @@ try {
     }
     assert.equal(await generate(await collect()), baselineScript, 'Generated script identical across switches/selections');
     // Header precedence global < group < request (case-insensitive) in the generated code.
-    // Sub-requests inherit global + group headers only, so check the main Cart call.
     const cartCall = baselineScript.split('\n').find(line => line.includes('http.request("PUT"'));
     assert.match(cartCall, /"x-trace": "request-cart"/);
     assert.doesNotMatch(cartCall, /group-checkout|"global"/, 'Request header overrides group and global (case-insensitive)');
@@ -348,7 +342,7 @@ try {
     assert.equal(await body.inputValue(), raw, 'Unsaved textarea text (incl. whitespace) kept');
     assert.equal((await collect()).scenario.requests[1].body, raw);
     assert.ok(generateBodies.length >= 2 && generateBodies.every(text => !text.includes('uiMode')), 'No uiMode in generate payloads');
-    checks.push('A3/A4/A6 rich project (interleaved groups, collapsed/disabled, gRPC, before/after, lazy scripts, stages, thresholds): collectConfig + script identical across 3 switches and 4 selections; hidden requests kept; header precedence global < group < request; unsaved textarea kept; no uiMode in payloads');
+    checks.push('A3/A4/A6 rich project (interleaved groups, collapsed/disabled, gRPC, lazy scripts, stages, thresholds): collectConfig + script identical across 3 switches and 4 selections; hidden requests kept; header precedence global < group < request; unsaved textarea kept; no uiMode in payloads');
   }
 
   // 2. Save in Simple → open in Advanced → save → open in Simple; v1 migration; bad version (A5).
@@ -578,8 +572,11 @@ try {
           }
           await target.locator('#flow-outline .outline-item[data-id="req_login"]').click();
         } else {
-          await target.locator('#reqs-main > .req-card[data-request-id="req_login"] .subreq-pre .subreq-expand').click();
-          await audit(`${label} simple flow before-details open`, target);
+          // Every editor tab of an open card, with its saved rows.
+          for (const tab of ['body', 'extractions', 'assertions', 'scripts', 'options']) {
+            await target.locator(`#reqs-main > .req-card[data-request-id="req_login"] .req-tab[data-tab="${tab}"]`).click();
+            await audit(`${label} simple flow ${tab} tab`, target);
+          }
         }
         await settle(target);
         await target.screenshot({ path: resolve(output, `${mode}-flow-${label}.png`), fullPage: true });
