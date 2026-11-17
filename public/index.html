@@ -405,16 +405,16 @@
             </div>
             <div class="req-log-wrap" tabindex="0" aria-label="Scrollable request results">
               <table class="req-log-table" aria-label="Recorded request results">
-                <caption>The 500 most recent request records, added while the test runs. Activate a row to inspect its request and response: headers and bodies.</caption>
+                <caption>The 500 most recent request records, added while the test runs. Select a column heading to sort (ascending, descending, then arrival order). Activate a row to inspect its request and response: headers and bodies.</caption>
                 <thead>
                   <tr>
-                    <th scope="col">VU</th>
-                    <th scope="col">Iter</th>
-                    <th scope="col">#</th>
-                    <th scope="col">Method</th>
-                    <th scope="col">URL</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Duration</th>
+                    <th scope="col" data-sort-key="vu"><button type="button" class="req-sort-btn" data-sort="vu">VU<span class="req-sort-mark" aria-hidden="true"></span></button></th>
+                    <th scope="col" data-sort-key="it"><button type="button" class="req-sort-btn" data-sort="it">Iter<span class="req-sort-mark" aria-hidden="true"></span></button></th>
+                    <th scope="col" data-sort-key="i"><button type="button" class="req-sort-btn" data-sort="i">#<span class="req-sort-mark" aria-hidden="true"></span></button></th>
+                    <th scope="col" data-sort-key="m"><button type="button" class="req-sort-btn" data-sort="m">Method<span class="req-sort-mark" aria-hidden="true"></span></button></th>
+                    <th scope="col" data-sort-key="url"><button type="button" class="req-sort-btn" data-sort="url">URL<span class="req-sort-mark" aria-hidden="true"></span></button></th>
+                    <th scope="col" data-sort-key="s"><button type="button" class="req-sort-btn" data-sort="s">Status<span class="req-sort-mark" aria-hidden="true"></span></button></th>
+                    <th scope="col" data-sort-key="d"><button type="button" class="req-sort-btn" data-sort="d">Duration<span class="req-sort-mark" aria-hidden="true"></span></button></th>
                   </tr>
                 </thead>
                 <tbody id="req-log-tbody"></tbody>

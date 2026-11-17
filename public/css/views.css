@@ -163,6 +163,15 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
   background: var(--surface-2); color: var(--text-muted); font-size: var(--text-sm); font-weight: 600; text-align: left;
   border-bottom: 1px solid var(--border); white-space: nowrap;
 }
+.req-log-table th[data-sort-key] { padding: 0; }
+.req-sort-btn {
+  display: inline-flex; align-items: center; gap: 4px; width: 100%; min-height: 32px;
+  padding: var(--space-2) var(--space-3); border: 0; border-radius: 0; background: none;
+  color: inherit; font: inherit; text-align: left; white-space: nowrap; cursor: pointer;
+}
+.req-sort-btn:hover, .req-log-table th.sorted .req-sort-btn { color: var(--text); }
+.req-sort-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.req-sort-mark { min-width: 1ch; font-size: 10px; color: var(--accent-text); }
 .req-log-row td {
   padding: 7px var(--space-3); border-bottom: 1px solid var(--border);
   white-space: nowrap; vertical-align: middle; font-variant-numeric: tabular-nums;

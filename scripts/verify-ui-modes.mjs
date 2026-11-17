@@ -505,6 +505,8 @@ try {
       assert.ok((await collect()).scenario.requests.every(request => request.url.startsWith('http://127.0.0.1:')));
       await page.locator('#run-btn').click();
       await page.waitForFunction(() => document.querySelectorAll('#req-log-tbody .req-log-row').length > 0, null, { timeout: 15000 });
+      // Sort by Duration, descending, while records still stream in (the tab is hidden, so no pointer click).
+      await page.evaluate(() => { const sortButton = document.querySelector('.req-sort-btn[data-sort="d"]'); sortButton.click(); sortButton.click(); });
       await radio('simple').check();
       await page.waitForFunction(() => document.querySelector('#run-state').textContent === 'PASSED', null, { timeout: 30000 });
       await page.locator('#results-tab-requests').click();
@@ -538,6 +540,27 @@ try {
       const logLines = results.log.split('\n').filter(Boolean);
       assert.ok(logLines.length <= 1501 && /older lines hidden/.test(results.log), `Live log capped at 1500 lines (${logLines.length})`);
       assert.match(results.verdict, /\bpassed\b/);
+      const sortState = async () => page.evaluate(() => {
+        const rows = [...document.querySelectorAll('#req-log-tbody .req-log-row')];
+        const durations = rows.map(row => parseFloat(row.cells[6].textContent));
+        const expanded = document.querySelector('#req-log-tbody .req-log-row.expanded');
+        return {
+          descending: durations.every((value, index) => index === 0 || durations[index - 1] >= value),
+          sorted: [...document.querySelectorAll('.req-log-table th[aria-sort]')].map(th => `${th.dataset.sortKey}:${th.getAttribute('aria-sort')}`),
+          detailFollows: Boolean(expanded?.nextElementSibling?.classList.contains('req-detail-row')),
+          details: document.querySelectorAll('#req-log-tbody .req-detail-row').length,
+        };
+      });
+      const byDuration = await sortState();
+      assert.ok(byDuration.descending, 'Rows that arrived during the run stay sorted by Duration, descending');
+      assert.deepEqual(byDuration.sorted, ['d:descending'], 'aria-sort on the sorted heading only');
+      await page.locator('.req-sort-btn[data-sort="s"]').click();
+      const byStatus = await sortState();
+      assert.deepEqual(byStatus.sorted, ['s:ascending']);
+      assert.ok(byStatus.detailFollows && byStatus.details === 1, 'The open detail moves with its row');
+      await page.locator('.req-sort-btn[data-sort="s"]').click();
+      await page.locator('.req-sort-btn[data-sort="s"]').click();
+      assert.deepEqual((await sortState()).sorted, [], 'Third click: arrival order');
       await radio('advanced').check();
       await audit('results populated 1440 advanced');
       await page.setViewportSize({ width: 375, height: 812 });
@@ -550,7 +573,7 @@ try {
       await page.waitForFunction(() => document.querySelector('#run-state').textContent === 'PASSED', null, { timeout: 30000 });
       assert.equal(await page.locator('#req-log-count').textContent(), '0', 'Request details are opt-in');
       assert.equal(runPosts.length, 2, 'One POST /api/run per run');
-      checks.push(`A8/A9 real local run (127.0.0.1 only, switch mid-run): request rows capped at 500 (50/s from the server, skipped ones reported), request and response detail, live log capped at 1500 lines with notice; query/response secrets [REDACTED]; response and request-name markup stays text (0 <img>, no script ran); PASSED verdict; request details off → 0 rows`);
+      checks.push(`A8/A9 real local run (127.0.0.1 only, switch mid-run): request rows capped at 500 (50/s from the server, skipped ones reported), sorting (kept while records stream in, aria-sort, detail moves with its row), request and response detail, live log capped at 1500 lines with notice; query/response secrets [REDACTED]; response and request-name markup stays text (0 <img>, no script ran); PASSED verdict; request details off → 0 rows`);
     } finally {
       target.closeAllConnections?.();
       await new Promise(done => target.close(done));

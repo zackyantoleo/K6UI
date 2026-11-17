@@ -102,7 +102,8 @@ page error, console error, or unexpected dialog. It covers:
 - one action per click after many switches (Add Request, k6 Script, Save)
 - focus after deleting a request or group
 - a real local run: request rows capped at 500 (the server sends at most 50
-  passed records a second and reports the rest), request and response detail
+  passed records a second and reports the rest), sorting by a column heading
+  while records stream in, request and response detail
   with headers, live log capped at 1,500 lines, secrets redacted, response
   markup shown as text, request details opt-in (the run uses Hide secrets, so
   redaction is checked; it is off by default)
