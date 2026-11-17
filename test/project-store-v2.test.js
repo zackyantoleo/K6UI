@@ -218,4 +218,14 @@ test('a data file keeps the group it belongs to; a group that is gone means ever
   });
   assert.deepEqual(project.dataSets.map(set => set.groupId), ['grp_a', '', '', undefined]);
   assert.equal('groupId' in project.dataSets[3], false, 'older data files gain no field');
+  assert.equal('trimValues' in project.dataSets[3], false, 'older data files gain no trimValues field');
+
+  const withTrim = migrateProject({
+    schemaVersion: 2,
+    dataSets: [
+      { id: 'ds_keep', content: 'h\n1\n', trimValues: false },
+      { id: 'ds_trim', content: 'h\n1\n', trimValues: 'yes' },
+    ],
+  });
+  assert.deepEqual(withTrim.dataSets.map(set => set.trimValues), [false, true]);
 });

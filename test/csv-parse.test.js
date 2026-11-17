@@ -98,3 +98,9 @@ test('with no column names a header row supplies them; without a header nothing 
   assert.deepEqual(noHeader.columns, []);
   assert.equal(noHeader.rows.length, 2);
 });
+
+test('readDataSet trims cell whitespace by default and preserves it when trimValues is false', () => {
+  const set = { content: 'order_number,auth\n 1001 , Bearer tok \n', skipHeader: true, columns: ['order_number', 'auth'] };
+  assert.deepEqual(readDataSet(set).rows, [['1001', 'Bearer tok']]);
+  assert.deepEqual(readDataSet({ ...set, trimValues: false }).rows, [[' 1001 ', ' Bearer tok ']]);
+});

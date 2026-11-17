@@ -134,6 +134,8 @@ function normalizeDataSet(rawDataSet, index, used, validGroupIds) {
   dataSet.content = typeof dataSet.content === 'string' ? dataSet.content : '';
   dataSet.share = dataSet.share === 'per-vu' ? 'per-vu' : 'next-row';
   dataSet.onEnd = dataSet.onEnd === 'stop' ? 'stop' : 'recycle';
+  // Optional: trim cell whitespace on read (default on when absent).
+  if (dataSet.trimValues !== undefined) dataSet.trimValues = dataSet.trimValues !== false;
   // Optional: the request group whose start reads this file's row. A group that
   // no longer exists means "global" (every iteration), like a request's groupId.
   if (dataSet.groupId !== undefined) dataSet.groupId = validGroupIds.has(dataSet.groupId) ? dataSet.groupId : '';

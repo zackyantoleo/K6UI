@@ -11,7 +11,8 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
   const headers = {};
   if (Array.isArray(req.headers)) {
     for (const h of req.headers) {
-      if (h && h.key) headers[h.key] = String(h.value == null ? "" : h.value);
+      const key = h && h.key ? String(h.key).trim() : "";
+      if (key) headers[key] = String(h.value == null ? "" : h.value).trim();
     }
   }
   const headersCode = Object.entries(headers)

@@ -129,5 +129,8 @@ export function readDataSet(raw, all = parseCsv(typeof raw?.content === 'string'
     if (name === '__proto__' || !VALID_COLUMN_NAME.test(name) || seen.has(name)) ignored.push(name);
     else { seen.add(name); columns.push({ name, field }); }
   });
-  return { header, rows: skipHeader ? all.slice(1) : all, columns, ignored };
+  const trim = raw?.trimValues !== false;
+  const rows = (skipHeader ? all.slice(1) : all)
+    .map(row => (trim ? row.map(cell => String(cell ?? '').trim()) : row));
+  return { header, rows, columns, ignored };
 }
