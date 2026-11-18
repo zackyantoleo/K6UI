@@ -87,3 +87,44 @@ consistent slowdown.
 Browser timings come from `scripts/verify-ui-modes.mjs` (restore and switch) and
 a separate A/B script that serves each version from `127.0.0.1` in turn and
 calls `applyConfig()` with the same 100-request, 3-group project.
+
+## Load generator throughput (November 2026)
+
+Measured on 2026-11-18 with k6 v2.4.0 and JMeter 5.6.3 on an Intel Core Ultra 5
+125U laptop (14 threads, powersave governor). A local Go server on CPUs 8–13
+served the flow; the load generator was pinned to CPUs 0–7 (`taskset`). Flow:
+POST login (extract `data.token`, with a default) → GET product, a 4 KB JSON
+body (extract `data.sku`) → POST cart (body assertion), every request with the
+status check; 50 VUs, no pause, 10 s. JMeter ran in non-GUI mode with a 1 GB
+heap, writing a CSV JTL, the same flow (JSON Extractors, Response Assertion).
+Turbo and heat move results by about ±20% between runs, so each line is the
+median of three interleaved rounds; the two runs below were at different
+temperatures, so compare numbers within one run only.
+
+| Load generator | Requests/s, run 1 | Requests/s, run 2 | Requests per CPU second, run 2 | Max RSS |
+| --- | ---: | ---: | ---: | ---: |
+| K6UI, old generator (`JSON.parse(res.body)`) | 26,515 | 19,512 | 2,822 | 128 MB |
+| K6UI, new generator (`res.json(path)`) | — | 35,083 | 5,503 | 155 MB |
+| Hand-written k6 script (`res.json(path)`) | 47,162 | 33,147 | 5,211 | 182 MB |
+| JMeter | 37,882 | 25,643 | 3,178 | 830 MB |
+| K6UI old generator, request details "all" (no per-VU budget) | — | 10,214 | 1,488 | 100 MB |
+| K6UI new generator, request details "all" (per-VU budget) | — | 31,326 | 4,901 | 146 MB |
+
+Run 1 measured the old generator, a hand-written script and JMeter; run 2
+(a hotter machine: every number is lower) interleaved all six. In both, the old generator was slower
+than JMeter; the new one matches the hand-written script.
+
+Through `POST /api/run` (Node server and k6 on the same CPUs, 10 s): request
+details off, Node used 0.06 CPU s while k6 used 64 CPU s. With "all", Node went
+from 4.35 to 0.21 CPU s and the run from 11.9k to 28.5k requests/s; 500 records
+reached the browser and the skipped count missed 53 of 181,929 in a 5 s run.
+
+With a pause (500 VUs, `sleep(1)` after the flow, about 1,490 requests/s for
+every tool): K6UI with `res.json(path)` 3.9 CPU s and 208 MB, the old generator
+6.5 CPU s and 245 MB, JMeter 14.0 CPU s and 821 MB. At 2,000 VUs: 15.8 CPU s and
+741 MB against JMeter's 25.8 CPU s and 1,180 MB. With a fixed pause and every VU
+starting together, k6 measured p95 18.9 ms (the VUs fire in waves); a random
+pause (`sleep(0.5 + Math.random())`) gave 1.1 ms.
+
+`responseType: "none"` on a request whose 4 KB body is not read added about 3%;
+`K6_SYSTEM_TAGS` and `GOGC=400` stayed inside the noise.

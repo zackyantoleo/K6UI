@@ -46,8 +46,22 @@ function withFallback(desc, fallback) {
   return desc.fallback == null ? { ...desc, fallback } : desc;
 }
 
+// A `res.json()` path (gjson): "." separates keys, "\" makes the next character
+// literal (K6UI's generator escapes characters gjson reads as syntax, see
+// generator/helpers.js buildGjsonPath), a number is an array index.
 function splitSelector(selector) {
-  return selector.split(".").filter(Boolean).map((seg) => (/^\d+$/.test(seg) ? Number(seg) : seg));
+  const segments = [];
+  let current = "";
+  for (let i = 0; i < selector.length; i++) {
+    const ch = selector[i];
+    if (ch === "\\" && i + 1 < selector.length) current += selector[++i];
+    else if (ch === ".") {
+      segments.push(current);
+      current = "";
+    } else current += ch;
+  }
+  segments.push(current);
+  return segments.filter(Boolean).map((seg) => (/^\d+$/.test(seg) ? Number(seg) : seg));
 }
 
 export function serializePath(path) {

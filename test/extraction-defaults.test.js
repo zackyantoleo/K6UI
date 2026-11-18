@@ -55,10 +55,10 @@ test('golden output: a default wraps the read in extractOr(); without one the li
 
   // Request 1: GET https://api.test/login
   const res_main_0 = http.request("GET", "https://api.test/login", null, {});
-  let token = extractOr(() => JSON.parse(res_main_0.body)?.["data"]?.["token"], "TOKEN_NOT_FOUND");
+  let token = extractOr(() => res_main_0.json("data.token"), "TOKEN_NOT_FOUND");
   let trace = extractOr(() => res_main_0.headers["X-Trace"], "none");
   let sid = extractOr(() => (res_main_0.body.match(/sid=(\\w*)/) || [])[1], "NO_SID");
-  let plain = JSON.parse(res_main_0.body)?.["plain"];
+  let plain = res_main_0.json("plain");
 
   // Request 2: GET https://api.test/use/{{token}}/{{trace}}/{{sid}}/{{plain}}
   const res_main_1 = http.request("GET", \`https://api.test/use/\${token}/\${trace}/\${sid}/\${plain}\`, null, {});
@@ -78,10 +78,10 @@ test('no default (absent, "" or not text): no helper, and the script is what it 
   ];
   const script = generated(configOf([request({ extractions }), USE]));
   assert.doesNotMatch(script, /extractOr/);
-  assert.match(script, /let token = JSON\.parse\(res_main_0\.body\)\?\.\["data"\]\?\.\["token"\];/);
+  assert.match(script, /let token = res_main_0\.json\("data\.token"\);/);
   assert.match(script, /let sid = \(res_main_0\.body\.match\(\/sid=\(\\w\*\)\/\) \|\| \[\]\)\[1\] \|\| "";/);
   assert.match(script, /let h = res_main_0\.headers\["X-H"\];/);
-  assert.match(script, /let o = JSON\.parse\(res_main_0\.body\)\?\.\["o"\];/);
+  assert.match(script, /let o = res_main_0\.json\("o"\);/);
 });
 
 test('a number or boolean default is text; quotes and line separators are escaped', () => {
@@ -89,8 +89,8 @@ test('a number or boolean default is text; quotes and line separators are escape
   const script = generated(configOf([request({
     extractions: [json('n', 'n', { default: 0 }), json('b', 'b', { default: false }), json('q', 'q', { default: `say "hi"${lineSeparator}\`\${x}\`` })],
   }), request({ url: 'https://api.test/{{n}}/{{b}}/{{q}}' })]));
-  assert.match(script, /extractOr\(\(\) => JSON\.parse\(res_main_0\.body\)\?\.\["n"\], "0"\)/);
-  assert.match(script, /extractOr\(\(\) => JSON\.parse\(res_main_0\.body\)\?\.\["b"\], "false"\)/);
+  assert.match(script, /extractOr\(\(\) => res_main_0\.json\("n"\), "0"\)/);
+  assert.match(script, /extractOr\(\(\) => res_main_0\.json\("b"\), "false"\)/);
   assert.ok(!script.includes(lineSeparator), 'no raw U+2028 in the script');
   assert.ok(script.includes(`"say \\"hi\\"${'\\'}u2028\`\${x}\`"`));
   const k6 = loadScript(script);
@@ -169,7 +169,7 @@ test('golden output: a skipped group leaves the default behind (hoisted), else "
   // Group "Address" runs only if MODE is ON
   if (String(GLOBALS.MODE) === "ON") {
 `), bodyOf(script));
-  assert.match(script, /^ {2}address_id = extractOr\(\(\) => JSON\.parse\(res_main_0\.body\)\?\.\["data"\]\?\.\["address"\]\?\.\["id"\], "ADDRESS_ID_NOT_FOUND"\);$/m);
+  assert.match(script, /^ {2}address_id = extractOr\(\(\) => res_main_0\.json\("data\.address\.id"\), "ADDRESS_ID_NOT_FOUND"\);$/m);
   // Without any default the comment and the hoist stay as they were.
   const plain = generated(conditional([inGroup({ extractions: [json('zone', 'zone')] }), AFTER], 'OFF'));
   assert.match(plain, /read them \(empty if the group does not run\)\n {2}let zone = "";\n/);

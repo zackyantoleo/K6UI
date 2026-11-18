@@ -300,7 +300,7 @@ function showSkippedRequestLogs(skipped) {
   const count = Number(skipped) || 0;
   notice.hidden = count === 0;
   notice.textContent = count
-    ? `${count} request ${count === 1 ? 'record was' : 'records were'} not shown: more than 50 a second arrived. `
+    ? `At least ${count} request ${count === 1 ? 'record was' : 'records were'} not shown: more than 50 a second arrived. `
       + 'Record failed requests only, or a sample, to keep the ones that matter.'
     : '';
 }

@@ -89,7 +89,7 @@ test('the imported configuration is a valid project that generates a script agai
   assert.doesNotThrow(() => migrateProject(config));
   const script = generateScript(config);
   assert.match(script, /http\.request\("POST", `\$\{GLOBALS\.BASE_URL\}\/login`/);
-  assert.match(script, /let token = JSON\.parse\(res_main_0\.body\)\?\.\["data"\]\?\.\["token"\]/);
+  assert.match(script, /let token = res_main_0\.json\("data\.token"\)/);
 });
 
 test('reads simple load options, local constants, form bodies, and every http verb', () => {
