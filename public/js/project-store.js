@@ -2,6 +2,7 @@
 // snapshot; DOM adapters in config.js/project-io.js synchronize at UI boundaries.
 import { normalizeRunIf } from './run-if.js';
 import { normalizeExports } from './csv-export.js';
+import { normalizeOutcomes } from './outcomes.js';
 import { expandSubRequests } from './sub-requests.js';
 
 export const CURRENT_SCHEMA_VERSION = 2;
@@ -114,6 +115,12 @@ function normalizeRequest(rawRequest, index, used, validGroupIds) {
   if (request.extractions !== undefined) request.extractions = normalizeExtractions(request.extractions);
   // "Save to CSV" (see csv-export.js): one shape, unknown fields kept; absent stays absent.
   if (request.exports !== undefined) request.exports = normalizeExports(request.exports);
+  // Outcome rules (see outcomes.js): one shape; a value that is not one is dropped.
+  if (request.outcomes !== undefined) {
+    const outcomes = normalizeOutcomes(request.outcomes);
+    if (outcomes) request.outcomes = outcomes;
+    else delete request.outcomes;
+  }
   return request;
 }
 

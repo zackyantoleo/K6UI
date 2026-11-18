@@ -5,6 +5,7 @@ import { DEFAULT_MAX_DURATION } from "../generator/options.js";
 
 const P95 = /^p\(\s*95\s*\)\s*<\s*(\d+(?:\.\d+)?)$/;
 const RATE = /^rate\s*<\s*(\d+(?:\.\d+)?)$/;
+const OUTCOME_KEY = /^k6ui_outcome\{rq:\d+,outcome:[A-Za-z][A-Za-z0-9_]*\}$/;
 
 // A threshold entry is "p(95)<500" or { threshold: "p(95)<500", abortOnFail }.
 function thresholdExpressions(value) {
@@ -32,6 +33,9 @@ function readThresholds(node, thresholds, ctx) {
     const exprs = thresholdExpressions(tryStatic(prop.value, ctx));
     for (const expr of exprs.map((e) => e.trim())) {
       let match;
+      // K6UI's outcome rules give every label a threshold that always passes, so k6
+      // reports its count (generator/outcomes.js); the rules themselves are read in flow.js.
+      if (OUTCOME_KEY.test(metric) && /^count\s*>=\s*0$/.test(expr)) continue;
       if (metric === "http_req_duration" && (match = P95.exec(expr))) {
         thresholds.p95 ||= match[1];
       } else if (metric === "http_req_failed" && (match = RATE.exec(expr))) {

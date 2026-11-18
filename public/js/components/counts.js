@@ -31,6 +31,16 @@ export function updateScriptCount(card) {
   badge.classList.toggle('visible', n > 0);
 }
 
+// Outcome rules with a label (an empty row does not count).
+export function updateOutcomeCount(card) {
+  const list  = card.querySelector('.req-card-body .outcome-rules-list');
+  const n     = list ? $$('.outcome-label', list).filter(i => i.value.trim()).length : 0;
+  const badge = card.querySelector('.tab-count-outcome');
+  if (!badge) return;
+  badge.textContent = n || '';
+  badge.classList.toggle('visible', n > 0);
+}
+
 export function renumberMain() {
   $$('#reqs-main .req-card').forEach((c, i) => {
     const n = c.querySelector('.req-num');

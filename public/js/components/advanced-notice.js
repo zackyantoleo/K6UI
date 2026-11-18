@@ -2,6 +2,8 @@
 // and counts only — never values — so a Simple user knows the flow carries
 // settings that still run. Switching modes never changes what runs.
 import { usableDataFileCount } from '../data-files.js';
+import { hasOutcomeRules } from '../outcomes.js';
+import { readOutcomesPanel } from './request-editor/outcomes.js';
 
 const DEFAULT_PAUSE_SECONDS = 1;
 const hasText = value => String(value ?? '').trim() !== '';
@@ -17,6 +19,7 @@ const REQUEST_CATEGORIES = [
   { id: 'extractions', label: 'Response extraction', test: request => (request.extractions || []).some(item => hasText(item?.varName)) },
   { id: 'exports', label: 'Save to CSV', test: request => (request.exports || []).some(item => hasText(item?.file)) },
   { id: 'checks', label: 'Custom checks', test: request => (request.assertions || []).length > 0 },
+  { id: 'outcomes', label: 'Outcome rules', test: request => hasOutcomeRules(request.outcomes) },
   { id: 'scripts', label: 'Pre/post scripts', test: request => hasText(request.preScript) || hasText(request.postScript) },
   { id: 'pacing', label: 'Custom pause after request', test: request => pauseSeconds(request.sleepAfter) !== DEFAULT_PAUSE_SECONDS },
   { id: 'statusCheck', label: 'Automatic 2xx check turned off', test: request => request.checkStatus === false },
@@ -90,6 +93,9 @@ export function readRequestSettings(card) {
     assertions: panelReady(card, 'assertions')
       ? [...card.querySelectorAll('.req-card-body .assertions-list .assertion-row')].map(() => ({}))
       : saved.assertions || [],
+    outcomes: panelReady(card, 'outcomes')
+      ? readOutcomesPanel(card.querySelector('.req-card-body .outcomes-panel'))
+      : saved.outcomes,
     preScript: scriptsReady ? field('.pre-script').value : saved.preScript,
     postScript: scriptsReady ? field('.post-script').value : saved.postScript,
     sleepAfter: optionsReady ? field('.sleep').value : saved.sleepAfter,

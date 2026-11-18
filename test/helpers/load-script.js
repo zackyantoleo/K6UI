@@ -6,6 +6,7 @@
 //
 //   respond(call) → the response of one http.request (default: 200 with body "{}")
 //   grpcResponse  → what a gRPC invoke returns (default: status 0, message {})
+// `metrics` records every Counter.add() as { name, value, tags } (outcome rules).
 // k6's `res.json(path)` as the generator uses it: a gjson path ("." between keys,
 // "\" makes the next character literal, a number indexes an array) gives undefined
 // when the path, the body or valid JSON is missing; without a path the whole body
@@ -31,6 +32,7 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
   const grpcCalls = [];
   const logs = [];
   const sleeps = [];
+  const metrics = [];
   const exec = { scenario: { iterationInTest: 0 } };
   class SharedArray {
     constructor(name, init) {
@@ -38,6 +40,10 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
       this.length = items.length;
       items.forEach((item, i) => { this[i] = structuredClone(item); });
     }
+  }
+  class Counter {
+    constructor(name) { this.name = name; }
+    add(value, tags) { metrics.push({ name: this.name, value, tags: { ...tags } }); }
   }
   class GrpcClient {
     connect(address) { grpcCalls.push({ step: 'connect', address }); }
@@ -59,6 +65,7 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
     'k6/data': { SharedArray },
     'k6/execution': exec,
     'k6/net/grpc': { Client: GrpcClient, StatusOK: 0 },
+    'k6/metrics': { Counter },
   };
   const code = script
     .replace(/^import (\w+) from '([^']+)';$/gm, (_, name, from) => `const ${name} = __k6[${JSON.stringify(from)}];`)
@@ -68,7 +75,7 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
   const factory = new Function('__k6', 'console', `${code}\nreturn { options, main: __main };`);
   const { options, main } = factory(modules, { warn: message => logs.push(message), log: message => logs.push(message) });
   return {
-    options, calls, grpcCalls, logs, sleeps,
+    options, calls, grpcCalls, logs, sleeps, metrics,
     iteration(vu, iterationInTest) {
       globalThis.__VU = vu;
       globalThis.__ITER = iterationInTest;

@@ -6,6 +6,7 @@ import { generateScript } from "./generator/index.js";
 import { ScriptImportError, importK6Script } from "./importer/index.js";
 import { importJmx } from "./importer/jmx/index.js";
 import { startK6Run } from "./k6-runner.js";
+import { readOutcomeResults } from "../public/js/outcomes.js";
 
 export const apiRouter = Router();
 
@@ -54,11 +55,13 @@ apiRouter.post("/import-jmx", express.text({ type: ["application/xml", "text/xml
 });
 
 // POST /api/run — run a k6 test and stream live output via Server-Sent Events.
-// Emitted events: status, log, req-log, req-log-skipped, export, error, done (see k6-runner.js).
+// Emitted events: status, log, req-log, req-log-skipped, export, error, done (see k6-runner.js);
+// `done` also has `outcomes` when a request has outcome rules (public/js/outcomes.js readOutcomeResults).
 apiRouter.post("/run", async (req, res) => {
   let script;
+  const meta = {};
   try {
-    script = generateScript(req.body || {});
+    script = generateScript(req.body || {}, meta);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message });
     return;
@@ -82,6 +85,10 @@ apiRouter.post("/run", async (req, res) => {
 
   run = await startK6Run(script, {
     onEvent: (event, data) => {
+      // Outcome rules: `done` also carries what each label counted (from the summary).
+      if (event === "done" && meta.outcomes?.length) {
+        data = { ...data, outcomes: readOutcomeResults(meta.outcomes, data?.summary) };
+      }
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     },
