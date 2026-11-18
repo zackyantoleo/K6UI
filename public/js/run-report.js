@@ -9,6 +9,7 @@
 // secrets. Left out: global variables, the flow's own headers and bodies, data
 // file rows, Save to CSV values, and the raw k6 output.
 import { loadShape } from './components/load-chart.js';
+import { OUTCOME_METRIC } from './outcomes.js';
 
 export const REPORT_FORMAT = 'k6ui-run-report';
 export const REPORT_VERSION = 1;
@@ -59,10 +60,34 @@ export function summaryThresholds(summary) {
     const thresholds = metrics[name]?.thresholds;
     if (!isObject(thresholds)) continue;
     for (const [rule, failed] of Object.entries(thresholds)) {
+      if (isOutcomeCountThreshold(name, rule)) continue;
       rows.push({ metric: name, rule, ok: failed !== true });
     }
   }
   return rows;
+}
+
+// Outcome rules give every label a threshold that always passes, only so k6 reports
+// its count (server/generator/outcomes.js): not a target, so not listed.
+const isOutcomeCountThreshold = (name, rule) => name.startsWith(`${OUTCOME_METRIC}{`) && /^count\s*>=\s*0$/.test(rule);
+
+// Requests with outcome rules: what each label counted (the `outcomes` of the run's
+// `done` event, see outcomes.js readOutcomeResults).
+export function reportOutcomes(outcomes) {
+  if (!Array.isArray(outcomes)) return [];
+  return outcomes.filter(isObject).map(item => ({
+    request: numberOrNull(item.rq),
+    name: String(item.name ?? ''),
+    method: String(item.method ?? ''),
+    url: String(item.url ?? ''),
+    fallback: String(item.fallback ?? ''),
+    total: numberOrNull(item.total) ?? 0,
+    outcomes: (Array.isArray(item.outcomes) ? item.outcomes : []).filter(isObject).map(entry => ({
+      label: String(entry.label ?? ''),
+      count: numberOrNull(entry.count) ?? 0,
+      share: numberOrNull(entry.share) ?? 0,
+    })),
+  }));
 }
 
 // Checks of the root group and every nested group, in the order k6 wrote them.
@@ -164,6 +189,7 @@ export function buildRunReport(state, now = new Date()) {
     },
     setup: setupOf(state?.config),
     thresholds: summaryThresholds(summary),
+    outcomes: reportOutcomes(state?.outcomes),
     checks: summaryChecks(summary),
     metrics: summaryMetrics(summary),
     requests: records.map(entry => ({
@@ -414,6 +440,17 @@ export function reportToHtml(report) {
       className: row.ok ? '' : 'bad', cells: [row.metric, row.rule, row.ok ? 'Met' : 'Not met'],
     })))
     : '<p class="muted">No targets were set for this run.</p>');
+
+  if (report.outcomes?.length) {
+    parts.push('<h2>Outcomes</h2>');
+    for (const item of report.outcomes) {
+      const name = item.name || `${item.method} ${item.url}`.trim();
+      parts.push(`<p><strong>${escapeHtml(`Request ${item.request ?? '?'}${name ? ` · ${name}` : ''}`)}</strong> <span class="muted">${escapeHtml(formatNumber(item.total))} responses</span></p>`);
+      parts.push(table(['Label', 'Responses', 'Share'], item.outcomes.map(entry => ({
+        cells: [entry.label, formatNumber(entry.count), `${formatNumber(entry.share * 100, 1)} %`],
+      })), { numeric: [1, 2] }));
+    }
+  }
 
   parts.push('<h2>Checks</h2>');
   parts.push(report.checks.length

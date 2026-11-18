@@ -8,6 +8,7 @@
 //   data.js        → data files (CSV) → SharedArray + the row of each iteration
 //   run-if.js      → "run only if" condition of a request group → if (...) { ... }
 //   csv-export.js  → "Save to CSV" exports → one logged row after the request
+//   outcomes.js    → outcome rules → one label per response, counted in k6ui_outcome
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
@@ -20,6 +21,10 @@ import {
 } from "./data.js";
 import { buildRunIfCondition, runIfComment } from "./run-if.js";
 import { buildExportCode, extractionDefaultsByName, validateExports } from "./csv-export.js";
+import {
+  OUTCOME_HELPER_SOURCE, addOutcomeThresholds, buildOutcomeCode, buildOutcomeRulesSource, outcomeTargets,
+  validateOutcomes,
+} from "./outcomes.js";
 import { expandSubRequests } from "../../public/js/sub-requests.js";
 import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/request-log.js";
 import { REQ_LOG_RATE } from "../request-log-throttle.js";
@@ -243,7 +248,9 @@ function mergeHeaders(globalHeaders, reqHeaders) {
   return out;
 }
 
-export function generateScript(config) {
+// `meta` (optional) receives what the run needs to read the results back:
+// meta.outcomes = the requests with outcome rules (see outcomes.js outcomeTargets).
+export function generateScript(config, meta = null) {
   const scenario    = config.scenario || {};
   const options     = buildOptions(config);
   const requestLog  = normalizeRequestLog(config.options);
@@ -294,12 +301,21 @@ export function generateScript(config) {
     .map((r, i) => (r.type === "grpc" ? i : -1))
     .filter((i) => i !== -1);
 
+  // Outcome rules: checked up front (400 before any code is built); each label
+  // gets an always-passing threshold so k6 reports its count.
+  validateOutcomes(mainReqs);
+  const outcomes = outcomeTargets(mainReqs);
+  const outcomeByIndex = new Map(outcomes.map((target) => [target.index, target]));
+  addOutcomeThresholds(options, outcomes);
+  if (meta) meta.outcomes = outcomes;
+
   let out = "";
   out += `import http from 'k6/http';\n`;
   out += `import { sleep, check } from 'k6';\n\n`;
   if (grpcIndexes.length)              out += `import grpc from 'k6/net/grpc';\n`;
   if (/\bcrypto\./.test(allScripts))   out += `import crypto from 'k6/crypto';\n`;
   if (/\bencoding\./.test(allScripts)) out += `import encoding from 'k6/encoding';\n`;
+  if (outcomes.length)                 out += `import { Counter } from 'k6/metrics';\n`;
   out += buildDataImports(dataSets);
   out += `\n`;
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
@@ -331,6 +347,11 @@ export function generateScript(config) {
   const hasDefault = (e) => isExtractable(e) && extractionDefault(e) !== null;
   if (mainReqs.some((r) => (r.extractions || []).some(hasDefault))) {
     out += `\n${EXTRACT_OR_SOURCE}\n`;
+  }
+
+  if (outcomes.length) {
+    out += `\n${OUTCOME_HELPER_SOURCE}`;
+    out += buildOutcomeRulesSource(outcomes, mainReqs);
   }
 
   out += `\nexport default function() {\n`;
@@ -441,7 +462,9 @@ export function generateScript(config) {
       validateGrpcRequest(req, `Request ${i + 1}`);
       out += "\n" + buildGrpcRequestCode(req, i, "main", ctx, logRequests);
     } else {
-      out += "\n" + buildRequestCode(req, i, "main", ctx, null, logRequests);
+      const target = outcomeByIndex.get(i);
+      const outcomeCode = target ? buildOutcomeCode(target, `res_main_${i}`) : "";
+      out += "\n" + buildRequestCode(req, i, "main", ctx, null, logRequests, outcomeCode);
     }
     out += "\n";
 

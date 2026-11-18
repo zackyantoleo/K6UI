@@ -9,6 +9,8 @@ import { readExtractionRow } from './components/rows.js';
 import { readExportBlocks } from './components/export-rows.js';
 import { exportsProblem } from './csv-export.js';
 import { normalizeRequestLog } from './request-log.js';
+import { outcomesProblem } from './outcomes.js';
+import { readOutcomesPanel } from './components/request-editor/outcomes.js';
 
 // ── Row readers ────────────────────────────────────────────────
 function readHeaderRows(scope) {
@@ -34,11 +36,13 @@ function readAssertionRows(scope) {
 // ── Per card ───────────────────────────────────────────────────
 function collectReqList(containerId) {
   return $$(`#${containerId} .req-card`).map(card => {
-    for (const panelId of ['headers', 'body', 'extractions', 'assertions', 'scripts', 'options']) {
+    for (const panelId of ['headers', 'body', 'extractions', 'assertions', 'outcomes', 'scripts', 'options']) {
       card.ensureRequestPanel?.(panelId);
     }
     const body = card.querySelector('.req-card-body');
     if (!card.dataset.requestId) card.dataset.requestId = createRequestId();
+    // Outcome rules: saved only when the request has some (no `outcomes` key otherwise).
+    const outcomes = readOutcomesPanel(body.querySelector('.outcomes-panel'));
     return {
       id:          card.dataset.requestId,
       name:        card.querySelector('.request-name')?.value.trim() || '',
@@ -56,6 +60,7 @@ function collectReqList(containerId) {
       extractions: readExtractionRows(body.querySelector('.extractions-list')),
       exports:     readExportBlocks(body.querySelector('.exports-list')),
       assertions:  readAssertionRows(body.querySelector('.assertions-list')),
+      ...(outcomes ? { outcomes } : {}),
       preScript:   card.querySelector('.pre-script').value,
       postScript:  card.querySelector('.post-script').value,
     };
@@ -124,6 +129,8 @@ export function validate(config) {
   const runnable = config.scenario.requests.filter(r => r.enabled !== false && !offGroups.has(r.groupId) && String(r.url || '').trim());
   const exportError = exportsProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, exports: r.exports })));
   if (exportError) return exportError;
+  const outcomeError = outcomesProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, type: r.type, outcomes: r.outcomes })));
+  if (outcomeError) return outcomeError;
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
       return 'Add at least one valid stage in the Load Profile.';

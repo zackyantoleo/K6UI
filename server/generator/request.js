@@ -4,7 +4,8 @@ import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
 
 // ctx = { localVars, processorVars, dataVars, globalVars, hoistedVars } — see interpolate.js.
-export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests) {
+// outcomeCode = the line that labels this response (outcomes.js), after the extractions.
+export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests, outcomeCode = "") {
   const method = (req.method || "GET").toUpperCase();
   const urlCode = interpolate(req.url, ctx);
 
@@ -58,6 +59,7 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
     ctx && ctx.hoistedVars
   );
   if (extractCode) lines.push(extractCode);
+  if (outcomeCode) lines.push(outcomeCode);
 
   // Per-request log: logHttpRequest() (helpers in generator/index.js) prints
   // one {__r:1,...} JSON line that k6-runner.js turns into a req-log event.

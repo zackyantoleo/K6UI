@@ -34,6 +34,8 @@ function createContext(src) {
     globalsName: null,      // name of K6UI's own `const GLOBALS = {...}` object
     dataRows: new Set(),    // K6UI's own data file rows: DATA_1_ROW → {{column}}
     extractOr: false,       // the script declares K6UI's extractOr() helper (extraction defaults)
+    outcomeHelper: false,   // the script declares K6UI's outcome helpers (outcomeText(), outcome rules)
+    metricsImport: null,    // `import ... from 'k6/metrics'`: K6UI's own when outcomeHelper, else ignored
     requests: [],
     groups: [],
     logRequests: false,
@@ -70,6 +72,8 @@ function readImports(ast, ctx) {
           ctx.names[spec.imported.name] = spec.local.name;
         }
       }
+    } else if (from === "k6/metrics") {
+      ctx.metricsImport = node; // reported after the top level is read (see importK6Script)
     } else if (from === "k6/data") {
       ctx.warn(node, `import "${from}" was ignored; data read with SharedArray is not imported — add the CSV file under Data & Rules (Data files).`);
     } else {
@@ -97,6 +101,7 @@ function collectTopLevel(ast, ctx) {
       }
       if (decl.id.name === "redactResponseSample") ctx.logRequests = true; // K6UI's request-log helper
       if (decl.id.name === "extractOr" && !decl.async && !decl.generator && decl.params.length === 2) ctx.extractOr = true;
+      if (decl.id.name === "outcomeText" && !decl.async && !decl.generator && decl.params.length === 1) ctx.outcomeHelper = true;
     } else if (decl?.type === "VariableDeclaration") {
       for (const d of decl.declarations) {
         if (d.id.type !== "Identifier" || !d.init) continue;
@@ -176,6 +181,10 @@ export function importK6Script(source) {
 
   readImports(ast, ctx);
   const { functions, optionsNode } = collectTopLevel(ast, ctx);
+  // K6UI's outcome rules use a Counter from k6/metrics; any other use is not imported.
+  if (ctx.metricsImport && !ctx.outcomeHelper) {
+    ctx.warn(ctx.metricsImport, `import "k6/metrics" was ignored; code that uses it is not imported.`);
+  }
   const { load, thresholds } = importOptions(optionsNode, ctx);
 
   const main = findDefaultFunction(ast, functions, ctx);

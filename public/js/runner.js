@@ -5,6 +5,7 @@ import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
 import { addExportRows, exportSummary, resetExports } from './export-results.js';
 import { buildRunReport, reportFileName, reportToHtml } from './run-report.js';
+import { renderOutcomeResults, resetOutcomeResults } from './outcome-results.js';
 import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
 
 export const MAX_REQ_LOGS = 500;
@@ -450,7 +451,9 @@ function finishRun(data) {
   if (lastRun) {
     lastRun.summary = data.summary || null;
     lastRun.exitCode = data.code ?? null;
+    lastRun.outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
   }
+  renderOutcomeResults(data.outcomes);
   if (data.summary) {
     renderMetrics(data.summary);
     applySummaryMetadata(data.summary);
@@ -494,6 +497,7 @@ function resetRunWorkspace() {
   resetLiveLog();
   resetErrors();
   resetExports();
+  resetOutcomeResults();
   $('#run-metrics').replaceChildren();
   $('#overview-metrics').replaceChildren();
   setText('#run-started', '—');

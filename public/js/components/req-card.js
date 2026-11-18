@@ -5,6 +5,7 @@ import {
   updateExtCount,
   updateAssertCount,
   updateScriptCount,
+  updateOutcomeCount,
   renumberMain,
   refreshFlowEmptyState,
   notifyFlowChanged,
@@ -17,6 +18,9 @@ import { createBodyPanel } from './request-editor/body.js';
 import { assertionRow, createChecksPanel } from './request-editor/checks.js';
 import { createExtractPanel } from './request-editor/extract.js';
 import { createScriptsPanel } from './request-editor/scripts.js';
+import {
+  createOutcomesPanel, fillOutcomesPanel, outcomeRuleRow, readOutcomeRuleRow,
+} from './request-editor/outcomes.js';
 import { createAdvancedPanel } from './request-editor/advanced.js';
 import { createRequestId } from '../project-store.js';
 
@@ -100,6 +104,7 @@ function panelContent(factory, card) {
     onExtCount: () => updateExtCount(card),
     onAssertCount: () => updateAssertCount(card),
     onScriptCount: () => updateScriptCount(card),
+    onOutcomeCount: () => updateOutcomeCount(card),
   });
 }
 
@@ -108,6 +113,7 @@ const lazyPanelFactories = {
   body: () => createBodyPanel(),
   extractions: ({ onExtCount }) => createExtractPanel(onExtCount),
   assertions: ({ onAssertCount }) => createChecksPanel(onAssertCount),
+  outcomes: ({ onOutcomeCount }) => createOutcomesPanel(onOutcomeCount),
   scripts: ({ onScriptCount }) => createScriptsPanel(onScriptCount),
   options: () => createAdvancedPanel(),
 };
@@ -144,6 +150,9 @@ export function ensureRequestPanel(card, panelId) {
         list.appendChild(assertionRow(check.type, check.value, check.value2, () => updateAssertCount(card)));
       }
       updateAssertCount(card);
+    } else if (panelId === 'outcomes') {
+      fillOutcomesPanel(panel, request.outcomes, () => updateOutcomeCount(card));
+      updateOutcomeCount(card);
     } else if (panelId === 'scripts') {
       panel.querySelector('.pre-script').value = request.preScript || '';
       panel.querySelector('.post-script').value = request.postScript || '';
@@ -169,7 +178,7 @@ function requestSnapshot(card) {
   const selectors = [
     '.request-name', '.protocol', '.method', '.url', '.grpc-method', '.grpc-plaintext',
     '.body', '.check-status', '.sleep', '.pre-script', '.post-script', '.request-enabled',
-    '.request-group-select',
+    '.request-group-select', '.outcome-fallback',
   ];
   for (const selector of selectors) {
     const field = card.querySelector(selector);
@@ -187,6 +196,7 @@ function requestSnapshot(card) {
     row.querySelector('.assert-val').value,
     row.querySelector('.assert-val2').value,
   ]);
+  snapshot.outcomeRules = [...card.querySelectorAll('.req-card-body .outcome-rule-row')].map(readOutcomeRuleRow);
   return snapshot;
 }
 
@@ -197,6 +207,7 @@ function applySnapshot(card, snapshot) {
     '.sleep': 'options',
     '.pre-script': 'scripts',
     '.post-script': 'scripts',
+    '.outcome-fallback': 'outcomes',
   };
   for (const [selector, panelId] of Object.entries(requiredPanels)) {
     if (Object.hasOwn(snapshot, selector)) ensureRequestPanel(card, panelId);
@@ -221,11 +232,16 @@ function applySnapshot(card, snapshot) {
     ensureRequestPanel(card, 'assertions').querySelector('.assertions-list')
       .appendChild(assertionRow(type, value, value2, () => updateAssertCount(card)));
   }
+  for (const rule of snapshot.outcomeRules) {
+    ensureRequestPanel(card, 'outcomes').querySelector('.outcome-rules-list')
+      .appendChild(outcomeRuleRow(rule, () => updateOutcomeCount(card)));
+  }
   card.querySelector('.protocol').dispatchEvent(new Event('change'));
   card.querySelector('.url').dispatchEvent(new Event('input'));
   updateExtCount(card);
   updateAssertCount(card);
   updateScriptCount(card);
+  updateOutcomeCount(card);
 }
 
 export function reqCard(index, context, requestId = '') {
@@ -328,7 +344,7 @@ export function reqCard(index, context, requestId = '') {
   tabs.setAttribute('role', 'tablist');
   const definitions = [
     ['headers', 'Headers'], ['body', 'Body'], ['extractions', 'Extract'],
-    ['assertions', 'Checks'], ['scripts', 'Scripts'], ['options', 'Advanced'],
+    ['assertions', 'Checks'], ['outcomes', 'Outcomes'], ['scripts', 'Scripts'], ['options', 'Advanced'],
   ];
   for (const [panelId, label] of definitions) {
     const tab = button(`${label} settings`, `req-tab${panelId === 'headers' ? ' active' : ''}`, label);
@@ -339,9 +355,10 @@ export function reqCard(index, context, requestId = '') {
     tab.setAttribute('aria-selected', String(panelId === 'headers'));
     tab.setAttribute('aria-controls', `${idBase}-panel`);
     tab.tabIndex = panelId === 'headers' ? 0 : -1;
-    if (panelId === 'extractions' || panelId === 'assertions' || panelId === 'scripts') {
+    const countName = { extractions: 'ext', assertions: 'assert', outcomes: 'outcome', scripts: 'script' }[panelId];
+    if (countName) {
       const count = document.createElement('span');
-      count.className = `tab-count tab-count-${panelId === 'extractions' ? 'ext' : panelId === 'assertions' ? 'assert' : 'script'}`;
+      count.className = `tab-count tab-count-${countName}`;
       tab.append(' ', count);
     }
     tab.addEventListener('click', () => activateTab(card, panelId));

@@ -128,3 +128,26 @@ pause (`sleep(0.5 + Math.random())`) gave 1.1 ms.
 
 `responseType: "none"` on a request whose 4 KB body is not read added about 3%;
 `K6_SYSTEM_TAGS` and `GOGC=400` stayed inside the noise.
+
+## Outcome rules (November 2026)
+
+Same machine and flow, 2026-11-18, 50 VUs, 8 s runs, four rounds with the order
+of the variants rotated (the first run after a pause gets the most turbo), median
+of the middle two. Every one of the three requests had the same rules. Requests per
+CPU second of k6:
+
+| Variant | Requests per CPU second | Change |
+| --- | ---: | ---: |
+| No outcome rules | 6,646–6,790 | — |
+| 4 rules (2xx status, two error codes at one JSON path, a body regex); every response matches the first | 6,105 | −10% |
+| The same with a JSON `exists` on `data` (an object of the 4 KB body) first | 4,792 | −28% |
+| First prototype: one helper looping over rule objects, status rule first | 5,396 | −18% |
+| First prototype, JSON `exists` first | 4,159 | −36% |
+| First prototype without the `Counter.add` | 5,904 | −10% |
+
+About 8 points of the 10% are k6's own cost of one metric sample (`Counter.add`),
+the same with or without tags. The rest is the function call and its `if`s:
+`outcomeOf_<n>()` with one `if` per rule cost about half of the generic loop.
+Reading a JSON path that holds an object converts that object to JavaScript, as an
+extraction of it would; a path to a single value (`error.code`) is cheap, and a
+status-only rule placed first answers most responses without reading the body.

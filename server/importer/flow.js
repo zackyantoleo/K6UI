@@ -7,8 +7,9 @@ import { buildRequest, httpCallInfo } from "./request.js";
 import { convertPredicate, regexSelector } from "./checks.js";
 import { groupNameBefore, readRunIf } from "./run-if.js";
 import {
-  Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, safeText, sourceOf, tryStatic, unwrap,
+  Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, safeText, sourceOf, staticValue, tryStatic, unwrap,
 } from "./values.js";
+import { normalizeOutcomes } from "../../public/js/outcomes.js";
 
 // ── Where does a value come from? ──────────────────────────────
 // Descriptors: { kind: 'response', req } | { kind: 'json', req, path } |
@@ -394,10 +395,54 @@ function handleExportIf(stmt, state) {
   return true;
 }
 
+// K6UI's own outcome line (generator/outcomes.js), when the script declares K6UI's
+// outcome helpers: `outcomeOf_<n>(res)`, whose rules are the top-level
+// `const OUTCOME_RULES_<n> = { rules: [...], fallback: "..." }`.
+// → true when the call was read (the rules go to the request of `res`).
+const OUTCOME_FUNCTION = /^outcomeOf_(\d+)$/;
+
+function handleOutcome(call, state) {
+  const { ctx } = state;
+  const number = call?.type === "CallExpression" && call.callee.type === "Identifier"
+    ? OUTCOME_FUNCTION.exec(call.callee.name)?.[1] : null;
+  if (!ctx.outcomeHelper || !number || call.arguments.length !== 1) return false;
+  const resNode = unwrap(call.arguments[0]);
+  const req = resNode.type === "Identifier" && ctx.bindings.get(resNode.name)?.kind === "response"
+    ? ctx.bindings.get(resNode.name).req : null;
+  const entry = ctx.consts.get(`OUTCOME_RULES_${number}`);
+  let data = null;
+  try {
+    data = req && entry?.top ? staticValue(entry.node, ctx) : null;
+  } catch (e) {
+    if (!(e instanceof Unresolvable)) throw e;
+  }
+  if (!data || typeof data !== "object" || !Array.isArray(data.rules)) {
+    ctx.warn(call, `Skipped \`${sourceOf(call, ctx)}\`: its outcome rules could not be read.`);
+    return true;
+  }
+  // A JSON path was written as the gjson path res.json() reads.
+  const outcomes = normalizeOutcomes({ rules: data.rules, fallback: typeof data.fallback === "string" ? data.fallback : "" });
+  outcomes.rules = outcomes.rules.map((rule) => ({
+    label: rule.label,
+    status: rule.status,
+    source: rule.source,
+    selector: rule.source === "json" ? serializePath(splitSelector(rule.selector)) : rule.selector,
+    operator: rule.operator,
+    value: rule.value,
+  }));
+  req.outcomes = outcomes;
+  return true;
+}
+
 // `name = <init>` (declaration or assignment): remember where the value comes from.
 function bind(name, rawInit, state) {
   const { ctx } = state;
   const init = unwrap(rawInit);
+  if (handleOutcome(init, state)) {
+    ctx.bindings.delete(name);
+    ctx.consts.delete(name);
+    return;
+  }
 
   const info = httpCallInfo(init, ctx);
   if (info) {
@@ -424,6 +469,11 @@ function bind(name, rawInit, state) {
   ctx.consts.set(name, { node: init, top: false });
 }
 
+// `OUTCOME.add(1, OUTCOME_TAGS_<n>[...])`: K6UI's count of a label, read with its outcomeOf_<n>() line.
+const isOutcomeCount = (node, ctx) =>
+  ctx.outcomeHelper && node.callee.type === "MemberExpression" && !node.callee.computed
+  && node.callee.object.type === "Identifier" && node.callee.object.name === "OUTCOME" && node.callee.property.name === "add";
+
 const isConsoleCall = (node) =>
   node?.type === "CallExpression" && node.callee.type === "MemberExpression"
   && node.callee.object.type === "Identifier" && node.callee.object.name === "console";
@@ -435,6 +485,7 @@ function expression(rawExpr, stmt, state) {
   if (expr.type === "CallExpression") {
     const info = httpCallInfo(expr, ctx);
     if (info) addRequest(expr, info, state);
+    else if (handleOutcome(expr, state) || isOutcomeCount(expr, ctx)) return;
     else if (isCallTo(expr, ctx.names.check)) handleCheck(expr, state);
     else if (isCallTo(expr, ctx.names.sleep)) handleSleep(expr, state);
     else if (isCallTo(expr, ctx.names.group)) handleGroup(expr, state);

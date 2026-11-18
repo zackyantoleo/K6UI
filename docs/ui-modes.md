@@ -69,6 +69,7 @@ that will run with:
 - response extraction
 - Save to CSV (requests that save rows; never the file name)
 - custom checks
+- outcome rules (requests with at least one rule; empty rows do not count)
 - pre/post scripts (whitespace-only scripts do not count)
 - a pause other than the default 1 second
 - the automatic 2xx check turned off
