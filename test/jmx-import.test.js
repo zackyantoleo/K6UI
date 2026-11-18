@@ -97,7 +97,7 @@ test('imports a JMeter test plan: load, variables, headers, groups, extractors, 
   // The result is a valid project and generates a script.
   assert.equal(migrateProject(config).scenario.requests.length, 4);
   const script = generateScript(config);
-  assert.match(script, /JSON\.parse\(res_main_0\.body\)\?\.\["data"\]\?\.\["token"\]/);
+  assert.match(script, /res_main_0\.json\("data\.token"\)/);
   assert.match(script, /Bearer \$\{token\}/);
   assert.doesNotMatch(script, /checkout-v1/);
 });

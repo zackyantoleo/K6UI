@@ -6,6 +6,10 @@
 //
 // Records over the budget are counted, not sent: a `req-log-skipped` event
 // `{ skipped }` (running total) goes out at most once a second and on flush().
+// The script has its own per-VU budget (generator/index.js, takeLogBudget): a
+// record's `sk` is how many that VU left out before it, added to the total and
+// removed from the record. What a VU leaves out after its last record is not
+// counted, so the total is a lower bound.
 export const REQ_LOG_RATE = 50;
 const WINDOW_MS = 1000;
 
@@ -34,6 +38,11 @@ export function createRequestLogThrottle(onEvent, { rate = REQ_LOG_RATE, now = D
         sentOk = 0;
         sentFailed = 0;
       }
+      if (entry && typeof entry === "object") {
+        const before = Number(entry.sk);
+        if (Number.isFinite(before) && before > 0) skipped += Math.floor(before);
+        delete entry.sk;
+      }
       const failed = !entry || entry.ok !== true;
       if ((failed ? sentFailed : sentOk) >= rate) {
         skipped += 1;
@@ -43,6 +52,7 @@ export function createRequestLogThrottle(onEvent, { rate = REQ_LOG_RATE, now = D
       if (failed) sentFailed += 1;
       else sentOk += 1;
       onEvent("req-log", entry);
+      report(false);
     },
     flush() {
       report(true);

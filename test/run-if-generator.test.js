@@ -140,7 +140,7 @@ test('a variable extracted inside the group is declared above the block and read
   assertSyntax(script);
   assert.ok(script.indexOf('let token = "";') < script.indexOf('  if (String(GLOBALS.MODE)'), 'declared above the if');
   assert.equal(script.match(/\blet token\b/g).length, 1, 'declared once');
-  assert.match(script, /\n  token = JSON\.parse\(res_main_0\.body\)/);
+  assert.match(script, /\n  token = res_main_0\.json\("/);
 
   const respond = call => (call.url.endsWith('/login') ? { body: '{"token":"T1"}' } : {});
   assert.deepEqual(urls(loadScript(script, { respond }).iteration(1, 0)), ['https://api.test/login', 'https://api.test/me/T1', 'https://api.test/after/T1']);

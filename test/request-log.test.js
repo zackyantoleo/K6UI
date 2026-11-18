@@ -4,7 +4,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { generateScript } from '../server/generator/index.js';
+import { generateScript, requestLogBudget } from '../server/generator/index.js';
+import { buildOptions } from '../server/generator/options.js';
 import { importK6Script } from '../server/importer/index.js';
 import { createRequestLogThrottle } from '../server/request-log-throttle.js';
 import { normalizeRequestLog, DEFAULT_SAMPLE_EVERY, MAX_SAMPLE_EVERY } from '../public/js/request-log.js';
@@ -184,6 +185,54 @@ test('the server forwards at most `rate` passed and `rate` failed records a seco
   assert.deepEqual(events.filter(e => e.event === 'req-log').map(e => e.data.i), [0, 1, 'e1', 'e2', 'next']);
   const skipped = events.filter(e => e.event === 'req-log-skipped').map(e => e.data.skipped);
   assert.deepEqual(skipped, [1, 3], 'reported once in the first second, then the total on flush');
+});
+
+test('the record budget of a VU: twice the server rate over all VUs, a first burst that covers a short race run', () => {
+  const budgetOf = load => requestLogBudget(buildOptions({ load }));
+  assert.deepEqual(budgetOf({ mode: 'simple', vus: '1', duration: '1s' }), { rate: 100, burst: 10 });
+  assert.deepEqual(budgetOf({ mode: 'simple', vus: '50', duration: '1s' }), { rate: 2, burst: 10 });
+  assert.deepEqual(budgetOf({ mode: 'iterations', vus: '98', iterations: '1' }), { rate: 1.02, burst: 6 });
+  assert.deepEqual(budgetOf({ mode: 'stages', stages: [{ duration: '1m', target: '10' }, { duration: '1m', target: '500' }] }), { rate: 0.2, burst: 1 });
+  const script = generateScript(configOf([post], { logRequests: true }));
+  assert.match(script, /const REQUEST_LOG = \{"filter":"all","every":10,"redact":false,"bodyLimit":4096,"rate":100,"burst":10\};/);
+});
+
+test('a VU past its budget builds no record and counts it on its next record (sk), passed and failed apart', () => {
+  const realNow = Date.now;
+  let time = 1_000_000;
+  Date.now = () => time;
+  try {
+    let status = 200;
+    const k6 = loadScript(generateScript(configOf([post], { logRequests: true })), { respond: call => respond(status, '{}')(call) });
+    for (let i = 0; i < 25; i++) k6.iteration(1, i);              // burst 10, no time passes
+    status = 500;
+    for (let i = 25; i < 27; i++) k6.iteration(1, i);             // failed requests have their own budget
+    assert.deepEqual(records(k6).map(r => `${r.it}:${r.s}:${r.sk}`),
+      ['0:200:0', '1:200:0', '2:200:0', '3:200:0', '4:200:0', '5:200:0', '6:200:0', '7:200:0', '8:200:0', '9:200:0', '25:500:15', '26:500:0']);
+    status = 200;
+    time += 10;                                                    // 100 a second: one more passed record
+    k6.iteration(1, 27);
+    k6.iteration(1, 28);
+    assert.deepEqual(records(k6).slice(12).map(r => `${r.it}:${r.sk}`), ['27:0']);
+    time += 1000;                                                  // refills up to the burst only
+    for (let i = 29; i < 45; i++) k6.iteration(1, i);
+    assert.deepEqual(records(k6).slice(13).map(r => `${r.it}:${r.sk}`),
+      ['29:1', '30:0', '31:0', '32:0', '33:0', '34:0', '35:0', '36:0', '37:0', '38:0']);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test('the server adds what the script left out (sk) to the skipped count and drops the field', () => {
+  let time = 0;
+  const events = [];
+  const throttle = createRequestLogThrottle((event, data) => events.push({ event, data }), { rate: 2, now: () => time });
+  throttle.add({ i: 'a', ok: true, sk: 0 });
+  throttle.add({ i: 'b', ok: true, sk: 7 });
+  throttle.add({ i: 'c', ok: false, sk: 'nope' });
+  throttle.flush();
+  assert.deepEqual(events.filter(e => e.event === 'req-log').map(e => e.data), [{ i: 'a', ok: true }, { i: 'b', ok: true }, { i: 'c', ok: false }]);
+  assert.deepEqual(events.filter(e => e.event === 'req-log-skipped').map(e => e.data.skipped), [7]);
 });
 
 test('flush reports nothing when no record was left out', () => {

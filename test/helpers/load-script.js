@@ -6,6 +6,26 @@
 //
 //   respond(call) → the response of one http.request (default: 200 with body "{}")
 //   grpcResponse  → what a gRPC invoke returns (default: status 0, message {})
+// k6's `res.json(path)` as the generator uses it: a gjson path ("." between keys,
+// "\" makes the next character literal, a number indexes an array) gives undefined
+// when the path, the body or valid JSON is missing; without a path the whole body
+// is parsed and a body that is not JSON throws.
+function jsonRead(path) {
+  if (path === undefined || path === '') return JSON.parse(this.body);
+  let value;
+  try {
+    value = JSON.parse(this.body);
+  } catch {
+    return undefined;
+  }
+  for (const key of path.match(/(?:\\.|[^.\\])+/g) ?? []) {
+    const literal = key.replace(/\\(.)/g, '$1');
+    if (value === null || typeof value !== 'object' || !Object.hasOwn(value, literal)) return undefined;
+    value = value[literal];
+  }
+  return value;
+}
+
 export function loadScript(script, { respond, grpcResponse } = {}) {
   const calls = [];
   const grpcCalls = [];
@@ -32,7 +52,7 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
       request: (method, url, body, params) => {
         const call = { method, url, body, params };
         calls.push(call);
-        return { status: 200, body: '{}', headers: {}, timings: { duration: 1 }, ...respond?.(call) };
+        return { status: 200, body: '{}', headers: {}, timings: { duration: 1 }, ...respond?.(call), json: jsonRead };
       },
     },
     k6: { sleep: seconds => sleeps.push(seconds), check: () => true },

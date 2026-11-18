@@ -31,6 +31,7 @@ const RESPONSES = {
   '/login-ok': '{"data":{"token":"T1"}}',
   '/gateway': '<html>502 Bad Gateway</html>',
   '/address': '{"data":{"address":{"id":42}}}',
+  '/shapes': JSON.stringify({ items: [{ id: 7 }], grid: [[0, 1], [2, 3, 5]], $: { data: 'dollar' }, 'a#b': { 'c*d': 'hash' }, 'we ird': { 'x@y': 'at' }, 'a[b]': { c: 'bracket' } }),
 };
 
 // Runs a generated script with the real k6 against a throwaway server on 127.0.0.1.
@@ -88,5 +89,22 @@ test('real k6: nothing found and a skipped group give the defaults, without a sc
 test('real k6: values that are found win over the defaults', options, async () => {
   const { paths, output } = await runWithK6(origin => flow(origin, { mode: 'ORDER_FLOW', login: '/login-ok' }));
   assert.deepEqual(paths, ['/address', '/gateway', '/login-ok', '/use/T1/NOT_JSON/NO_ID/42']);
+  assert.doesNotMatch(output, /SyntaxError|TypeError|ReferenceError|level=error/);
+});
+
+// Extraction reads JSON with res.json(<gjson path>): indexes and keys holding characters
+// that gjson reads as syntax (escaped by the generator) find the same values as before.
+test('real k6: JSON paths with indexes and gjson syntax characters read the literal keys', options, async () => {
+  const selectors = { first: 'items[0].id', cell: 'grid[1][2]', dollar: '$.data', hash: 'a#b.c*d', at: 'we ird.x@y', bracket: 'a[b].c', none: 'items[3].id' };
+  const { paths, output } = await runWithK6(origin => ({
+    load: { mode: 'iterations', vus: '1', iterations: '1' },
+    scenario: {
+      requests: [
+        get(`${origin}/shapes`, { extractions: Object.entries(selectors).map(([varName, selector]) => ({ varName, source: 'json', selector })) }),
+        get(`${origin}/use/${Object.keys(selectors).map(name => `{{${name}}}`).join('/')}`),
+      ],
+    },
+  }));
+  assert.deepEqual(paths, ['/shapes', '/use/7/5/dollar/hash/at/bracket/undefined']);
   assert.doesNotMatch(output, /SyntaxError|TypeError|ReferenceError|level=error/);
 });

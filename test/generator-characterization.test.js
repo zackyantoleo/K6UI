@@ -44,7 +44,7 @@ test('HTTP generation preserves load, thresholds, headers, extraction, assertion
   assert.match(script, /"x-override": "request"/i);
   const mainRequest = script.match(/const res_main_0 = http\.request\([^\n]+/u)?.[0] || '';
   assert.doesNotMatch(mainRequest, /"X-Override": "global"/);
-  assert.match(script, /let token = JSON\.parse\(res_main_0\.body\)/);
+  assert.match(script, /let token = res_main_0\.json\("/);
   assert.match(script, /"body contains \\"ok\\""/);
   indexInOrder(script, [
     '// Pre-processor: request 1',

@@ -117,7 +117,7 @@ test('golden output: a row after the request, guarded by "only when found" insid
   const body = script.slice(script.indexOf('  // Request 2:'));
   assert.equal(body, `  // Request 2: GET https://api.test/order
   const res_main_1 = http.request("GET", "https://api.test/order", null, {});
-  order_number = extractOr(() => JSON.parse(res_main_1.body)?.["data"]?.["order_number"], "ORDER_NOT_FOUND");
+  order_number = extractOr(() => res_main_1.json("data.order_number"), "ORDER_NOT_FOUND");
 
   // Save a row to CSV "orders_created.csv" (only when the extracted values it uses were found)
   if (![undefined, null, "", "ORDER_NOT_FOUND"].includes(order_number) && ![undefined, null, "", "TOKEN_NOT_FOUND"].includes(token)) {

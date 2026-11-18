@@ -1,4 +1,5 @@
-// Small codegen helpers: JSON selectors and regex literals.
+// Small codegen helpers: JSON selectors (JS accessor for gRPC messages, gjson path for
+// HTTP bodies) and regex literals.
 
 // "data.token"   → ?.['data']?.['token']
 // "items[0].id"  → ?.['items']?.[0]?.['id']
@@ -16,6 +17,30 @@ export function buildJsonAccessor(selector) {
     })
     .join("");
 }
+
+// A selector as a gjson path for k6's `res.json(path)`, which reads the body in Go
+// instead of `JSON.parse(res.body)` in JavaScript (about twice the requests per CPU
+// second in a three-request flow, see docs/baseline-performance.md):
+// "data.token"        → data.token
+// "items[0].id"       → items.0.id
+// "[0].id"            → 0.id
+// "grid[1][2]"        → grid.1.2
+// Characters gjson reads as syntax (* ? # @ | and the rest outside letters, digits,
+// _ - :) are escaped with "\", so every key is matched literally, as before. Empty
+// parts ("a..b") are dropped, as the importer does.
+export function buildGjsonPath(selector) {
+  const components = [];
+  for (const part of String(selector ?? "").split(".")) {
+    const indexed = part.match(/^(.*?)((?:\[\d+\])+)$/);
+    const key = indexed ? indexed[1] : part;
+    if (key) components.push(key.replace(GJSON_UNSAFE, "\\$&"));
+    if (indexed) components.push(...indexed[2].slice(1, -1).split("]["));
+  }
+  return components.join(".");
+}
+
+// gjson's own rule (isSafePathKeyChar): letters, digits, _ - :, spaces, control and non-ASCII characters need no escape.
+const GJSON_UNSAFE = /[^A-Za-z0-9_\-:\x00-\x20\x7f-￿]/g;
 
 // Turns user input into a JS regex literal.
 // Input already shaped like /.../flags is used as-is.

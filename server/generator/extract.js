@@ -1,5 +1,5 @@
 // Codegen for extracting variables from a response (JSON path / header / regex).
-import { buildJsonAccessor, buildRegex, jsLiteral } from "./helpers.js";
+import { buildGjsonPath, buildJsonAccessor, buildRegex, jsLiteral } from "./helpers.js";
 
 const SOURCES = new Set(["json", "header", "regex"]);
 
@@ -7,8 +7,8 @@ const SOURCES = new Set(["json", "header", "regex"]);
 export const isExtractable = (e) => Boolean(e && e.varName && SOURCES.has(e.source));
 
 // The fixed value an extraction falls back to, or null when it has none. "" (or
-// no field at all) means none, which keeps the behaviour from before defaults:
-// a regex with no match gives "", a missing JSON path or header gives undefined.
+// no field at all) means none: a regex with no match gives "", a missing JSON path
+// or header gives undefined (so does a JSON path on a body that is not JSON).
 export function extractionDefault(e) {
   const value = e && e.default;
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -16,9 +16,9 @@ export function extractionDefault(e) {
   return typeof value === "string" && value !== "" ? value : null;
 }
 
-// Emitted once (index.js) when an extraction has a default: `read` throws for a
-// body that is not JSON (or no body for a regex), and returns undefined for a
-// missing path, header or match; both give the default.
+// Emitted once (index.js) when an extraction has a default: `read` throws for no
+// body (regex) or a whole-body JSON read of a body that is not JSON, and returns
+// undefined for a missing path, header or match; both give the default.
 export const EXTRACT_OR_SOURCE = `// Value read from a response, or the extraction's default when nothing matched
 // (a missing JSON path or header, no regex match, a body that is not JSON)
 function extractOr(read, fallback) {
@@ -30,7 +30,7 @@ function extractOr(read, fallback) {
   }
 }`;
 
-// mode = 'http' → JSON source parses res.body; regex matches res.body.
+// mode = 'http' → JSON source reads res.json(<gjson path>); regex matches res.body.
 // mode = 'grpc' → JSON source reads the already-decoded res.message; regex
 //                 matches JSON.stringify(res.message).
 // targetPrefix = 'data' → data.varName = ...  (for setup, stored on the return value)
@@ -50,9 +50,12 @@ export function buildExtractionLines(extractions, resVar, targetPrefix, localVar
     let rhs;
     const sel = e.selector || "";
     if (e.source === "json") {
+      // HTTP: k6 reads the path in Go (gjson), so the body is never parsed in JavaScript.
+      // A missing path, an empty body and a body that is not JSON all give undefined.
+      const path = mode === "grpc" ? "" : buildGjsonPath(sel);
       read = mode === "grpc"
         ? `${resVar}.message${buildJsonAccessor(sel)}`
-        : `JSON.parse(${resVar}.body)${buildJsonAccessor(sel)}`;
+        : `${resVar}.json(${path ? jsLiteral(path) : ""})`;
       rhs = read;
     } else if (e.source === "header") {
       read = `${resVar}.headers[${JSON.stringify(sel)}]`;
