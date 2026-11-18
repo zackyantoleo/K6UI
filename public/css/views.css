@@ -262,6 +262,40 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 .run-outcome-label.fallback .run-outcome-fill { background: var(--text-muted); }
 .run-outcome-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
 
+/* Outcome targets: met, not met or not checked, one line each */
+.run-outcome-targets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.run-outcome-targets[hidden] { display: none; }
+.run-outcome-target {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: baseline;
+  padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.run-outcome-target-status {
+  padding: 1px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 600; white-space: nowrap;
+  color: var(--text-muted); background: var(--surface-3);
+}
+.run-outcome-target.met .run-outcome-target-status { color: var(--ok); background: var(--ok-lite); }
+.run-outcome-target.not-met .run-outcome-target-status { color: var(--danger); background: var(--danger-lite); }
+.run-outcome-target-text { min-width: 0; overflow-wrap: anywhere; }
+.run-outcome-target-rule { font-family: var(--font-mono); font-size: 13px; }
+.run-outcome-target-request { display: block; font-size: var(--text-sm); color: var(--text-muted); }
+.run-outcome-target-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
+
+/* ── Thresholds / SLA: outcome targets ───────────────────────── */
+.outcome-targets { display: flex; flex-direction: column; gap: var(--space-3); }
+.outcome-targets h3 { margin-bottom: 0; }
+.outcome-targets .field-note code { font-family: var(--font-mono); font-size: 12px; }
+.outcome-targets-empty { margin: 0; }
+.outcome-targets-empty[hidden] { display: none; }
+.outcome-targets-list { display: flex; flex-direction: column; gap: var(--space-3); }
+/* A row wraps on a narrow column: a line between rows keeps each target together. */
+.outcome-target-row + .outcome-target-row { padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.outcome-targets-list:empty { display: none; }
+.outcome-target-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.outcome-target-row .outcome-target-request { flex: 2 1 220px; min-width: 0; }
+.outcome-target-row .outcome-target-label { flex: 1 1 140px; min-width: 0; font-family: var(--font-mono); font-size: 13px; }
+.outcome-target-row .outcome-target-op { flex: 0 1 130px; min-width: 0; }
+.outcome-target-row .outcome-target-value { flex: 1 1 140px; min-width: 0; font-family: var(--font-mono); font-size: 13px; }
+
 /* ── Data files (CSV) ────────────────────────────────────────── */
 .data-files-warning { margin-bottom: var(--space-4); }
 .data-file-card {

@@ -1,8 +1,13 @@
 // "Outcomes" in the Overview of Run & Results: for each request with outcome rules,
 // how many responses got each label (the `outcomes` of the `done` event, see
-// public/js/outcomes.js readOutcomeResults). Shown in both modes; names and labels
-// are rendered with textContent only.
+// public/js/outcomes.js readOutcomeResults), and above them whether each outcome
+// target was met (`outcomeThresholds`, see outcome-thresholds.js
+// readOutcomeThresholdResults). Shown in both modes; names and labels are rendered
+// with textContent only.
 import { DEFAULT_OUTCOME_FALLBACK } from './outcomes.js';
+import { outcomeThresholdText, requestTitle as targetRequestTitle } from './outcome-thresholds.js';
+
+const TARGET_STATUS = { met: 'Met', 'not-met': 'Not met', skipped: 'Not checked', unknown: 'No result' };
 
 const percent = share => `${(share * 100).toFixed(share > 0 && share < 0.001 ? 2 : 1)} %`;
 
@@ -32,11 +37,44 @@ function labelRow(item, isFallback) {
   return row;
 }
 
-export function renderOutcomeResults(results) {
+// One outcome target: its status, the target as typed, its request, the count.
+function targetRow(target) {
+  const row = document.createElement('li');
+  const status = TARGET_STATUS[target.status] ? target.status : 'unknown';
+  row.className = `run-outcome-target ${status}`;
+  row.dataset.number = String(target.number);
+  const mark = document.createElement('span');
+  mark.className = 'run-outcome-target-status';
+  mark.textContent = TARGET_STATUS[status];
+  const body = document.createElement('span');
+  body.className = 'run-outcome-target-text';
+  const rule = document.createElement('span');
+  rule.className = 'run-outcome-target-rule';
+  rule.textContent = outcomeThresholdText(target);
+  const where = document.createElement('span');
+  where.className = 'run-outcome-target-request';
+  where.textContent = status === 'skipped'
+    ? `${targetRequestTitle(target)}: not checked, as ${target.skipped}`
+    : targetRequestTitle(target);
+  body.append(rule, where);
+  const count = document.createElement('span');
+  count.className = 'run-outcome-target-count';
+  count.textContent = target.count == null ? '' : `counted ${target.count}`;
+  row.append(mark, body, count);
+  return row;
+}
+
+export function renderOutcomeResults(results, thresholds = []) {
   const section = document.querySelector('#run-outcomes');
   const list = document.querySelector('#run-outcomes-list');
   if (!section || !list) return;
   const items = Array.isArray(results) ? results : [];
+  const targets = Array.isArray(thresholds) ? thresholds : [];
+  const targetList = document.querySelector('#run-outcome-targets');
+  if (targetList) {
+    targetList.replaceChildren(...targets.map(targetRow));
+    targetList.hidden = targets.length === 0;
+  }
   list.replaceChildren(...items.map(result => {
     const entry = document.createElement('li');
     entry.className = 'run-outcome';
@@ -58,11 +96,16 @@ export function renderOutcomeResults(results) {
     entry.append(head, labels);
     return entry;
   }));
-  section.hidden = items.length === 0;
+  section.hidden = items.length === 0 && targets.length === 0;
 }
 
 export function resetOutcomeResults() {
   document.querySelector('#run-outcomes-list')?.replaceChildren();
+  const targets = document.querySelector('#run-outcome-targets');
+  if (targets) {
+    targets.replaceChildren();
+    targets.hidden = true;
+  }
   const section = document.querySelector('#run-outcomes');
   if (section) section.hidden = true;
 }

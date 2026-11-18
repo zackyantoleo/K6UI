@@ -13,6 +13,7 @@ import { refreshRequestGroupOptions, restoreGroups } from './components/request-
 import { restoreDataSets } from './data-files.js';
 import { normalizeRequestLog } from './request-log.js';
 import { syncRequestLogFields } from './runner.js';
+import { restoreOutcomeTargetRows } from './components/outcome-target-rows.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 export function hydrateRequestCard(card, req) {
@@ -115,6 +116,8 @@ export function applyConfig(cfg) {
 
   restoreGroups(cfg.scenario?.groups || []);
   restoreZone(cfg.scenario?.requests || []);
+  // After the cards: a target's request and label lists come from them.
+  restoreOutcomeTargetRows(cfg.thresholds?.outcomes || []);
   window.dispatchEvent(new CustomEvent('k6ui:project-applied'));
   navigate('flow');
 }

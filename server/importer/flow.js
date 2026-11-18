@@ -431,6 +431,7 @@ function handleOutcome(call, state) {
     value: rule.value,
   }));
   req.outcomes = outcomes;
+  ctx.outcomeRequests.set(Number(number), req); // for outcome targets (options.thresholds)
   return true;
 }
 

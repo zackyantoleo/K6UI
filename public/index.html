@@ -161,7 +161,7 @@
             </button>
             <button type="button" class="data-rule-card" data-view="sla">
               <span class="data-rule-icon" data-icon="target" aria-hidden="true"></span>
-              <span><strong>Performance Targets</strong><small>Set p95 response-time and error-rate limits.</small></span>
+              <span><strong>Performance Targets</strong><small>Set p95 response-time, error-rate and outcome limits.</small></span>
               <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
             </button>
           </div>
@@ -278,17 +278,27 @@
         <section id="view-sla" class="view hidden">
           <p class="view-hint">The test is considered failed (exit code ≠ 0) if these performance targets are not met — useful for CI/CD pipelines.</p>
           <div class="page-cols">
-            <div class="form-card">
-              <h3>Performance Targets</h3>
-              <div class="field">
-                <label>Max p95 response time <span class="muted-label">(ms)</span></label>
-                <input type="number" id="p95" min="0" placeholder="e.g. 500" />
-                <span class="field-note">p95 means 95% of requests must finish below this response time.</span>
+            <div class="page-col-stack">
+              <div class="form-card">
+                <h3>Performance Targets</h3>
+                <div class="field">
+                  <label>Max p95 response time <span class="muted-label">(ms)</span></label>
+                  <input type="number" id="p95" min="0" placeholder="e.g. 500" />
+                  <span class="field-note">p95 means 95% of requests must finish below this response time.</span>
+                </div>
+                <div class="field">
+                  <label>Max error rate <span class="muted-label">(%)</span></label>
+                  <input type="number" id="errorRate" min="0" max="100" step="0.1" placeholder="e.g. 1" />
+                  <span class="field-note">Error rate is the percentage of HTTP requests allowed to fail.</span>
+                </div>
               </div>
-              <div class="field">
-                <label>Max error rate <span class="muted-label">(%)</span></label>
-                <input type="number" id="errorRate" min="0" max="100" step="0.1" placeholder="e.g. 1" />
-                <span class="field-note">Error rate is the percentage of HTTP requests allowed to fail.</span>
+
+              <div class="form-card outcome-targets" id="outcome-targets">
+                <h3 id="outcome-targets-title">Outcome Targets</h3>
+                <p class="field-note">How many responses of a request may get one label of its outcome rules (Request › Outcomes). The count is a number or a global variable such as <code>{{QUOTA}}</code>.</p>
+                <p class="outcome-targets-empty note" id="outcome-targets-empty">No request has outcome rules yet. Add them under Request › Outcomes, then set targets on their labels here.</p>
+                <div id="outcome-targets-list" class="outcome-targets-list" role="list" aria-labelledby="outcome-targets-title"></div>
+                <button type="button" class="add-row-btn" id="add-outcome-target">+ Add outcome target</button>
               </div>
             </div>
 
@@ -296,6 +306,7 @@
               <h3>What are Thresholds?</h3>
               <p class="note">Thresholds are the pass criteria for the test. If they are not met, k6 exits with <strong>exit code 99</strong>.</p>
               <p class="note">Example: if you set p95 = 500ms and 5% of requests exceed it, the test is marked <strong class="text-danger">FAILED</strong>.</p>
+              <p class="note">Outcome targets check the labels of a request's outcome rules, for example <strong>success at most {{QUOTA}}</strong> in a race test: no more redeems than the quota allows. A target on a request that does not run (turned off, or in a turned-off group) is not checked, and the results say so.</p>
             </div>
           </div>
         </section>
@@ -360,6 +371,7 @@
             <section id="run-outcomes" class="run-outcomes" aria-labelledby="run-outcomes-title" hidden>
               <h3 id="run-outcomes-title">Outcomes</h3>
               <p class="results-panel-hint">How many responses got each label of the request's outcome rules (Request › Outcomes).</p>
+              <ul id="run-outcome-targets" class="run-outcome-targets" aria-label="Outcome targets" hidden></ul>
               <ul id="run-outcomes-list" class="run-outcomes-list"></ul>
             </section>
             <section id="run-exports" class="run-exports" aria-labelledby="run-exports-title" hidden>

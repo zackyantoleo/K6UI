@@ -11,6 +11,8 @@ import { exportsProblem } from './csv-export.js';
 import { normalizeRequestLog } from './request-log.js';
 import { outcomesProblem } from './outcomes.js';
 import { readOutcomesPanel } from './components/request-editor/outcomes.js';
+import { outcomeThresholdsProblem } from './outcome-thresholds.js';
+import { readOutcomeTargetRows } from './components/outcome-target-rows.js';
 
 // ── Row readers ────────────────────────────────────────────────
 function readHeaderRows(scope) {
@@ -77,6 +79,12 @@ function readVariableRows() {
     .filter(v => v.key);
 }
 
+// p95 / error rate, plus outcome targets when the view has some (no `outcomes` key otherwise).
+function thresholdFields() {
+  const outcomes = readOutcomeTargetRows();
+  return { p95: $('#p95').value, errorRate: $('#errorRate').value, ...(outcomes.length ? { outcomes } : {}) };
+}
+
 // ── Public API ─────────────────────────────────────────────────
 export function collectConfig() {
   const mode = $('input[name="load-mode"]:checked').value;
@@ -100,7 +108,7 @@ export function collectConfig() {
     dataSets:      collectDataSets(),
     globalHeaders: readHeaderRows($('#global-headers-list')),
     load,
-    thresholds:    { p95: $('#p95').value, errorRate: $('#errorRate').value },
+    thresholds:    thresholdFields(),
     options:       normalizeRequestLog({
       logRequests:    $('#log-requests')?.checked ?? true,
       logFilter:      $('#log-filter')?.value,
@@ -131,6 +139,9 @@ export function validate(config) {
   if (exportError) return exportError;
   const outcomeError = outcomesProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, type: r.type, outcomes: r.outcomes })));
   if (outcomeError) return outcomeError;
+  // Outcome targets: the same check as the generator, over the same request numbers.
+  const targetError = outcomeThresholdsProblem(config);
+  if (targetError) return targetError;
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
       return 'Add at least one valid stage in the Load Profile.';

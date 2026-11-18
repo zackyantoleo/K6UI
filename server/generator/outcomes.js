@@ -12,6 +12,7 @@ import {
   activeOutcomeRules, hasOutcomeRules, normalizeOutcomes, outcomeLabels, outcomeMetricKey,
   outcomeRegexParts, outcomesProblem, parseOutcomeStatus, OUTCOME_METRIC,
 } from "../../public/js/outcomes.js";
+import { planOutcomeThresholds } from "../../public/js/outcome-thresholds.js";
 import { buildGjsonPath, jsLiteral } from "./helpers.js";
 
 // Written once, above the default function, when a request that runs has rules.
@@ -87,14 +88,54 @@ export function outcomeTargets(requests) {
 }
 
 // k6 only reports a submetric (in --summary-export and its REST API) that has a
-// threshold, so every label gets one that always passes.
-export function addOutcomeThresholds(options, targets) {
+// threshold, so every label gets one that always passes. Outcome targets
+// (public/js/outcome-thresholds.js planOutcomeThresholds: checked, resolved) add
+// their own expression to the same list; one that is already there is not repeated
+// (k6 keys a threshold's result by its expression).
+export function addOutcomeThresholds(options, targets, outcomeThresholds = []) {
   if (!targets.length) return;
   const thresholds = { ...(options.thresholds || {}) };
   for (const target of targets) {
     for (const label of target.labels) thresholds[outcomeMetricKey(target.rq, label)] = ["count>=0"];
   }
+  for (const item of outcomeThresholds) {
+    if (item.skipped || !item.expression) continue;
+    const list = (thresholds[outcomeMetricKey(item.rq, item.label)] ||= ["count>=0"]);
+    if (!list.includes(item.expression)) list.push(item.expression);
+  }
   options.thresholds = thresholds;
+}
+
+// Outcome targets as typed (a {{variable}} stays a variable), written as data for
+// the importer only: k6 checks the expressions in `options.thresholds`. A target
+// whose request does not run is not in the script, only named in a comment.
+export function buildOutcomeThresholdsSource(outcomeThresholds) {
+  if (!outcomeThresholds.length) return "";
+  const checked = outcomeThresholds.filter((item) => !item.skipped);
+  let out = "";
+  if (checked.length) {
+    out += `\n// Outcome targets (Thresholds / SLA) as typed, which K6UI reads back on import;\n`;
+    out += `// k6 checks them as the ${OUTCOME_METRIC}{...} thresholds in \`options\` above\n`;
+    out += `const OUTCOME_THRESHOLDS = [\n`;
+    out += checked.map((item) => `  { rq: ${item.rq}, label: ${jsLiteral(item.label)}, op: ${jsLiteral(item.op)}, value: ${jsLiteral(item.value)} },\n`).join("");
+    out += `];\n`;
+  }
+  for (const item of outcomeThresholds.filter((entry) => entry.skipped)) {
+    const what = `${item.label} ${item.op} ${item.value}`.replace(/[\r\n\u2028\u2029]+/g, " ");
+    out += `// Outcome target ${item.number} (${what}) is not checked: ${item.skipped}\n`;
+  }
+  return out;
+}
+
+// Outcome targets that cannot work → a 400 naming the target.
+export function planThresholds(config) {
+  const { problem, thresholds } = planOutcomeThresholds(config);
+  if (problem) {
+    const err = new Error(problem);
+    err.status = 400;
+    throw err;
+  }
+  return thresholds;
 }
 
 // One rule as a JS object literal with only the fields its source uses. A JSON
