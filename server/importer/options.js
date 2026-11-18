@@ -5,7 +5,8 @@ import { DEFAULT_MAX_DURATION } from "../generator/options.js";
 
 const P95 = /^p\(\s*95\s*\)\s*<\s*(\d+(?:\.\d+)?)$/;
 const RATE = /^rate\s*<\s*(\d+(?:\.\d+)?)$/;
-const OUTCOME_KEY = /^k6ui_outcome\{rq:\d+,outcome:[A-Za-z][A-Za-z0-9_]*\}$/;
+const OUTCOME_KEY = /^k6ui_outcome\{rq:(\d+),outcome:([A-Za-z][A-Za-z0-9_]*)\}$/;
+const OUTCOME_COUNT = /^count\s*(<=|>=|==|<|>)\s*(\d+(?:\.\d+)?)$/;
 
 // A threshold entry is "p(95)<500" or { threshold: "p(95)<500", abortOnFail }.
 function thresholdExpressions(value) {
@@ -31,17 +32,21 @@ function readThresholds(node, thresholds, ctx) {
       continue;
     }
     const exprs = thresholdExpressions(tryStatic(prop.value, ctx));
+    const outcome = OUTCOME_KEY.exec(metric);
     for (const expr of exprs.map((e) => e.trim())) {
       let match;
-      // K6UI's outcome rules give every label a threshold that always passes, so k6
-      // reports its count (generator/outcomes.js); the rules themselves are read in flow.js.
-      if (OUTCOME_KEY.test(metric) && /^count\s*>=\s*0$/.test(expr)) continue;
-      if (metric === "http_req_duration" && (match = P95.exec(expr))) {
+      // K6UI's outcome rules give every label a threshold that always passes (count>=0),
+      // so k6 reports its count (generator/outcomes.js); outcome targets add their own
+      // count expressions. Both are kept here and matched with the requests once the
+      // flow is read (see readOutcomeThresholds in index.js); the rules are read in flow.js.
+      if (outcome && (match = OUTCOME_COUNT.exec(expr))) {
+        ctx.outcomeCounts.push({ rq: Number(outcome[1]), label: outcome[2], op: match[1], number: Number(match[2]), metric, expr, node: prop });
+      } else if (metric === "http_req_duration" && (match = P95.exec(expr))) {
         thresholds.p95 ||= match[1];
       } else if (metric === "http_req_failed" && (match = RATE.exec(expr))) {
         thresholds.errorRate ||= String(+(Number(match[1]) * 100).toFixed(6));
       } else {
-        ctx.warn(prop, `Threshold ${metric}: "${expr}" is not supported (K6UI imports p(95) on http_req_duration and rate on http_req_failed) and was ignored.`);
+        ctx.warn(prop, `Threshold ${metric}: "${expr}" is not supported (K6UI imports p(95) on http_req_duration, rate on http_req_failed and count on its own k6ui_outcome labels) and was ignored.`);
       }
     }
   }

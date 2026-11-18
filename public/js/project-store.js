@@ -3,6 +3,7 @@
 import { normalizeRunIf } from './run-if.js';
 import { normalizeExports } from './csv-export.js';
 import { normalizeOutcomes } from './outcomes.js';
+import { isBlankOutcomeThreshold, normalizeOutcomeThresholds } from './outcome-thresholds.js';
 import { expandSubRequests } from './sub-requests.js';
 
 export const CURRENT_SCHEMA_VERSION = 2;
@@ -149,6 +150,22 @@ function normalizeDataSet(rawDataSet, index, used, validGroupIds) {
   return dataSet;
 }
 
+// Thresholds: p95 / errorRate pass through; outcome targets (see outcome-thresholds.js)
+// get one shape, blank rows dropped. Absent stays absent; a value that is not a list is dropped.
+function normalizeThresholds(raw, requestIds) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const thresholds = { ...raw };
+  if (thresholds.outcomes === undefined) return thresholds;
+  if (!Array.isArray(thresholds.outcomes)) {
+    delete thresholds.outcomes;
+    return thresholds;
+  }
+  thresholds.outcomes = normalizeOutcomeThresholds(thresholds.outcomes)
+    .filter(target => !isBlankOutcomeThreshold(target))
+    .map(target => ({ ...target, request: requestIds.get(target.request) ?? target.request }));
+  return thresholds;
+}
+
 function normalizeProject(rawProject) {
   if (!rawProject || typeof rawProject !== 'object' || Array.isArray(rawProject)) {
     throw new TypeError('Project JSON must contain an object.');
@@ -168,15 +185,24 @@ function normalizeProject(rawProject) {
   const normalizedGroups = (groups || []).map((group, index) => normalizeGroup(group, index, usedGroupIds));
   const usedRequestIds = new Set();
   const usedDataSetIds = new Set();
+  // Before/After sub-requests of older projects become ordinary requests.
+  const rawRequests = expandSubRequests(requests || []);
+  const normalizedRequests = rawRequests.map((request, index) =>
+    normalizeRequest(request, index, usedRequestIds, usedGroupIds));
+  // An id the store had to change (case, spaces, a repeat) is followed by the
+  // outcome targets that name it; the first request with that id wins.
+  const requestIds = new Map();
+  rawRequests.forEach((request, index) => {
+    const raw = typeof request?.id === 'string' ? request.id.trim() : '';
+    if (raw && !requestIds.has(raw)) requestIds.set(raw, normalizedRequests[index].id);
+  });
   return {
     ...source,
     schemaVersion: CURRENT_SCHEMA_VERSION,
     scenario: {
       ...(source.scenario || {}),
       groups: normalizedGroups,
-      // Before/After sub-requests of older projects become ordinary requests.
-      requests: expandSubRequests(requests || []).map((request, index) =>
-        normalizeRequest(request, index, usedRequestIds, usedGroupIds)),
+      requests: normalizedRequests,
     },
     variables: Array.isArray(source.variables) ? source.variables : [],
     dataSets: (Array.isArray(source.dataSets) ? source.dataSets : [])
@@ -187,9 +213,7 @@ function normalizeProject(rawProject) {
       ...(source.load || {}),
       stages: Array.isArray(source.load?.stages) ? source.load.stages : [],
     },
-    thresholds: source.thresholds && typeof source.thresholds === 'object' && !Array.isArray(source.thresholds)
-      ? source.thresholds
-      : {},
+    thresholds: normalizeThresholds(source.thresholds, requestIds),
     options: source.options && typeof source.options === 'object' && !Array.isArray(source.options)
       ? source.options
       : {},

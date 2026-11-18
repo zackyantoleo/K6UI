@@ -6,6 +6,7 @@ import { collectConfig, validate } from './config.js';
 import { addExportRows, exportSummary, resetExports } from './export-results.js';
 import { buildRunReport, reportFileName, reportToHtml } from './run-report.js';
 import { renderOutcomeResults, resetOutcomeResults } from './outcome-results.js';
+import { outcomeThresholdText } from './outcome-thresholds.js';
 import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
 
 export const MAX_REQ_LOGS = 500;
@@ -452,8 +453,9 @@ function finishRun(data) {
     lastRun.summary = data.summary || null;
     lastRun.exitCode = data.code ?? null;
     lastRun.outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
+    lastRun.outcomeThresholds = Array.isArray(data.outcomeThresholds) ? data.outcomeThresholds : [];
   }
-  renderOutcomeResults(data.outcomes);
+  renderOutcomeResults(data.outcomes, data.outcomeThresholds);
   if (data.summary) {
     renderMetrics(data.summary);
     applySummaryMetadata(data.summary);
@@ -463,6 +465,9 @@ function finishRun(data) {
   } else if (data.outcome === 'threshold-failed') {
     setVerdict({ status: 'threshold-failed', title: 'Targets were not met', detail: 'The run completed, but one or more k6 thresholds failed. Review Metrics and Errors.', mark: '!' });
     addError('One or more configured k6 thresholds were not met.');
+    for (const target of (data.outcomeThresholds || []).filter(item => item?.status === 'not-met')) {
+      addError(`Outcome target ${target.number} was not met: ${outcomeThresholdText(target)} (counted ${target.count}).`);
+    }
   } else {
     const detail = `k6 exited with code ${data.code ?? 'unknown'}. Review Errors and Live Log for the failure details.`;
     setVerdict({ status: 'failed', title: 'Test failed to run', detail, mark: '×' });

@@ -22,8 +22,8 @@ import {
 import { buildRunIfCondition, runIfComment } from "./run-if.js";
 import { buildExportCode, extractionDefaultsByName, validateExports } from "./csv-export.js";
 import {
-  OUTCOME_HELPER_SOURCE, addOutcomeThresholds, buildOutcomeCode, buildOutcomeRulesSource, outcomeTargets,
-  validateOutcomes,
+  OUTCOME_HELPER_SOURCE, addOutcomeThresholds, buildOutcomeCode, buildOutcomeRulesSource,
+  buildOutcomeThresholdsSource, outcomeTargets, planThresholds, validateOutcomes,
 } from "./outcomes.js";
 import { expandSubRequests } from "../../public/js/sub-requests.js";
 import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/request-log.js";
@@ -302,12 +302,17 @@ export function generateScript(config, meta = null) {
     .filter((i) => i !== -1);
 
   // Outcome rules: checked up front (400 before any code is built); each label
-  // gets an always-passing threshold so k6 reports its count.
+  // gets an always-passing threshold so k6 reports its count. Outcome targets add
+  // their expressions to those thresholds (same request numbers: the requests that run).
   validateOutcomes(mainReqs);
   const outcomes = outcomeTargets(mainReqs);
   const outcomeByIndex = new Map(outcomes.map((target) => [target.index, target]));
-  addOutcomeThresholds(options, outcomes);
-  if (meta) meta.outcomes = outcomes;
+  const outcomeThresholds = planThresholds(config);
+  addOutcomeThresholds(options, outcomes, outcomeThresholds);
+  if (meta) {
+    meta.outcomes = outcomes;
+    meta.outcomeThresholds = outcomeThresholds;
+  }
 
   let out = "";
   out += `import http from 'k6/http';\n`;
@@ -319,6 +324,7 @@ export function generateScript(config, meta = null) {
   out += buildDataImports(dataSets);
   out += `\n`;
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
+  out += buildOutcomeThresholdsSource(outcomeThresholds);
   if (logRequests) out += requestLogSource(requestLog, grpcIndexes.length > 0, options);
 
   if (globals.size > 0) {

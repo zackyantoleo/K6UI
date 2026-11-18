@@ -7,6 +7,7 @@ import { ScriptImportError, importK6Script } from "./importer/index.js";
 import { importJmx } from "./importer/jmx/index.js";
 import { startK6Run } from "./k6-runner.js";
 import { readOutcomeResults } from "../public/js/outcomes.js";
+import { readOutcomeThresholdResults } from "../public/js/outcome-thresholds.js";
 
 export const apiRouter = Router();
 
@@ -56,7 +57,8 @@ apiRouter.post("/import-jmx", express.text({ type: ["application/xml", "text/xml
 
 // POST /api/run — run a k6 test and stream live output via Server-Sent Events.
 // Emitted events: status, log, req-log, req-log-skipped, export, error, done (see k6-runner.js);
-// `done` also has `outcomes` when a request has outcome rules (public/js/outcomes.js readOutcomeResults).
+// `done` also has `outcomes` when a request has outcome rules (public/js/outcomes.js readOutcomeResults),
+// and `outcomeThresholds` when outcome targets are set (public/js/outcome-thresholds.js).
 apiRouter.post("/run", async (req, res) => {
   let script;
   const meta = {};
@@ -88,6 +90,10 @@ apiRouter.post("/run", async (req, res) => {
       // Outcome rules: `done` also carries what each label counted (from the summary).
       if (event === "done" && meta.outcomes?.length) {
         data = { ...data, outcomes: readOutcomeResults(meta.outcomes, data?.summary) };
+      }
+      // Outcome targets: met, not met, or not checked, each with its label's count.
+      if (event === "done" && meta.outcomeThresholds?.length) {
+        data = { ...data, outcomeThresholds: readOutcomeThresholdResults(meta.outcomeThresholds, data?.summary) };
       }
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(data)}\n\n`);

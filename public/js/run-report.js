@@ -6,10 +6,12 @@
 //
 // Each request record keeps its payload and response (headers and bodies, as
 // recorded: redacted only when "Hide secrets" was on), so a report can hold
-// secrets. Left out: global variables, the flow's own headers and bodies, data
-// file rows, Save to CSV values, and the raw k6 output.
+// secrets. Left out: global variables (except the number an outcome target written
+// as {{variable}} stood for), the flow's own headers and bodies, data file rows,
+// Save to CSV values, and the raw k6 output.
 import { loadShape } from './components/load-chart.js';
-import { OUTCOME_METRIC } from './outcomes.js';
+import { OUTCOME_METRIC, outcomeMetricKey } from './outcomes.js';
+import { THRESHOLD_VARIABLE, requestTitle } from './outcome-thresholds.js';
 
 export const REPORT_FORMAT = 'k6ui-run-report';
 export const REPORT_VERSION = 1;
@@ -70,6 +72,42 @@ export function summaryThresholds(summary) {
 // Outcome rules give every label a threshold that always passes, only so k6 reports
 // its count (server/generator/outcomes.js): not a target, so not listed.
 const isOutcomeCountThreshold = (name, rule) => name.startsWith(`${OUTCOME_METRIC}{`) && /^count\s*>=\s*0$/.test(rule);
+
+const TARGET_OK = { met: true, 'not-met': false };
+
+// The Targets table: the summary's thresholds, where the run's outcome targets (the
+// `outcomeThresholds` of `done`, see outcome-thresholds.js readOutcomeThresholdResults)
+// replace the raw k6ui_outcome rows with one row each, as typed, with what the label
+// counted; a target whose request did not run is listed as not checked (ok: null).
+export function reportThresholds(summary, outcomeThresholds) {
+  const targets = Array.isArray(outcomeThresholds) ? outcomeThresholds.filter(isObject) : [];
+  if (!targets.length) return summaryThresholds(summary);
+  const rows = summaryThresholds(summary).filter(row => !row.metric.startsWith(`${OUTCOME_METRIC}{`));
+  for (const target of targets) {
+    const status = String(target.status || 'unknown');
+    const rq = numberOrNull(target.rq);
+    rows.push({
+      metric: rq && !target.skipped ? outcomeMetricKey(rq, String(target.label ?? '')) : '',
+      rule: String(target.expression ?? ''),
+      ok: Object.hasOwn(TARGET_OK, status) ? TARGET_OK[status] : null,
+      outcome: {
+        number: numberOrNull(target.number),
+        request: rq,
+        name: String(target.name ?? ''),
+        method: String(target.method ?? ''),
+        url: String(target.url ?? ''),
+        label: String(target.label ?? ''),
+        op: String(target.op ?? ''),
+        value: String(target.value ?? ''),
+        resolved: numberOrNull(target.resolved),
+        count: numberOrNull(target.count),
+        status,
+        skipped: String(target.skipped ?? ''),
+      },
+    });
+  }
+  return rows;
+}
 
 // Requests with outcome rules: what each label counted (the `outcomes` of the run's
 // `done` event, see outcomes.js readOutcomeResults).
@@ -188,7 +226,7 @@ export function buildRunReport(state, now = new Date()) {
       errorTotal: Array.isArray(state?.errors) ? state.errors.length : 0,
     },
     setup: setupOf(state?.config),
-    thresholds: summaryThresholds(summary),
+    thresholds: reportThresholds(summary, state?.outcomeThresholds),
     outcomes: reportOutcomes(state?.outcomes),
     checks: summaryChecks(summary),
     metrics: summaryMetrics(summary),
@@ -414,6 +452,26 @@ footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
 }
 `;
 
+// One row of the Targets table; an outcome target reads as its label, request and count.
+function thresholdRow(row) {
+  const target = row.outcome;
+  if (!isObject(target)) {
+    return { className: row.ok ? '' : 'bad', cells: [row.metric, row.rule, row.ok ? 'Met' : 'Not met'] };
+  }
+  const where = requestTitle({ rq: target.request, name: target.name, method: target.method, url: target.url });
+  const typed = `count ${target.op} ${target.value}`;
+  const rule = THRESHOLD_VARIABLE.test(target.value) && target.resolved != null ? `${typed} (${target.resolved})` : typed;
+  const counted = target.count == null ? '' : ` (counted ${formatNumber(target.count)})`;
+  let result = 'No result';
+  if (target.status === 'skipped') result = `Not checked: ${target.skipped}`;
+  else if (row.ok === true) result = `Met${counted}`;
+  else if (row.ok === false) result = `Not met${counted}`;
+  return {
+    className: row.ok === false ? 'bad' : row.ok === true ? '' : 'off',
+    cells: [`Outcome "${target.label}" of ${where}`, rule, result],
+  };
+}
+
 export function reportToHtml(report) {
   const { run, setup } = report;
   const statusLabel = STATUS_LABELS[run.status] || run.status;
@@ -436,9 +494,7 @@ export function reportToHtml(report) {
 
   parts.push('<h2>Targets (thresholds)</h2>');
   parts.push(report.thresholds.length
-    ? table(['Metric', 'Target', 'Result'], report.thresholds.map(row => ({
-      className: row.ok ? '' : 'bad', cells: [row.metric, row.rule, row.ok ? 'Met' : 'Not met'],
-    })))
+    ? table(['Metric', 'Target', 'Result'], report.thresholds.map(thresholdRow))
     : '<p class="muted">No targets were set for this run.</p>');
 
   if (report.outcomes?.length) {

@@ -11,6 +11,8 @@ import { importOptions } from "./options.js";
 import { importFlow } from "./flow.js";
 import { VALID_VAR_NAME, sourceOf, staticValue, Unresolvable } from "./values.js";
 import { normalizeRequestLog } from "../../public/js/request-log.js";
+import { outcomeLabels } from "../../public/js/outcomes.js";
+import { THRESHOLD_NUMBER, THRESHOLD_VARIABLE } from "../../public/js/outcome-thresholds.js";
 
 export class ScriptImportError extends Error {
   constructor(message, warnings = []) {
@@ -36,6 +38,8 @@ function createContext(src) {
     extractOr: false,       // the script declares K6UI's extractOr() helper (extraction defaults)
     outcomeHelper: false,   // the script declares K6UI's outcome helpers (outcomeText(), outcome rules)
     metricsImport: null,    // `import ... from 'k6/metrics'`: K6UI's own when outcomeHelper, else ignored
+    outcomeCounts: [],      // count thresholds on k6ui_outcome{rq,outcome} (options.js)
+    outcomeRequests: new Map(), // request number of an outcomeOf_<n>() line → its imported request
     requests: [],
     groups: [],
     logRequests: false,
@@ -155,6 +159,58 @@ function requestLogOptions(ctx) {
   return options;
 }
 
+// Outcome targets: the count thresholds on k6ui_outcome{rq:<n>,outcome:<label>}, on
+// a request whose outcomeOf_<n>() line was read. K6UI's own `const OUTCOME_THRESHOLDS`
+// (the targets as typed) gives their order and a {{variable}} back when the variable
+// still stands for that number; the thresholds decide what is imported. The
+// always-passing count>=0 every label has is not a target unless that list has it.
+function readOutcomeThresholds(ctx) {
+  const found = ctx.outcomeCounts.map((entry) => ({ ...entry, used: false }));
+  if (!found.length) return [];
+  let typed = [];
+  const entry = ctx.outcomeHelper ? ctx.consts.get("OUTCOME_THRESHOLDS") : null;
+  if (entry?.top) {
+    try {
+      const value = staticValue(entry.node, ctx);
+      if (Array.isArray(value)) typed = value.filter((item) => item && typeof item === "object");
+    } catch (e) {
+      if (!(e instanceof Unresolvable)) throw e;
+    }
+  }
+  const numberOf = (text) => {
+    const value = String(text ?? "").trim();
+    if (THRESHOLD_NUMBER.test(value)) return Number(value);
+    const variable = THRESHOLD_VARIABLE.exec(value)?.[1];
+    const resolved = variable && ctx.variables.has(variable) ? ctx.variables.get(variable).trim() : "";
+    return THRESHOLD_NUMBER.test(resolved) ? Number(resolved) : NaN;
+  };
+  const picked = [];
+  for (const item of typed) {
+    const match = found.find((count) => !count.used && count.rq === item.rq && count.label === item.label
+      && count.op === item.op && count.number === numberOf(item.value));
+    if (!match) continue;
+    match.used = true;
+    picked.push({ count: match, value: String(item.value).trim() });
+  }
+  for (const count of found) {
+    if (count.used || (count.op === ">=" && count.number === 0)) continue;
+    picked.push({ count, value: String(count.number) });
+  }
+  const targets = [];
+  for (const { count, value } of picked) {
+    const req = ctx.outcomeRequests.get(count.rq);
+    const where = `Threshold ${count.metric}: "${count.expr}"`;
+    if (!req) {
+      ctx.warn(count.node, `${where} was ignored: request ${count.rq} has no outcome rules that K6UI could read.`);
+    } else if (!outcomeLabels(req.outcomes).includes(count.label)) {
+      ctx.warn(count.node, `${where} was ignored: "${count.label}" is not a label of the outcome rules of request ${count.rq}.`);
+    } else {
+      targets.push({ request: req.id, label: count.label, op: count.op, value });
+    }
+  }
+  return targets;
+}
+
 const isFunction = (node) =>
   node?.type === "FunctionDeclaration" || node?.type === "FunctionExpression" || node?.type === "ArrowFunctionExpression";
 
@@ -192,6 +248,8 @@ export function importK6Script(source) {
     throw new ScriptImportError("No `export default function` found — k6 needs one to run requests.", ctx.warnings);
   }
   importFlow(main, ctx);
+  const outcomeThresholds = readOutcomeThresholds(ctx);
+  if (outcomeThresholds.length) thresholds.outcomes = outcomeThresholds;
 
   if (!ctx.requests.length) {
     throw new ScriptImportError("No HTTP requests (http.get, http.post, …) could be read from the default function.", ctx.warnings);

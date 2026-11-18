@@ -18,6 +18,7 @@ import { initScriptImport } from './script-import.js';
 import { initAdvancedNotice } from './components/advanced-notice.js';
 import { initDataFiles } from './data-files.js';
 import { initLoadChart } from './components/load-chart.js';
+import { initOutcomeTargets } from './components/outcome-target-rows.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -219,6 +220,7 @@ initLoadChart();
 initCurlImport();
 initScriptImport();
 initAdvancedNotice();
+initOutcomeTargets();
 initUiMode();
 navigate('flow', { focusHeading: false });
 checkK6();
