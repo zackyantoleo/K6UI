@@ -35,7 +35,8 @@ const hasRunIf = group => Boolean(group.runIf);
 // Only runnable requests (enabled, and not in a group that is off) count as
 // active; configured-but-skipped requests and groups are tallied separately.
 // `dataFiles` = CSV data files that will be used (they feed every request).
-export function summarizeAdvancedSettings(requests, groups, dataFiles = 0) {
+// `race` = the Load Profile is a race burst: one request is sent at a planned time.
+export function summarizeAdvancedSettings(requests, groups, dataFiles = 0, race = false) {
   const groupById = new Map(groups.map(group => [group.id, group]));
   const counts = new Map(REQUEST_CATEGORIES.map(category => [category.id, 0]));
   const skipped = { requests: 0, groups: 0 };
@@ -67,6 +68,7 @@ export function summarizeAdvancedSettings(requests, groups, dataFiles = 0) {
   if (groupHeaders) active.push({ id: 'groupHeaders', label: 'Group header defaults', count: groupHeaders, unit: 'group' });
   if (conditionalGroups) active.push({ id: 'conditionalGroups', label: 'Conditional groups', count: conditionalGroups, unit: 'group' });
   if (dataFiles) active.push({ id: 'dataFiles', label: 'Data files', count: dataFiles, unit: 'file' });
+  if (race) active.push({ id: 'race', label: 'Race burst (Load step)', count: 1, unit: 'request' });
   return { active, skipped, visible: active.length > 0 || skipped.requests > 0 || skipped.groups > 0 };
 }
 
@@ -149,7 +151,8 @@ export function initAdvancedNotice() {
     pending = false;
     if (document.documentElement.dataset.uiMode !== 'simple') return;
     const requests = [...document.querySelectorAll('#reqs-main > .req-card')].map(readRequestSettings);
-    renderNotice(notice, summarizeAdvancedSettings(requests, readGroupSettings(), usableDataFileCount()));
+    const race = document.querySelector('input[name="load-mode"]:checked')?.value === 'race';
+    renderNotice(notice, summarizeAdvancedSettings(requests, readGroupSettings(), usableDataFileCount(), race));
   }
   function schedule() {
     if (pending) return;
@@ -158,6 +161,8 @@ export function initAdvancedNotice() {
   }
   // Clicks cover row removal and template buttons, which fire no input event.
   for (const type of ['input', 'change', 'click']) view.addEventListener(type, schedule);
+  // The load mode (Race burst) is chosen in the Load step.
+  document.querySelector('#view-load')?.addEventListener('change', schedule);
   for (const type of ['k6ui:flow-changed', 'k6ui:project-applied', 'k6ui:ui-mode-changed', 'k6ui:request-group-changed', 'k6ui:data-sets-changed']) {
     window.addEventListener(type, schedule);
   }

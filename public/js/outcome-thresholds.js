@@ -107,7 +107,8 @@ export function thresholdRequests(config) {
 
 // Names whose value is only known during the run: extracted from a response or set
 // by a script (vars.name), in any request that runs → Map name → how it is set.
-function runtimeNames(requests) {
+// `requests` = thresholdRequests(config). Also used by race.js.
+export function runtimeNames(requests) {
   const names = new Map();
   for (const { _request: request, rq } of requests) {
     if (!rq) continue;
@@ -125,8 +126,8 @@ function runtimeNames(requests) {
 }
 
 // Columns of the data files the run reads (not those of a turned-off group, an empty
-// file, or a file the generator refuses).
-function dataColumnNames(config) {
+// file, or a file the generator refuses). Also used by race.js.
+export function dataColumnNames(config) {
   const scenario = isObject(config?.scenario) ? config.scenario : {};
   const offGroups = new Set((Array.isArray(scenario.groups) ? scenario.groups : [])
     .filter(group => isObject(group) && group.enabled === false).map(group => group.id));
@@ -143,7 +144,8 @@ function dataColumnNames(config) {
   return names;
 }
 
-function globalValues(variables) {
+// Global variables with a valid name → Map name → value (text). Also used by race.js.
+export function globalValues(variables) {
   const map = new Map();
   for (const variable of Array.isArray(variables) ? variables : []) {
     const key = text(variable?.key).trim();

@@ -13,6 +13,7 @@ import { VALID_VAR_NAME, sourceOf, staticValue, Unresolvable } from "./values.js
 import { normalizeRequestLog } from "../../public/js/request-log.js";
 import { outcomeLabels } from "../../public/js/outcomes.js";
 import { THRESHOLD_NUMBER, THRESHOLD_VARIABLE } from "../../public/js/outcome-thresholds.js";
+import { RACE_MODE, normalizeRace, raceOffsetEntries } from "../../public/js/race.js";
 
 export class ScriptImportError extends Error {
   constructor(message, warnings = []) {
@@ -40,6 +41,9 @@ function createContext(src) {
     metricsImport: null,    // `import ... from 'k6/metrics'`: K6UI's own when outcomeHelper, else ignored
     outcomeCounts: [],      // count thresholds on k6ui_outcome{rq,outcome} (options.js)
     outcomeRequests: new Map(), // request number of an outcomeOf_<n>() line → its imported request
+    raceHelper: false,      // the script declares K6UI's k6uiRaceWait(t0) helper (race burst)
+    racePending: false,     // k6uiRaceWait() was read; the next request is the race request
+    raceRequest: null,      // the imported race request
     requests: [],
     groups: [],
     logRequests: false,
@@ -90,15 +94,27 @@ function declarationOf(node) {
   return node.type === "ExportNamedDeclaration" ? node.declaration : node;
 }
 
+// K6UI's race burst setup() (generator/race.js): `return { k6uiRaceT0: ... };` and nothing else.
+function isRaceSetup(decl) {
+  const body = decl.body?.body;
+  const returned = body?.length === 1 && body[0].type === "ReturnStatement" ? body[0].argument : null;
+  return returned?.type === "ObjectExpression" && returned.properties.length === 1
+    && returned.properties[0].type === "Property" && !returned.properties[0].computed
+    && returned.properties[0].key.type === "Identifier" && returned.properties[0].key.name === "k6uiRaceT0";
+}
+
 function collectTopLevel(ast, ctx) {
   const functions = new Map();
   let optionsNode = null;
+  let raceSetup = null;
 
   for (const stmt of ast.body) {
     const decl = declarationOf(stmt);
     if (decl?.type === "FunctionDeclaration" && decl.id) {
       functions.set(decl.id.name, decl);
-      if (stmt.type === "ExportNamedDeclaration" && LIFECYCLE.has(decl.id.name)) {
+      if (stmt.type === "ExportNamedDeclaration" && decl.id.name === "setup" && isRaceSetup(decl)) {
+        raceSetup = stmt; // reported below unless the script is K6UI's race burst
+      } else if (stmt.type === "ExportNamedDeclaration" && LIFECYCLE.has(decl.id.name)) {
         ctx.warn(stmt, `${decl.id.name}() is not imported.`);
       } else if (stmt.type === "ExportNamedDeclaration") {
         ctx.warn(stmt, `Exported function ${decl.id.name}() is not imported (only the default function is).`);
@@ -106,6 +122,7 @@ function collectTopLevel(ast, ctx) {
       if (decl.id.name === "redactResponseSample") ctx.logRequests = true; // K6UI's request-log helper
       if (decl.id.name === "extractOr" && !decl.async && !decl.generator && decl.params.length === 2) ctx.extractOr = true;
       if (decl.id.name === "outcomeText" && !decl.async && !decl.generator && decl.params.length === 1) ctx.outcomeHelper = true;
+      if (decl.id.name === "k6uiRaceWait" && !decl.async && !decl.generator && decl.params.length === 1) ctx.raceHelper = true;
     } else if (decl?.type === "VariableDeclaration") {
       for (const d of decl.declarations) {
         if (d.id.type !== "Identifier" || !d.init) continue;
@@ -121,6 +138,8 @@ function collectTopLevel(ast, ctx) {
       ctx.warn(stmt, `Top-level code \`${sourceOf(stmt, ctx)}\` is not imported.`);
     }
   }
+  // K6UI's race setup() only sets T0, which comes back as the race burst's lead time.
+  if (raceSetup && !ctx.raceHelper) ctx.warn(raceSetup, "setup() is not imported.");
   return { functions, optionsNode };
 }
 
@@ -211,6 +230,38 @@ function readOutcomeThresholds(ctx) {
   return targets;
 }
 
+// Race burst: K6UI's `const RACE = { ..., config: { timing, vus, ... } }` (the settings as
+// typed) + its per-vu-iterations scenario → the race load mode. The race request is the
+// one after the k6uiRaceWait() line (flow.js).
+function readRace(load, ctx) {
+  if (!ctx.raceHelper) return load;
+  const entry = ctx.consts.get("RACE");
+  let value = null;
+  try {
+    value = entry?.top ? staticValue(entry.node, ctx) : null;
+  } catch (e) {
+    if (!(e instanceof Unresolvable)) throw e;
+  }
+  const typed = value && typeof value === "object" ? value.config : null;
+  if (!typed || typeof typed !== "object" || Array.isArray(typed)) {
+    ctx.warn(entry?.node ?? null, "The race burst settings (const RACE) could not be read, so the load profile was imported without them.");
+    return load;
+  }
+  if (load.mode !== "iterations" || load.iterations !== "1") {
+    ctx.warn(entry.node, "The race burst needs one per-vu-iterations scenario with 1 iteration per VU, so the load profile was imported without it.");
+    return load;
+  }
+  if (!ctx.raceRequest) {
+    ctx.warn(entry.node, "The race request (the request after k6uiRaceWait()) could not be read; the race burst sends the first request.");
+  }
+  const { vus: typedVus, ...settings } = typed;
+  const race = normalizeRace({ ...settings, request: ctx.raceRequest?.id ?? "" });
+  const vus = race.timing === "offsets"
+    ? String(raceOffsetEntries(race.offsets).length || load.vus)
+    : (typeof typedVus === "string" && typedVus.trim()) || load.vus;
+  return { mode: RACE_MODE, vus, ...(load.maxDuration ? { maxDuration: load.maxDuration } : {}), race };
+}
+
 const isFunction = (node) =>
   node?.type === "FunctionDeclaration" || node?.type === "FunctionExpression" || node?.type === "ArrowFunctionExpression";
 
@@ -237,8 +288,8 @@ export function importK6Script(source) {
 
   readImports(ast, ctx);
   const { functions, optionsNode } = collectTopLevel(ast, ctx);
-  // K6UI's outcome rules use a Counter from k6/metrics; any other use is not imported.
-  if (ctx.metricsImport && !ctx.outcomeHelper) {
+  // K6UI's outcome rules and race burst use a Counter from k6/metrics; any other use is not imported.
+  if (ctx.metricsImport && !ctx.outcomeHelper && !ctx.raceHelper) {
     ctx.warn(ctx.metricsImport, `import "k6/metrics" was ignored; code that uses it is not imported.`);
   }
   const { load, thresholds } = importOptions(optionsNode, ctx);
@@ -248,6 +299,7 @@ export function importK6Script(source) {
     throw new ScriptImportError("No `export default function` found — k6 needs one to run requests.", ctx.warnings);
   }
   importFlow(main, ctx);
+  const raceLoad = readRace(load, ctx);
   const outcomeThresholds = readOutcomeThresholds(ctx);
   if (outcomeThresholds.length) thresholds.outcomes = outcomeThresholds;
 
@@ -260,7 +312,7 @@ export function importK6Script(source) {
     scenario: { groups: ctx.groups, requests: ctx.requests },
     variables: [...ctx.variables].map(([key, value]) => ({ key, value })),
     globalHeaders: [],
-    load,
+    load: raceLoad,
     thresholds,
     options: requestLogOptions(ctx),
   };

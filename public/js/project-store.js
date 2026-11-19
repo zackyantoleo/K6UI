@@ -6,6 +6,7 @@ import { normalizeOutcomes } from './outcomes.js';
 import { normalizeExpectedStatuses } from './expected-statuses.js';
 import { isBlankOutcomeThreshold, normalizeOutcomeThresholds } from './outcome-thresholds.js';
 import { expandSubRequests } from './sub-requests.js';
+import { RACE_MODE, normalizeRace } from './race.js';
 
 export const CURRENT_SCHEMA_VERSION = 2;
 
@@ -174,6 +175,23 @@ function normalizeThresholds(raw, requestIds) {
   return thresholds;
 }
 
+// Load profile: the mode's own fields pass through. Race burst settings (race.js) get
+// one shape, every key present, whenever the mode is race or the project has them, and
+// follow a request id the store had to change.
+function normalizeLoad(raw, requestIds) {
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const load = {
+    ...DEFAULT_PROJECT.load,
+    ...source,
+    stages: Array.isArray(source.stages) ? source.stages : [],
+  };
+  if (load.mode === RACE_MODE || load.race !== undefined) {
+    const race = normalizeRace(load.race);
+    load.race = { ...race, request: requestIds.get(race.request) ?? race.request };
+  }
+  return load;
+}
+
 function normalizeProject(rawProject) {
   if (!rawProject || typeof rawProject !== 'object' || Array.isArray(rawProject)) {
     throw new TypeError('Project JSON must contain an object.');
@@ -216,11 +234,7 @@ function normalizeProject(rawProject) {
     dataSets: (Array.isArray(source.dataSets) ? source.dataSets : [])
       .map((dataSet, index) => normalizeDataSet(dataSet, index, usedDataSetIds, usedGroupIds)),
     globalHeaders: Array.isArray(source.globalHeaders) ? source.globalHeaders : [],
-    load: {
-      ...DEFAULT_PROJECT.load,
-      ...(source.load || {}),
-      stages: Array.isArray(source.load?.stages) ? source.load.stages : [],
-    },
+    load: normalizeLoad(source.load, requestIds),
     thresholds: normalizeThresholds(source.thresholds, requestIds),
     options: source.options && typeof source.options === 'object' && !Array.isArray(source.options)
       ? source.options

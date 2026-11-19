@@ -2,11 +2,15 @@
 // represent is imported; every other option is reported as ignored.
 import { keyOf, resolveConst, tryStatic, Unresolvable } from "./values.js";
 import { DEFAULT_MAX_DURATION } from "../generator/options.js";
+import { RACE_LATE_METRIC } from "../../public/js/race.js";
 
 const P95 = /^p\(\s*95\s*\)\s*<\s*(\d+(?:\.\d+)?)$/;
 const RATE = /^rate\s*<\s*(\d+(?:\.\d+)?)$/;
 const OUTCOME_KEY = /^k6ui_outcome\{rq:(\d+),outcome:([A-Za-z][A-Za-z0-9_]*)\}$/;
 const OUTCOME_COUNT = /^count\s*(<=|>=|==|<|>)\s*(\d+(?:\.\d+)?)$/;
+// K6UI's race burst: count>=0 (so k6 reports the late VUs) and, with "fail if late",
+// count==0. The setting itself is read from `const RACE` (see readRace in index.js).
+const RACE_LATE_COUNT = /^count\s*(>=|==)\s*0$/;
 
 // A threshold entry is "p(95)<500" or { threshold: "p(95)<500", abortOnFail }.
 function thresholdExpressions(value) {
@@ -39,7 +43,9 @@ function readThresholds(node, thresholds, ctx) {
       // so k6 reports its count (generator/outcomes.js); outcome targets add their own
       // count expressions. Both are kept here and matched with the requests once the
       // flow is read (see readOutcomeThresholds in index.js); the rules are read in flow.js.
-      if (outcome && (match = OUTCOME_COUNT.exec(expr))) {
+      if (ctx.raceHelper && metric === RACE_LATE_METRIC && RACE_LATE_COUNT.test(expr)) {
+        continue;
+      } else if (outcome && (match = OUTCOME_COUNT.exec(expr))) {
         ctx.outcomeCounts.push({ rq: Number(outcome[1]), label: outcome[2], op: match[1], number: Number(match[2]), metric, expr, node: prop });
       } else if (metric === "http_req_duration" && (match = P95.exec(expr))) {
         thresholds.p95 ||= match[1];

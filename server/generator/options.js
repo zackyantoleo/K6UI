@@ -1,4 +1,6 @@
 // Builds the k6 `options` object (load + thresholds) from the UI configuration.
+import { raceScenario, raceThresholds } from "./race.js";
+import { RACE_LATE_METRIC } from "../../public/js/race.js";
 
 // k6 aborts a per-vu-iterations scenario after maxDuration (its own default is
 // only 10m), so slower flows need a roomier cap.
@@ -6,11 +8,14 @@ export const DEFAULT_MAX_DURATION = "1h";
 
 const wholeNumber = (value) => (Math.floor(Number(value)) >= 1 ? Math.floor(Number(value)) : 1);
 
-export function buildOptions(config) {
+// `race` = the race burst plan (generator/race.js planRaceScript), null otherwise.
+export function buildOptions(config, race = null) {
   const load = config.load || {};
   const options = {};
 
-  if (load.mode === "iterations") {
+  if (race) {
+    options.scenarios = raceScenario(race);
+  } else if (load.mode === "iterations") {
     options.scenarios = {
       default: {
         executor: "per-vu-iterations",
@@ -36,6 +41,7 @@ export function buildOptions(config) {
   if (t.errorRate !== "" && t.errorRate != null && !Number.isNaN(Number(t.errorRate))) {
     thresholds.http_req_failed = [`rate<${Number(t.errorRate) / 100}`];
   }
+  if (race) thresholds[RACE_LATE_METRIC] = raceThresholds(race);
   if (Object.keys(thresholds).length > 0) {
     options.thresholds = thresholds;
   }

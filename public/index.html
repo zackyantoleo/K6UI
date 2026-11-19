@@ -203,6 +203,13 @@
                     <span>Each VU runs the flow a set number of times, then stops.</span>
                   </div>
                 </label>
+                <label class="radio-card">
+                  <input type="radio" name="load-mode" value="race" />
+                  <div>
+                    <strong>Race burst</strong>
+                    <span>Every VU runs the flow once and sends one request at a planned moment.</span>
+                  </div>
+                </label>
               </div>
 
               <div id="load-simple">
@@ -238,6 +245,57 @@
                   <span class="field-note">Safety limit: k6 stops the test if it is still running after this long.</span>
                 </div>
               </div>
+              <div id="load-race" class="load-race hidden">
+                <div class="field">
+                  <label for="race-request">Race request</label>
+                  <select id="race-request"></select>
+                  <span class="field-note">Requests before it run first, such as logging in. Then every VU waits and sends this one at its planned time, right before its pre-processor.</span>
+                </div>
+                <div class="field">
+                  <label for="race-timing">Timing</label>
+                  <select id="race-timing">
+                    <option value="together">Together: every VU at T0</option>
+                    <option value="spread">Spread: evenly over a window</option>
+                    <option value="offsets">Offsets: one time per VU</option>
+                  </select>
+                </div>
+                <div class="field" id="race-vus-field">
+                  <label for="race-vus">Virtual Users (VUs)</label>
+                  <input type="text" id="race-vus" value="10" inputmode="numeric" autocomplete="off" spellcheck="false" />
+                  <span class="field-note" id="race-vus-note">Each VU runs the flow once. A number, or a global variable like <code>{{RACERS}}</code>.</span>
+                </div>
+                <div class="field hidden" id="race-spread-field">
+                  <label for="race-spread">Spread <span class="muted-label">ms from the first VU to the last</span></label>
+                  <input type="text" id="race-spread" value="100" inputmode="numeric" autocomplete="off" spellcheck="false" />
+                </div>
+                <div class="field hidden" id="race-offsets-field">
+                  <label for="race-offsets">Offsets <span class="muted-label">ms after T0, one per VU</span></label>
+                  <input type="text" id="race-offsets" placeholder="0,1000,1000,1030" autocomplete="off" spellcheck="false" />
+                  <span class="field-note">Separated by commas: VU 1 sends at T0 + the first offset, and so on. A global variable like <code>{{T2_MS}}</code> works too.</span>
+                </div>
+                <div class="field">
+                  <label for="race-lead">Lead time <span class="muted-label">ms</span></label>
+                  <input type="text" id="race-lead" value="2000" inputmode="numeric" autocomplete="off" spellcheck="false" />
+                  <span class="field-note">T0 = when setup ends + this. It must cover starting the VUs and the requests before the race request; a VU that gets there later is reported as late.</span>
+                </div>
+                <div class="field">
+                  <label class="toggle-label"><input type="checkbox" id="race-warmup" checked /> Open the connection first</label>
+                  <span class="field-note">Each VU sends a GET to the warm-up path on the race request's host before it waits, so the race request reuses an open connection. Any status is fine, and it still counts in the request total and the response times.</span>
+                </div>
+                <div class="field" id="race-warmup-path-field">
+                  <label for="race-warmup-path">Warm-up path</label>
+                  <input type="text" id="race-warmup-path" value="/" autocomplete="off" spellcheck="false" />
+                </div>
+                <div class="field">
+                  <label class="toggle-label"><input type="checkbox" id="race-fail-late" /> Fail the run when a VU is late</label>
+                  <span class="field-note">Off: a late VU is a warning in Run &amp; Results.</span>
+                </div>
+                <div class="field">
+                  <label for="race-max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label>
+                  <input type="text" id="race-max-duration" value="1h" />
+                  <span class="field-note">Safety limit: k6 stops the test if it is still running after this long.</span>
+                </div>
+              </div>
               <div class="load-guidance" aria-label="Load terminology guide">
                 <p><strong>VUs</strong> simulate concurrent users running your request flow.</p>
                 <p><strong>Duration</strong> is how long each fixed period or ramp stage runs.</p>
@@ -249,7 +307,7 @@
               <h3 id="load-shape-title">Load shape</h3>
               <p id="load-shape-summary" class="load-shape-summary"></p>
               <svg id="load-chart" class="load-chart" viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true"></svg>
-              <div class="load-axis" aria-hidden="true"><span>0s</span><span id="load-axis-end"></span></div>
+              <div class="load-axis" aria-hidden="true"><span id="load-axis-start">0s</span><span id="load-axis-end"></span></div>
               <dl class="load-stats">
                 <div><dt>Peak</dt><dd id="load-peak">—</dd></div>
                 <div><dt>Total time</dt><dd id="load-total">—</dd></div>
@@ -269,6 +327,7 @@
               </table>
               <p class="note">Staged mode: each stage defines a transition from the current VU count to the target VU count over the given time range.</p>
               <p class="note">Iterations mode: every VU starts at once and runs the whole flow a fixed number of times, then the test ends. Total runs = VUs × iterations.</p>
+              <p class="note">Race burst: every VU runs the flow once and sends the race request at T0 + its offset, to test what happens when requests arrive at the same moment. The send times are k6's, not when the server received them.</p>
             </div>
             </div>
           </div>
@@ -367,6 +426,7 @@
               <div><dt>Requests</dt><dd id="run-request-total">0</dd></div>
               <div><dt>Errors</dt><dd id="run-error-total">0</dd></div>
             </dl>
+            <p id="run-race" class="run-race" role="note" hidden></p>
             <div id="overview-metrics" class="metrics-grid" aria-label="Key performance metrics"></div>
             <section id="run-outcomes" class="run-outcomes" aria-labelledby="run-outcomes-title" hidden>
               <h3 id="run-outcomes-title">Outcomes</h3>

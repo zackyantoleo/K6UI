@@ -10,6 +10,7 @@
 //   csv-export.js  → "Save to CSV" exports → one logged row after the request
 //   outcomes.js    → outcome rules → one label per response, counted in k6ui_outcome
 //   expected-statuses.js → expected statuses → responseCallback + the status check
+//   race.js        → race burst load mode → setup() T0, the wait before the race request
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
@@ -27,6 +28,7 @@ import {
   buildOutcomeThresholdsSource, outcomeTargets, planThresholds, usesOutcomeVariable, validateOutcomes,
 } from "./outcomes.js";
 import { buildExpectedStatusesSource, validateExpectedStatuses } from "./expected-statuses.js";
+import { buildRaceSource, buildRaceWaitCode, planRaceScript } from "./race.js";
 import { OUTCOME_VARIABLE } from "../../public/js/outcomes.js";
 import { expandSubRequests } from "../../public/js/sub-requests.js";
 import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/request-log.js";
@@ -265,10 +267,13 @@ function mergeHeaders(globalHeaders, reqHeaders) {
 }
 
 // `meta` (optional) receives what the run needs to read the results back:
-// meta.outcomes = the requests with outcome rules (see outcomes.js outcomeTargets).
+// meta.outcomes = the requests with outcome rules (see outcomes.js outcomeTargets),
+// meta.race = the race burst plan (race.js), only in race mode.
 export function generateScript(config, meta = null) {
   const scenario    = config.scenario || {};
-  const options     = buildOptions(config);
+  // Race burst: checked first (a 400 naming the field), it decides the scenario.
+  const race        = planRaceScript(config);
+  const options     = buildOptions(config, race);
   const requestLog  = normalizeRequestLog(config.options);
   const logRequests = requestLog.logRequests;
   const globals     = collectGlobalVars(config.variables);
@@ -329,6 +334,7 @@ export function generateScript(config, meta = null) {
   if (meta) {
     meta.outcomes = outcomes;
     meta.outcomeThresholds = outcomeThresholds;
+    if (race) meta.race = race;
   }
 
   let out = "";
@@ -337,11 +343,12 @@ export function generateScript(config, meta = null) {
   if (grpcIndexes.length)              out += `import grpc from 'k6/net/grpc';\n`;
   if (/\bcrypto\./.test(allScripts))   out += `import crypto from 'k6/crypto';\n`;
   if (/\bencoding\./.test(allScripts)) out += `import encoding from 'k6/encoding';\n`;
-  if (outcomes.length)                 out += `import { Counter } from 'k6/metrics';\n`;
+  if (outcomes.length || race)         out += `import { Counter } from 'k6/metrics';\n`;
   out += buildDataImports(dataSets);
   out += `\n`;
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
   out += buildOutcomeThresholdsSource(outcomeThresholds);
+  if (race) out += buildRaceSource(race);
   if (logRequests) out += requestLogSource(requestLog, grpcIndexes.length > 0, options);
 
   if (globals.size > 0) {
@@ -382,7 +389,8 @@ export function generateScript(config, meta = null) {
   // this iteration: kept in one variable, only when a request uses it.
   const keepOutcome = outcomes.length > 0 && mainReqs.some(usesOutcomeVariable);
 
-  out += `\nexport default function() {\n`;
+  // Race burst: the default function reads T0 from setup()'s data.
+  out += race ? `\nexport default function(data) {\n` : `\nexport default function() {\n`;
   out += buildDataRowCode(dataSets);
   out += buildDataHoists(dataSets);
   if (keepOutcome) {
@@ -480,6 +488,13 @@ export function generateScript(config, meta = null) {
 
     if (req._groupName) {
       out += `\n  // Group: ${String(req._groupName).replace(/[\r\n]+/g, " ")}\n`;
+    }
+
+    // ── Race burst: warm-up + wait, before the pre-processor ─
+    if (race && race.index === i) {
+      const assigned = new Set();
+      scanAssignedVars(preScript, assigned);
+      out += buildRaceWaitCode(race, req, ctx, assigned);
     }
 
     // ── Pre-processor ────────────────────────────────────────

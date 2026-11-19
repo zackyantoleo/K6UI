@@ -237,8 +237,20 @@ function addRequest(call, info, state) {
   if (state.group) req.groupId = state.group.id;
   ctx.requests.push(req);
   state.last = req;
+  // Race burst: the first request after K6UI's k6uiRaceWait() is the race request.
+  if (ctx.racePending) {
+    ctx.raceRequest = req;
+    ctx.racePending = false;
+  }
   return req;
 }
+
+// K6UI's race burst lines (generator/race.js), when the script declares K6UI's
+// k6uiRaceWait(t0) helper: `k6uiRaceWarmup(<url>);` is skipped (the warm-up comes back
+// as a setting) and `const race_at_<i> = k6uiRaceWait(data.k6uiRaceT0);` marks the
+// next request as the race request.
+const isRaceWarmup = (node, ctx) => ctx.raceHelper && isCallTo(node, "k6uiRaceWarmup") && node.arguments.length === 1;
+const isRaceWait = (node, ctx) => ctx.raceHelper && isCallTo(node, "k6uiRaceWait") && node.arguments.length === 1;
 
 function handleCheck(call, state) {
   const { ctx } = state;
@@ -451,6 +463,12 @@ function bind(name, rawInit, state) {
   // back where it is used (values.js).
   if (name === OUTCOME_VARIABLE && ctx.outcomeHelper) return;
   const init = unwrap(rawInit);
+  if (isRaceWait(init, ctx)) {
+    ctx.racePending = true;
+    ctx.bindings.delete(name);
+    ctx.consts.delete(name);
+    return;
+  }
   if (handleOutcome(init, state)) {
     ctx.bindings.delete(name);
     ctx.consts.delete(name);
@@ -498,7 +516,8 @@ function expression(rawExpr, stmt, state) {
   if (expr.type === "CallExpression") {
     const info = httpCallInfo(expr, ctx);
     if (info) addRequest(expr, info, state);
-    else if (handleOutcome(expr, state) || isOutcomeCount(expr, ctx)) return;
+    else if (handleOutcome(expr, state) || isOutcomeCount(expr, ctx) || isRaceWarmup(expr, ctx)) return;
+    else if (isRaceWait(expr, ctx)) ctx.racePending = true;
     else if (isCallTo(expr, ctx.names.check)) handleCheck(expr, state);
     else if (isCallTo(expr, ctx.names.sleep)) handleSleep(expr, state);
     else if (isCallTo(expr, ctx.names.group)) handleGroup(expr, state);

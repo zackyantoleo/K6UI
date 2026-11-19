@@ -52,7 +52,8 @@ when changing either mode.
 | `public/js/export-results.js` | "Saved to CSV" in the Overview of Run & Results, shown in both modes; rows live in this tab's memory until the next run, names are rendered with `textContent` |
 | `public/js/components/advanced-notice.js` | Simple notice: pure `summarizeAdvancedSettings()` plus a DOM adapter that reads live panels when hydrated, otherwise `card.requestState` |
 | `public/css/base.css`, `flow.css`, `views.css` | `[data-ui-only="simple|advanced"]` hides one-mode pieces (`base.css`); `html[data-ui-mode="advanced"]` rules lay out the outline and editor (`flow.css`) and keep the load editor open (`views.css`) |
-| `public/js/components/load-chart.js` | "Load shape" on the Load view, shown in both modes; it reads the load inputs as typed and never the store or the mode |
+| `public/js/components/load-chart.js` | "Load shape" on the Load view, shown in both modes; it reads the load inputs as typed (and, for a race burst, the global variable rows) and never the store or the mode |
+| `public/js/components/race-settings.js` | The "Race burst" fields of the Load view, one DOM for both modes (inside the custom load editor). The race request list is read from the cards with `readRequestSettings()` (never hydrating a lazy panel) and refreshed when the view is shown or the flow changes; names are DOM text |
 
 Structural edits (add, duplicate, move, delete, cURL import, group changes)
 call `notifyFlowChanged()` from `components/counts.js`. The outline and notice
@@ -78,6 +79,7 @@ that will run with:
 - group header defaults (groups only)
 - conditional groups: groups with a "Run only if" row filled in (groups only; a turned-off group counts under "configured but not run")
 - data files that will be used (a count of files; the notice is not per request)
+- a race burst load profile ("Race burst (Load step)": the one request it sends at a planned time; read from the Load view's mode, never its values)
 
 Disabled requests and requests in a turned-off group are reported separately as
 "configured but not run". The notice never shows names, URLs, header values,
