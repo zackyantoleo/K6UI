@@ -1,4 +1,6 @@
 // Local presentation preference only; never part of a project or run payload.
+// Without a valid stored choice the layout is Simple, the guided one for people
+// new to load testing.
 import { getCurrentView, navigate } from './nav.js';
 const KEY = 'k6ui.uiMode';
 const isUiMode = value => value === 'simple' || value === 'advanced';
@@ -41,8 +43,8 @@ export function initUiMode() {
 export function readUiMode(storage) {
   try {
     const value = (storage ?? globalThis.localStorage)?.getItem(KEY);
-    return isUiMode(value) ? value : 'advanced';
+    return isUiMode(value) ? value : 'simple';
   } catch {
-    return 'advanced';
+    return 'simple';
   }
 }

@@ -1,6 +1,7 @@
 import { extractionRow } from '../rows.js';
 import { exportBlock } from '../export-rows.js';
 import { OUTCOME_VARIABLE } from '../../outcomes.js';
+import { helpButton } from '../help-tips.js';
 
 export function createExtractPanel(onCountChange = () => {}) {
   const panel = document.createElement('div');
@@ -9,7 +10,7 @@ export function createExtractPanel(onCountChange = () => {}) {
   hint.append('Extract values from the response, then use ');
   const code = document.createElement('code');
   code.textContent = '{{variable_name}}';
-  hint.append(code, ' in later requests.');
+  hint.append(code, ' in later requests. ', helpButton('extraction'));
   const list = document.createElement('div');
   list.className = 'extractions-list';
   const addButton = document.createElement('button');
@@ -34,6 +35,7 @@ export function createExtractPanel(onCountChange = () => {}) {
   const exportsTitle = document.createElement('p');
   exportsTitle.className = 'exports-title';
   exportsTitle.textContent = 'Save to CSV';
+  exportsTitle.append(' ', helpButton('saveCsv'));
   const exportsHint = document.createElement('p');
   exportsHint.className = 'ext-hint';
   exportsHint.append('After this request, add a row to a CSV file. Download it from Run & Results, or use it as a data file in a later run. ');

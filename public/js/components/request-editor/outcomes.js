@@ -5,6 +5,7 @@
 import {
   DEFAULT_OUTCOME_FALLBACK, OUTCOME_OPERATORS, OUTCOME_SOURCES, OUTCOME_VARIABLE, isBlankOutcomeRule, normalizeOutcomeRule,
 } from '../../outcomes.js';
+import { helpButton } from '../help-tips.js';
 
 const SELECTOR_HINTS = { json: 'JSON path, e.g. code or error.code', header: 'Header name, e.g. X-Error-Code' };
 const VALUE_HINTS = { equals: 'Value, e.g. PROM-422001', contains: 'Text, e.g. quota', matches: 'Regex, e.g. /quota/i' };
@@ -131,7 +132,7 @@ export function createOutcomesPanel(onCountChange = () => {}) {
   const variable = document.createElement('code');
   variable.textContent = `{{${OUTCOME_VARIABLE}}}`;
   hint.append(variable, ' holds it for Save to CSV and later requests. An expected rejection (a 400 that is the right answer) '
-    + 'still counts as a failed request until its status is listed under Advanced → Expected statuses.');
+    + 'still counts as a failed request until its status is listed under Advanced → Expected statuses. ', helpButton('outcomes'));
   const templates = document.createElement('div');
   templates.className = 'check-template-list';
   templates.setAttribute('aria-label', 'Outcome templates');

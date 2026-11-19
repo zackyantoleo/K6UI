@@ -2,6 +2,7 @@
 // public/js/expected-statuses.js) and the pause after the request. One DOM for
 // Simple and Advanced; values are DOM properties, never markup.
 import { DEFAULT_EXPECTED_STATUSES, statusesFromOutcomeRules } from '../../expected-statuses.js';
+import { helpButton } from '../help-tips.js';
 
 // readOutcomes() → the request's outcome rules as they stand (an unopened Outcomes
 // tab gives the saved ones), for "Use statuses from outcome rules".
@@ -29,7 +30,7 @@ export function createAdvancedPanel(readOutcomes = () => undefined) {
   sleep.value = '1';
   sleepLabel.appendChild(sleep);
 
-  options.append(statusLabel, sleepLabel);
+  options.append(statusLabel, sleepLabel, helpButton('pause'));
 
   const expectedRow = document.createElement('div');
   expectedRow.className = 'options-row expected-statuses-row';
@@ -46,7 +47,7 @@ export function createAdvancedPanel(readOutcomes = () => undefined) {
   fromRules.type = 'button';
   fromRules.className = 'btn ghost sm expected-from-outcomes';
   fromRules.textContent = 'Use statuses from outcome rules';
-  expectedRow.append(expectedLabel, fromRules);
+  expectedRow.append(expectedLabel, helpButton('expectedStatuses'), fromRules);
 
   const hint = document.createElement('p');
   hint.className = 'ext-hint expected-statuses-hint';

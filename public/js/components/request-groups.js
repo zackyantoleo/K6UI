@@ -6,6 +6,7 @@ import { focusAfterRemoval, notifyFlowChanged } from './counts.js';
 import { createRequestGroupId } from '../project-store.js';
 import { describeRunIf, runIfProblem } from '../run-if.js';
 import { refreshDataSetGroups } from '../data-files.js';
+import { helpButton } from './help-tips.js';
 
 function button(label, className, text) {
   const control = document.createElement('button');
@@ -59,7 +60,7 @@ function runIfRow(runIf) {
   const message = document.createElement('p');
   message.className = 'run-if-message';
   message.setAttribute('role', 'status');
-  row.append(caption, variable, operator, values, message);
+  row.append(caption, helpButton('runIf'), variable, operator, values, message);
   return row;
 }
 

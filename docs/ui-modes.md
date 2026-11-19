@@ -12,7 +12,7 @@ never changes what a test sends, how it runs, or what is saved.
 | Load | Presets first, **Customize** opens the editor | The custom editor is always open; presets are optional and ask before replacing custom values |
 | Results | Overview first, detail tabs available | Same panel plus shortcuts to Requests, Metrics, Errors, Live log |
 
-The default is **Advanced** until the user picks a mode.
+The default is **Simple** (the guided layout, for people new to load testing) until the user picks a mode. The default itself is never written to storage.
 
 ## What the switch must never do
 
@@ -44,6 +44,8 @@ when changing either mode.
 |---|---|
 | `public/js/ui-mode.js` | Read/write the mode enum, apply `html[data-ui-mode]`, show the matching nav, emit `k6ui:ui-mode-changed` |
 | `public/js/nav.js` | View switching and `aria-current` for steps (Simple) or categories (Advanced) |
+| `public/js/components/flow-arrange.js` | Simple only: drag and drop inside `#reqs-main` (the card moves, never leaves it; a drop next to a card takes that card's group, the keyboard way is the card's ⋯ → Move up / Move down / Group) and group bands, a header inside the first card of each run of one group, read from the group heads (name, on/off, the "Run only if" badge). Hidden in Advanced, where the outline shows groups |
+| `public/js/glossary.js`, `public/js/components/help-tips.js` | The "?" help buttons (`data-help="<key>"` in markup, `helpButton(key)` in JS-built panels), their one shared tooltip and the Glossary panel; the same in both modes. A help button sits next to a label, never inside one (a radio card names its radio with `aria-labelledby`) |
 | `public/js/components/flow-outline.js` | Advanced outline: pure `outlineModel()` / `resolveSelection()` plus a DOM adapter that reads card and group heads only |
 | `public/js/components/request-groups.js` | The group editor, one DOM for both modes: the "Run only if" row (variable, operator, comma-separated values) lives in the group body, and a badge with its summary in the always-visible head. The outline and the notice read that badge, never the inputs of a hidden panel |
 | `public/js/data-files.js` | The Data files view (`#view-datafiles`): one DOM for both modes, reached from the Data & Rules step (Simple) or its own category (Advanced). Cards keep their state in `card.dataSet`; file text is rendered with `textContent` only and nothing here reads the mode |

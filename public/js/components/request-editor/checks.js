@@ -1,3 +1,5 @@
+import { helpButton } from '../help-tips.js';
+
 const ASSERT_TYPES = [
   { value: 'status-2xx', label: 'Successful response (status 2xx)', hasVal: false },
   { value: 'status-eq', label: 'Expected status code', hasVal: true, numVal: true, ph: '200' },
@@ -68,7 +70,7 @@ export function createChecksPanel(onCountChange = () => {}) {
   const panel = document.createElement('div');
   const hint = document.createElement('p');
   hint.className = 'ext-hint';
-  hint.textContent = 'Validate the response — if an assertion fails, k6 records a failed check that you can enforce with thresholds.';
+  hint.append('Validate the response — if an assertion fails, k6 records a failed check that you can enforce with thresholds. ', helpButton('check'));
   const list = document.createElement('div');
   list.className = 'assertions-list';
   const templates = document.createElement('div');

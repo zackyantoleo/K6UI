@@ -70,6 +70,7 @@ public/                 Static frontend (ES modules, no bundler)
     ├── app.js          Entry point: event wiring + initial render
     ├── ui-mode.js      Simple / Advanced layout switch (presentation only, see docs/ui-modes.md)
     ├── nav.js          View switching
+    ├── glossary.js     Plain-language explanation of every term (`GLOSSARY`, sections, `searchGlossary()`), for the "?" help buttons and the Glossary panel (pure, no DOM)
     ├── dom.js          $ / $$ helpers
     ├── config.js       Read the form → config object + validation
     ├── project-store.js Versioned (schema v2), frozen project snapshot + migration (incl. `dataSets` normalization, `runIf`, data set `groupId`, extraction `default`)
@@ -96,8 +97,11 @@ public/                 Static frontend (ES modules, no bundler)
     ├── project-io.js   Save/load projects (JSON file = config object); opening one resets the load modes it does not use to a fresh page's values
     ├── script-import.js "Import k6 script / JMeter .jmx" modal: text starting with "<" → POST /api/import-jmx, else /api/import-script; applyConfig, list warnings
     └── components/
-        ├── req-card.js        Request card: summary row, editor head (title row + protocol/method/URL bar), lazy editor tabs
+        ├── req-card.js        Request card: summary row (drag handle, on/off switch = `.request-enabled`, ⋯ panel with Duplicate / Replace from cURL / Move up / Move down / Group (`.request-group-select`) / Delete, expand), editor head (title row + one method list `.request-kind` — HTTP methods + gRPC — that sets the hidden `.protocol` / `.method` the app reads, + URL bar), lazy editor tabs
+        ├── flow-arrange.js    Simple: drag a request by its handle (a drop next to a card takes that card's group, announced in `#flow-announcer`) and group bands (a header inside the first card of each run of one group, read from the group heads); cards never leave #reqs-main
         ├── request-editor/    One module per editor tab (headers, body, extract, checks, outcomes, scripts, advanced: status check, expected statuses + "Use statuses from outcome rules", pause)
+        ├── help-tips.js       "?" help buttons (`data-help="<key>"` in markup, `helpButton(key)` in JS): one shared tooltip (hover/focus, click keeps it open, Escape) + the Glossary panel; text only
+        ├── menu-button.js     A button with a small action menu (top bar Import): keyboard, focus return, click outside closes
         ├── request-groups.js  One-level request groups with shared header defaults and a "Run only if" row (head badge + editor, `requestGroupProblem()` for validation)
         ├── flow-outline.js    Advanced: outline in execution order that selects the canonical card/group (a group shows its condition)
         ├── advanced-notice.js Simple: "Advanced settings configured" notice (categories + counts only, incl. Conditional groups and Data files)
@@ -284,6 +288,7 @@ Shape of one request:
 - Simple and Advanced are two layouts over one DOM: never clone, move, or re-render request cards per mode, and never store the mode in project data (rules in `docs/ui-modes.md`).
 - Render project data (names, URLs, labels) with `textContent`, never `innerHTML`.
 - Styling uses the tokens in `css/tokens.css` (no raw colours or one-off sizes in the other files). Text must keep WCAG AA contrast on its surface; the browser check measures it.
+- Help: a term a newcomer may not know gets a `?` button (`data-help="<key>"`, key in `public/js/glossary.js`) next to its label or heading, never inside a `<label>` (a radio card is the one exception: its radio is named with `aria-labelledby`); `test/help-glossary.test.js` checks every key has an entry.
 - Icons: put `data-icon="name"` on the element (names in `css/base.css`); a new icon is one `--i-name` mask in `tokens.css` plus one line in `base.css`. No icon fonts, images, or network assets.
 - Adding a view: a nav entry in `index.html` (under the fitting sidebar section, and a step mapping in `nav.js` for Simple), a `<section id="view-name" class="view hidden">`, a title in `nav.js`, and a section in `css/views.css`.
 

@@ -255,6 +255,58 @@ function applySnapshot(card, snapshot) {
   updateOutcomeCount(card);
 }
 
+// ── ⋯ panel of a request: one open at a time; Escape, a click outside or focus
+// leaving it closes it. ─────────────────────────────────────────
+export function setMorePanelOpen(card, open, { focusFirst = false, focusButton = false } = {}) {
+  const panel = card.querySelector('.req-more-panel');
+  const toggle = card.querySelector('.request-more');
+  if (!panel || !toggle) return;
+  if (open) document.querySelectorAll('.req-more-panel:not([hidden])').forEach(other => {
+    if (other !== panel) setMorePanelOpen(other.closest('.req-card'), false);
+  });
+  panel.hidden = !open;
+  toggle.setAttribute('aria-expanded', String(open));
+  card.classList.toggle('more-open', open);
+  if (open && focusFirst) panel.querySelector('button, select')?.focus();
+  if (!open && focusButton) toggle.focus();
+}
+
+function handleMoreKeydown(card, event) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    setMorePanelOpen(card, false, { focusButton: true });
+    return;
+  }
+  if (!['ArrowDown', 'ArrowUp'].includes(event.key) || event.target.matches('select')) return;
+  const items = [...card.querySelectorAll('.req-more-panel button, .req-more-panel select')];
+  const current = items.indexOf(event.target);
+  if (current === -1) return;
+  event.preventDefault();
+  items[(current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
+}
+
+// Called once at startup (app.js).
+export function initRequestMorePanels() {
+  const closeOthers = event => {
+    document.querySelectorAll('.req-more-panel:not([hidden])').forEach(panel => {
+      if (!panel.closest('.req-more').contains(event.target)) setMorePanelOpen(panel.closest('.req-card'), false);
+    });
+  };
+  document.addEventListener('click', closeOthers);
+  document.addEventListener('focusin', closeOthers);
+}
+
+export function requestLabel(card) {
+  return card.querySelector('.request-name-preview')?.textContent || 'The request';
+}
+
+// Screen readers hear where a moved request went (drag and drop, Move up/down).
+export function announceFlow(message) {
+  const region = document.querySelector('#flow-announcer');
+  if (region) region.textContent = message;
+}
+
 export function reqCard(index, context, requestId = '') {
   const card = document.createElement('article');
   card.className = 'req-card collapsed';
@@ -293,6 +345,28 @@ export function reqCard(index, context, requestId = '') {
   methodPreview.className = 'method-badge request-method-preview m-GET';
   methodPreview.textContent = 'GET';
   methodPreview.setAttribute('aria-hidden', 'true');
+  // One visible method list: the HTTP methods plus gRPC. The protocol and method
+  // selects stay (hidden) as the values the rest of the app reads.
+  const kind = document.createElement('select');
+  kind.className = 'request-kind';
+  kind.setAttribute('aria-label', `Request ${index + 1} method`);
+  for (const value of METHODS) {
+    const option = document.createElement('option');
+    option.value = option.textContent = value;
+    kind.appendChild(option);
+  }
+  const otherProtocols = document.createElement('optgroup');
+  otherProtocols.label = 'Other protocol';
+  const grpcOption = document.createElement('option');
+  grpcOption.value = 'grpc';
+  grpcOption.textContent = 'gRPC';
+  otherProtocols.appendChild(grpcOption);
+  kind.appendChild(otherProtocols);
+  const handle = document.createElement('span');
+  handle.className = 'req-drag-handle';
+  handle.draggable = true;
+  handle.title = 'Drag to move this request (keyboard: ⋯ → Move up / Move down)';
+  handle.setAttribute('aria-hidden', 'true');
   const groupSelect = document.createElement('select');
   groupSelect.className = 'request-group-select';
   groupSelect.setAttribute('aria-label', `Request ${index + 1} group`);
@@ -313,24 +387,44 @@ export function reqCard(index, context, requestId = '') {
   enabled.type = 'checkbox';
   enabled.className = 'request-enabled';
   enabled.checked = true;
-  enabledLabel.append(enabled, ' Enabled');
+  enabled.className = 'request-enabled switch-input';
+  const enabledText = document.createElement('span');
+  enabledText.className = 'sr-only';
+  enabledText.textContent = 'Enabled';
+  enabledLabel.append(enabled, enabledText);
   const actions = document.createElement('div');
   actions.className = 'req-card-actions';
-  const moveUp = button(`Move request ${index + 1} up`, 'req-action-btn request-move-up', '↑');
-  const moveDown = button(`Move request ${index + 1} down`, 'req-action-btn request-move-down', '↓');
-  const duplicate = button(`Duplicate request ${index + 1}`, 'req-action-btn request-duplicate', 'Duplicate');
-  const curl = button(`Import cURL into request ${index + 1}`, 'req-action-btn curl', 'cURL');
-  const expand = button(`Expand request ${index + 1}`, 'req-action-btn request-expand', '▾');
-  expand.setAttribute('aria-expanded', 'false');
-  const remove = button(`Remove request ${index + 1}`, 'req-action-btn del', '✕');
-  actions.append(moveUp, moveDown, duplicate, curl, expand, remove);
-  // The icon says "group"; the select keeps its own accessible name.
+  // ⋯ holds the actions a request needs now and then; the row keeps on/off and open/close.
+  const more = document.createElement('div');
+  more.className = 'req-more';
+  const moreButton = button(`More actions for request ${index + 1}`, 'req-action-btn request-more', '⋯');
+  const morePanel = document.createElement('div');
+  morePanel.className = 'req-more-panel';
+  morePanel.id = `${card.dataset.requestId}-more`;
+  morePanel.hidden = true;
+  moreButton.setAttribute('aria-expanded', 'false');
+  moreButton.setAttribute('aria-controls', morePanel.id);
+  const item = (label, className, text) => {
+    const control = button(label, `req-more-item ${className}`, text);
+    control.removeAttribute('title');
+    return control;
+  };
+  const duplicate = item(`Duplicate request ${index + 1}`, 'request-duplicate', 'Duplicate');
+  const curl = item(`Import cURL into request ${index + 1}`, 'curl', 'Replace from a cURL command');
+  const moveUp = item(`Move request ${index + 1} up`, 'request-move-up', 'Move up');
+  const moveDown = item(`Move request ${index + 1} down`, 'request-move-down', 'Move down');
+  const remove = item(`Remove request ${index + 1}`, 'del', 'Delete request');
   const groupLabel = document.createElement('label');
   groupLabel.className = 'request-group-label';
-  groupLabel.dataset.icon = 'folder';
-  groupLabel.title = 'Request group';
-  groupLabel.appendChild(groupSelect);
-  head.append(num, namePreview, methodPreview, nameInput, protocol, method, url, preview, groupLabel, enabledLabel, actions);
+  const groupCaption = document.createElement('span');
+  groupCaption.textContent = 'Group';
+  groupLabel.append(groupCaption, groupSelect);
+  morePanel.append(duplicate, curl, moveUp, moveDown, groupLabel, remove);
+  more.append(moreButton, morePanel);
+  const expand = button(`Expand request ${index + 1}`, 'req-action-btn request-expand', '▾');
+  expand.setAttribute('aria-expanded', 'false');
+  actions.append(more, expand);
+  head.append(handle, num, namePreview, methodPreview, nameInput, protocol, method, kind, url, preview, enabledLabel, actions);
 
   const grpcRow = document.createElement('div');
   grpcRow.className = 'grpc-row hidden';
@@ -393,7 +487,11 @@ export function reqCard(index, context, requestId = '') {
     grpcRow.classList.toggle('hidden', !grpc);
     url.placeholder = grpc ? 'host:port — e.g. localhost:50051' : 'https://api.example.com/endpoint';
   }
+  function syncKind() {
+    kind.value = protocol.value === 'grpc' ? 'grpc' : method.value;
+  }
   function syncPreview() {
+    syncKind();
     const position = card.parentElement ? [...card.parentElement.children].indexOf(card) + 1 : index + 1;
     namePreview.textContent = nameInput.value.trim() || `Request ${position}`;
     const summaryMethod = protocol.value === 'grpc' ? 'gRPC' : method.value;
@@ -415,7 +513,25 @@ export function reqCard(index, context, requestId = '') {
   groupSelect.addEventListener('change', () => {
     window.dispatchEvent(new CustomEvent('k6ui:request-group-changed'));
   });
-  curl.addEventListener('click', event => { event.stopPropagation(); openCurlImport(card); });
+  kind.addEventListener('change', () => {
+    const toGrpc = kind.value === 'grpc';
+    if (!toGrpc) method.value = kind.value;
+    if (toGrpc !== (protocol.value === 'grpc')) {
+      protocol.value = toGrpc ? 'grpc' : 'http';
+      protocol.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (!toGrpc) method.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  moreButton.addEventListener('click', event => {
+    event.stopPropagation();
+    setMorePanelOpen(card, morePanel.hidden, { focusFirst: true });
+  });
+  morePanel.addEventListener('keydown', event => handleMoreKeydown(card, event));
+  curl.addEventListener('click', event => {
+    event.stopPropagation();
+    setMorePanelOpen(card, false, { focusButton: true });
+    openCurlImport(card);
+  });
   expand.addEventListener('click', event => {
     event.stopPropagation();
     setRequestExpanded(card, !card.classList.contains('expanded'));
@@ -424,23 +540,29 @@ export function reqCard(index, context, requestId = '') {
     // Simple: a click on a closed card's summary opens it (the chevron closes it).
     // Advanced always shows the selected request's editor.
     if (document.documentElement.dataset.uiMode === 'advanced' || card.classList.contains('expanded')) return;
-    if (!event.target.closest('button, input, select, label')) setRequestExpanded(card, true);
+    if (!event.target.closest('button, input, select, label, .req-drag-handle, .req-more')) setRequestExpanded(card, true);
   });
-  moveUp.addEventListener('click', () => {
-    const previous = card.previousElementSibling;
-    if (previous) card.parentElement.insertBefore(card, previous);
+  // Moving keeps the panel open and focus on the same item, so a keyboard user can
+  // press it again.
+  function afterMove(control) {
     renumberMain();
     card.parentElement.querySelectorAll('.req-card').forEach(refreshRequestSummary);
     notifyFlowChanged();
+    control.focus();
+    announceFlow(`${requestLabel(card)} is now request ${[...card.parentElement.children].indexOf(card) + 1}.`);
+  }
+  moveUp.addEventListener('click', () => {
+    const previous = card.previousElementSibling;
+    if (previous) card.parentElement.insertBefore(card, previous);
+    afterMove(moveUp);
   });
   moveDown.addEventListener('click', () => {
     const next = card.nextElementSibling;
     if (next) card.parentElement.insertBefore(next, card);
-    renumberMain();
-    card.parentElement.querySelectorAll('.req-card').forEach(refreshRequestSummary);
-    notifyFlowChanged();
+    afterMove(moveDown);
   });
   duplicate.addEventListener('click', () => {
+    setMorePanelOpen(card, false);
     const clone = reqCard([...card.parentElement.children].indexOf(card) + 1, context, '');
     for (const panelId of Object.keys(lazyPanelFactories)) ensureRequestPanel(card, panelId);
     for (const panelId of Object.keys(lazyPanelFactories)) ensureRequestPanel(clone, panelId);
@@ -457,6 +579,7 @@ export function reqCard(index, context, requestId = '') {
   });
   remove.addEventListener('click', () => {
     const hadFocus = card.contains(document.activeElement);
+    setMorePanelOpen(card, false);
     const neighbours = siblingsByDistance(card);
     card.remove();
     renumberMain();
