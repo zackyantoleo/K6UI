@@ -10,6 +10,8 @@ import {
   createRequestGroup,
   refreshRequestGroupOptions,
 } from './request-groups.js';
+import { helpButton } from './help-tips.js';
+import { initFlowArrange } from './flow-arrange.js';
 
 export function addRequest({ openCurl = false } = {}) {
   const container = $('#reqs-main');
@@ -19,7 +21,7 @@ export function addRequest({ openCurl = false } = {}) {
   refreshRequestGroupOptions();
   setRequestExpanded(card, true);
   notifyFlowChanged({ kind: 'request', id: card.dataset.requestId });
-  if (openCurl) card.querySelector('.req-action-btn.curl').click();
+  if (openCurl) card.querySelector('.req-more-item.curl').click();
   else card.querySelector('.url').focus();
   return card;
 }
@@ -84,6 +86,7 @@ export function buildFlowView() {
     'Every virtual user runs these requests in order, again and again, for as long as the test lasts.');
   layout.append(createFlowOutline({ view, onAddRequest: () => addRequest(), onAddGroup: addRequestGroup }), zone);
   view.appendChild(layout);
+  initFlowArrange();
 }
 
 function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
@@ -101,7 +104,7 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   const badge = document.createElement('span');
   badge.className = `zone-badge ${badgeClass}`;
   badge.textContent = badgeText;
-  titleGroup.append(titleElement, badge);
+  titleGroup.append(titleElement, badge, helpButton('vu'));
   const keepOpenLabel = document.createElement('label');
   keepOpenLabel.className = 'keep-open-label';
   const keepOpen = document.createElement('input');
@@ -128,7 +131,8 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   const groupsTitle = document.createElement('strong');
   groupsTitle.textContent = 'Request groups';
   const groupsHint = document.createElement('small');
-  groupsHint.textContent = 'Optional. Share headers between requests, or run some only on a condition.';
+  groupsHint.textContent = 'Optional. Share headers between requests, or run some only on a condition. '
+    + 'Put a request in a group with its ⋯ → Group, or drag it into the group\'s band in the list above.';
   groupsIntro.append(groupsTitle, groupsHint);
   const addGroup = document.createElement('button');
   addGroup.type = 'button';
@@ -152,7 +156,12 @@ function buildZone(ctx, title, badgeText, badgeClass, descHTML) {
   addBtn.type = 'button';
   addBtn.addEventListener('click', () => addRequest());
 
-  zBody.append(reqCont, addBtn);
+  const announcer = document.createElement('p');
+  announcer.id = 'flow-announcer';
+  announcer.className = 'sr-only';
+  announcer.setAttribute('role', 'status');
+  announcer.setAttribute('aria-live', 'polite');
+  zBody.append(reqCont, addBtn, announcer);
   // Requests first: groups are optional and sit below the list they organize.
   zone.append(zHead, zDesc, zBody, groupsPanel);
   window.addEventListener('k6ui:project-applied', applyRequestGroupVisibility);

@@ -23,10 +23,14 @@ A simple UI for building and running [k6](https://k6.io) load tests **without wr
 
 A switch in the top bar picks the layout. Both show the same project:
 
-- **Simple** — four steps (Build Flow, Data & Rules — variables, headers, data files, targets —, Load, Run & Results). If a flow has settings that are not obvious at a glance (scripts, extraction, gRPC…), a notice lists them by category.
-- **Advanced** (default) — direct categories, plus a request outline next to the selected request's editor.
+- **Simple** (default) — four steps (Build Flow, Data & Rules — variables, headers, data files, targets —, Load, Run & Results). If a flow has settings that are not obvious at a glance (scripts, extraction, gRPC…), a notice lists them by category.
+- **Advanced** — direct categories, plus a request outline next to the selected request's editor.
 
 Switching never changes what runs or what is saved; the choice is remembered in your browser only. Details: [docs/ui-modes.md](docs/ui-modes.md).
+
+## Help for people new to load testing
+
+A **?** next to a field or heading explains its term in plain words (point at it, focus it, or tap it). **Glossary** in the top bar lists every term, with a search box. **Import** in the top bar adds one request from a cURL command, or replaces the project with a k6 script or JMeter test plan.
 
 ## Prerequisites
 

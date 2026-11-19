@@ -20,6 +20,9 @@ import { initDataFiles } from './data-files.js';
 import { initLoadChart } from './components/load-chart.js';
 import { initOutcomeTargets } from './components/outcome-target-rows.js';
 import { initRaceSettings } from './components/race-settings.js';
+import { initHelpTips, initGlossary } from './components/help-tips.js';
+import { initMenuButton } from './components/menu-button.js';
+import { initRequestMorePanels } from './components/req-card.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -209,6 +212,13 @@ $('#project-file-input').addEventListener('change', e => {
 buildFlowView();
 $('#empty-add-request').addEventListener('click', () => addRequest());
 $('#empty-import-curl').addEventListener('click', () => addRequest({ openCurl: true }));
+// Top bar Import menu: a cURL command adds one request; a k6 script or .jmx
+// replaces the project (script-import.js owns #import-k6-btn).
+initMenuButton($('#import-menu-btn'), $('#import-menu'));
+$('#import-curl-btn').addEventListener('click', () => {
+  navigate('flow');
+  addRequest({ openCurl: true });
+});
 $('#global-vars-list').appendChild(variableRow());
 $('#global-headers-list').appendChild(headerRow());
 
@@ -221,6 +231,9 @@ initScriptImport();
 initAdvancedNotice();
 initOutcomeTargets();
 initRaceSettings();
+initHelpTips();
+initRequestMorePanels();
+initGlossary();
 initUiMode();
 navigate('flow', { focusHeading: false });
 checkK6();

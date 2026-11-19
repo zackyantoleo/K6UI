@@ -276,6 +276,10 @@ try {
     });
     await page.goto(origin);
     await page.waitForFunction(() => document.querySelector('#reqs-main') && document.querySelector('#flow-outline'));
+    // A first visit is Simple (the guided layout); every section here starts from Advanced, as a user who picked it.
+    if (await page.locator('html').getAttribute('data-ui-mode') !== 'advanced') {
+      await page.locator('input[name="ui-mode"][value="advanced"]').check();
+    }
     return page;
   }
 
@@ -471,7 +475,8 @@ try {
     await radio('advanced').check();
     await openProject(RICH);
     await outlineItem('req_cart').click();
-    await page.locator('#reqs-main > .req-card[data-request-id="req_cart"] .req-action-btn.del').focus();
+    await page.locator('#reqs-main > .req-card[data-request-id="req_cart"] .request-more').click();
+    await page.locator('#reqs-main > .req-card[data-request-id="req_cart"] .req-more-item.del').focus();
     await page.keyboard.press('Enter');
     let focused = await active();
     assert.equal(focused.id, 'req_profile', 'Advanced: focus moves to the outline entry now selected');
@@ -483,7 +488,8 @@ try {
     assert.match(focused.className, /outline-item/, 'Advanced: focus stays in the outline after removing a group');
     await radio('simple').check();
     await openProject(RICH);
-    await page.locator('#reqs-main > .req-card[data-request-id="req_login"] .req-action-btn.del').focus();
+    await page.locator('#reqs-main > .req-card[data-request-id="req_login"] .request-more').click();
+    await page.locator('#reqs-main > .req-card[data-request-id="req_login"] .req-more-item.del').focus();
     await page.keyboard.press('Enter');
     focused = await active();
     assert.equal(focused.id, 'req_profile', 'Simple: focus skips the hidden (collapsed-group) Cart and lands on the next visible request');
@@ -493,7 +499,8 @@ try {
     focused = await active();
     assert.equal(focused.id, 'grp_checkout', 'Simple: focus moves to the next group');
     await openProject({ ...EMPTY, scenario: { groups: [], requests: [RICH.scenario.requests[2]] } });
-    await page.locator('#reqs-main > .req-card .req-action-btn.del').focus();
+    await page.locator('#reqs-main > .req-card .request-more').click();
+    await page.locator('#reqs-main > .req-card .req-more-item.del').focus();
     await page.keyboard.press('Enter');
     assert.match((await active()).className, /add-req-btn/, 'Simple: last request removed → Add Request');
     checks.push('Focus after delete: Advanced → selected outline entry (request and group); Simple → next visible request (skips cards hidden in a collapsed group) / next group, or + Add Request when none is left');

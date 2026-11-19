@@ -29,7 +29,7 @@ let currentView = 'flow';
 export const getCurrentView = () => currentView;
 
 export function navigate(viewId, { focusHeading = true } = {}) {
-  const mode = document.documentElement.dataset.uiMode || 'advanced';
+  const mode = document.documentElement.dataset.uiMode || 'simple';
   if (mode === 'advanced' && viewId === 'data') viewId = 'vars';
   currentView = viewId;
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== `view-${viewId}`));

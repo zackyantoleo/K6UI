@@ -30,7 +30,8 @@ assert.equal(await page.locator('.req-card.expanded').count(), 1, 'disabling kee
 const loginIndex = await cards.locator('.request-name').evaluateAll(nodes => nodes.findIndex(node => node.value === 'Login'));
 assert.notEqual(loginIndex, -1, 'Login request exists');
 const login = cards.nth(loginIndex);
-await login.locator('.req-action-btn.curl').click();
+await login.locator('.request-more').click();
+await login.locator('.req-more-item.curl').click();
 await page.locator('#curl-input').fill("curl -X POST 'https://example.test/login' -H 'Content-Type: application/json' -d '{\"ok\":true}'");
 await page.locator('#curl-apply').click();
 assert.equal(await login.locator('.body').inputValue(), '{"ok":true}', 'cURL import hydrates lazy body');

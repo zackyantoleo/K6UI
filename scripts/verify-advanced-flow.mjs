@@ -89,6 +89,8 @@ try {
 
   await page.goto(origin);
   await page.waitForFunction(() => document.querySelector('#reqs-main'));
+  // A first visit is Simple; this check is about the Advanced layout.
+  await page.locator('input[name="ui-mode"][value="advanced"]').check();
   assert.equal(await page.locator('#flow-outline').isVisible(), true, 'Advanced shows the outline');
   assert.equal(await page.locator('#flow-outline .outline-request').count(), 0);
   assert.equal(await page.locator('#flow-outline .outline-empty').isVisible(), true);
@@ -168,12 +170,16 @@ try {
 
   // 4. Existing request handlers keep the outline and selection in sync.
   await cart.locator('.request-name').fill('Cart <renamed>');
-  await cart.locator('.method').selectOption('PUT');
+  await cart.locator('.request-kind').selectOption('PUT');
+  assert.equal(await cart.locator('.method').inputValue(), 'PUT', 'The one method list sets the method the app reads');
   list = await rows();
   assert.ok(list[1].text.includes('Cart <renamed>') && list[1].text.includes('PUT'));
   await cart.locator('.request-enabled').uncheck();
   assert.ok((await rows())[1].text.includes('Disabled'));
   await cart.locator('.request-enabled').check();
+  // Occasional actions live in the request's ⋯ panel; it stays open while moving.
+  await cart.locator('.request-more').click();
+  assert.equal(await cart.locator('.req-more-panel').isVisible(), true);
   await cart.locator('.request-move-up').click();
   assert.deepEqual((await rows()).map(row => row.id), ['req_cart', 'req_login', 'req_profile', 'req_stock']);
   assert.deepEqual(await selectedIds(), ['req_cart']);
@@ -187,11 +193,14 @@ try {
   assert.ok(!['req_login', 'req_cart', 'req_profile', 'req_stock'].includes(cloneId));
   assert.deepEqual(await selectedIds(), [cloneId], 'Duplicate selects the clone');
   assert.deepEqual(await visibleCards(), [cloneId]);
+  await card(cloneId).locator('.request-more').click();
   await card(cloneId).locator('.curl').click();
+  assert.equal(await card(cloneId).locator('.req-more-panel').isVisible(), false, 'Choosing an action closes the panel');
   await page.locator('#curl-input').fill(`curl -X POST 'http://127.0.0.1:9/imported' -H 'X-Imported: yes'`);
   await page.locator('#curl-apply').click();
   list = await rows();
   assert.ok(list[2].text.includes('http://127.0.0.1:9/imported') && list[2].text.includes('POST'), 'cURL import refreshes the outline');
+  await card(cloneId).locator('.request-more').click();
   await card(cloneId).locator('.del').click();
   assert.deepEqual(await selectedIds(), ['req_profile'], 'Delete selects the next survivor');
   await page.locator('#outline-add-request').click();
@@ -199,6 +208,7 @@ try {
   const addedId = list[4].id;
   assert.deepEqual(await selectedIds(), [addedId], 'Add selects the new request');
   assert.equal(await card(addedId).locator('.url').evaluate(node => node === document.activeElement), true);
+  await card(addedId).locator('.request-more').click();
   await card(addedId).locator('.del').click();
   assert.deepEqual(await selectedIds(), ['req_stock'], 'Deleting the last request selects the previous one');
   checks.push('Rename, method, enable, move, duplicate, cURL, add, and delete update the outline; selection follows deterministic rules');
@@ -224,7 +234,10 @@ try {
   assert.equal(await group(newGroupId).locator('.request-group-name').evaluate(node => node === document.activeElement), true);
   await group(newGroupId).locator('.request-group-name').fill('Extra');
   await outlineRequest('req_stock').click();
+  await card('req_stock').locator('.request-more').click();
   await card('req_stock').locator('.request-group-select').selectOption(newGroupId);
+  await page.keyboard.press('Escape');
+  assert.equal(await card('req_stock').locator('.req-more-panel').isVisible(), false, 'Escape closes the panel');
   assert.ok((await rows())[3].text.includes('Extra'));
   assert.ok(!(await rows())[3].text.includes('Group off'));
   await outlineGroup(newGroupId).click();

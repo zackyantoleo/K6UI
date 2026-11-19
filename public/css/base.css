@@ -47,6 +47,9 @@ html[data-ui-mode="simple"] [data-ui-only="advanced"] { display: none !important
 [data-icon="chart"]   { --icon: var(--i-chart); }
 [data-icon="arrow"]   { --icon: var(--i-arrow); }
 [data-icon="check"]   { --icon: var(--i-check); }
+[data-icon="help"]    { --icon: var(--i-help); }
+[data-icon="grip"]    { --icon: var(--i-grip); }
+[data-icon="more"]    { --icon: var(--i-more); }
 
 /* ── Focus ───────────────────────────────────────────────────── */
 .btn:focus-visible, button:focus-visible, a:focus-visible,

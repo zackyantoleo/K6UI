@@ -205,7 +205,7 @@
 .modal-overlay {
   position: fixed; inset: 0; z-index: 50;
   display: flex; align-items: center; justify-content: center; padding: var(--space-5);
-  background: rgba(6, 8, 12, .7); backdrop-filter: blur(3px);
+  background: var(--scrim); backdrop-filter: blur(3px);
 }
 .modal-overlay.hidden { display: none; }
 .modal {
@@ -251,3 +251,76 @@
   .empty-state-actions .btn { flex: 1; }
   .modal { padding: var(--space-4); }
 }
+
+/* ── Help: "?" buttons, their shared tooltip, the Glossary panel ─────
+   A help button sits next to the label or heading it explains (.label-row),
+   never inside a <label>, so it does not change the field's name. */
+.label-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.label-row > label, .label-row > h3 { margin: 0; }
+.help-btn {
+  display: inline-grid; place-items: center; flex: none;
+  width: 22px; height: 22px; padding: 0;
+  background: var(--surface-3); color: var(--text-muted);
+  border: 1px solid var(--border-2); border-radius: 50%;
+  font-size: 11.5px; font-weight: 700; line-height: 1; cursor: help;
+  transition: color .13s, border-color .13s, background-color .13s;
+}
+.help-btn:hover, .help-btn[aria-expanded="true"] { color: var(--text); border-color: var(--accent-line); background: var(--accent-lite); }
+.help-btn-sample { width: 18px; height: 18px; font-size: 10px; vertical-align: -3px; cursor: default; }
+.help-tip {
+  position: fixed; z-index: 60; display: grid; gap: 3px;
+  max-width: min(320px, calc(100vw - 16px)); padding: 10px var(--space-3);
+  background: var(--surface-4); color: var(--text-muted);
+  border: 1px solid var(--border-2); border-radius: var(--radius);
+  box-shadow: var(--shadow-overlay);
+  font-size: var(--text-sm); font-weight: 400; line-height: 1.5; pointer-events: none;
+}
+.help-tip strong { color: var(--text); font-size: 13px; }
+.help-tip[hidden] { display: none; }
+.radio-card .radio-card-title { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; color: var(--text); }
+.radio-card .radio-card-title strong { margin: 0; }
+.preset-item { display: inline-flex; align-items: center; gap: 4px; }
+
+.drawer-overlay { position: fixed; inset: 0; z-index: 50; background: var(--scrim); }
+.drawer-overlay.hidden { display: none; }
+.drawer {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(440px, 100%);
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-5); overflow-y: auto;
+  background: var(--surface-1); border-left: 1px solid var(--border-2); box-shadow: var(--shadow-overlay);
+}
+.drawer-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.drawer-head h3 { font-size: var(--text-lg); }
+.drawer .note { margin: 0; font-size: var(--text-sm); color: var(--text-muted); }
+.glossary-list { display: grid; gap: var(--space-2); }
+.glossary-list h4 {
+  margin-top: var(--space-3); font-size: var(--text-xs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint);
+}
+.glossary-list dl { display: grid; }
+.glossary-list dt { padding-top: var(--space-3); border-top: 1px solid var(--border); font-size: 13.5px; font-weight: 600; }
+.glossary-list dl dt:first-child { border-top: 0; padding-top: var(--space-1); }
+.glossary-list dd { padding: 2px 0 var(--space-3); font-size: 13px; line-height: 1.55; color: var(--text-muted); }
+.glossary-empty { font-size: 13px; color: var(--text-muted); }
+
+/* ── Menu button: a short list of actions under a button (Import) ── */
+.menu-wrap { position: relative; display: inline-flex; }
+.menu-btn::after {
+  content: ""; width: 12px; height: 12px; margin-left: -2px; background: currentColor;
+  -webkit-mask: var(--i-chevron) center / contain no-repeat; mask: var(--i-chevron) center / contain no-repeat;
+}
+.menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 40;
+  display: grid; gap: 2px; width: max-content; max-width: min(330px, calc(100vw - 24px)); padding: 6px;
+  background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius);
+  box-shadow: var(--shadow-overlay);
+}
+.menu[hidden] { display: none; }
+.menu-item {
+  display: grid; gap: 2px; width: 100%; padding: 8px 10px; text-align: left;
+  background: none; border: 0; border-radius: var(--radius-sm); color: var(--text); cursor: pointer;
+  white-space: normal;
+}
+.menu-item strong { font-size: 13px; font-weight: 600; }
+.menu-item span { font-size: var(--text-sm); color: var(--text-muted); }
+.menu-item:hover, .menu-item:focus-visible { background: var(--surface-4); }

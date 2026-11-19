@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-ui-mode="advanced">
+<html lang="en" data-ui-mode="simple">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,15 +18,23 @@
     <div class="project-actions" role="group" aria-label="Project file actions">
       <button type="button" class="btn quiet sm" data-icon="folder" id="open-project-btn" title="Open a saved project file">Open</button>
       <button type="button" class="btn quiet sm" data-icon="save" id="save-project-btn" title="Save this project as a file">Save</button>
-      <button type="button" class="btn quiet sm" data-icon="import" id="import-k6-btn" title="Import a k6 script or a JMeter .jmx test plan">Import</button>
+      <div class="menu-wrap">
+        <button type="button" class="btn quiet sm menu-btn" data-icon="import" id="import-menu-btn" aria-controls="import-menu">Import</button>
+        <div class="menu" id="import-menu" role="menu" aria-label="Import" hidden>
+          <button type="button" class="menu-item" role="menuitem" id="import-curl-btn"><strong>A cURL command</strong><span>Adds one request, for example from "Copy as cURL" in your browser's DevTools.</span></button>
+          <button type="button" class="menu-item" role="menuitem" id="import-k6-btn"><strong>A k6 script or JMeter test plan</strong><span>A .js or .jmx file. Replaces the whole project.</span></button>
+        </div>
+      </div>
     </div>
     <input type="file" id="project-file-input" accept=".json,application/json" hidden />
     <div class="topbar-end">
+      <button type="button" class="btn quiet sm" data-icon="help" id="glossary-btn" aria-controls="glossary-panel" aria-expanded="false" title="Glossary: every term in plain words">Glossary</button>
       <fieldset class="ui-mode-switch">
         <legend class="sr-only">Interface mode</legend>
-        <label><input type="radio" name="ui-mode" value="simple" /><span>Simple</span></label>
-        <label><input type="radio" name="ui-mode" value="advanced" checked /><span>Advanced</span></label>
+        <label><input type="radio" name="ui-mode" value="simple" checked /><span>Simple</span></label>
+        <label><input type="radio" name="ui-mode" value="advanced" /><span>Advanced</span></label>
       </fieldset>
+      <button data-help="uiMode"></button>
       <div id="k6-status" class="k6-pill checking" role="status" aria-live="polite">Checking k6…</div>
       <div class="run-actions">
         <button type="button" class="btn-run" data-icon="play" id="run-btn">Run Test</button>
@@ -40,7 +48,7 @@
     <!-- ── Navigation: four steps (Simple) or categories by section (Advanced).
          A new view gets one entry here and one <section class="view"> below. -->
     <aside class="sidebar" aria-label="Test builder">
-      <nav id="simple-nav" data-ui-nav="simple" aria-label="Test builder steps" hidden>
+      <nav id="simple-nav" data-ui-nav="simple" aria-label="Test builder steps">
       <ol class="step-list">
         <li>
           <button type="button" class="nav-link active" data-step="1" data-view="flow" aria-current="step">
@@ -69,7 +77,7 @@
         </li>
       </ol>
       </nav>
-      <nav id="advanced-nav" data-ui-nav="advanced" aria-label="Test builder categories">
+      <nav id="advanced-nav" data-ui-nav="advanced" aria-label="Test builder categories" hidden>
         <div class="nav-section">
           <p class="nav-heading" id="nav-heading-build">Build</p>
           <ul class="category-list" aria-labelledby="nav-heading-build">
@@ -118,6 +126,7 @@
             Arrange the requests k6 will run. Use
             <code>{{variable_name}}</code> in a URL, header, or body
             to insert global variables or values extracted from previous responses.
+            <button data-help="variable"></button>
           </p>
           <section id="advanced-notice" class="advanced-notice" data-ui-only="simple" aria-labelledby="advanced-notice-title" hidden>
             <h3 id="advanced-notice-title">Advanced settings configured</h3>
@@ -173,9 +182,9 @@
           <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, stages, or iterations directly. Presets are optional starting points and ask before replacing custom values.</p>
           <div class="preset-strip" aria-label="Starter load presets">
             <span>Quick start:</span>
-            <button type="button" class="preset-btn" data-preset="smoke" aria-pressed="false">Smoke <small>1 VU · 30s</small></button>
-            <button type="button" class="preset-btn" data-preset="load" aria-pressed="false">Load <small>up to 10 VUs · 5m</small></button>
-            <button type="button" class="preset-btn" data-preset="stress" aria-pressed="false">Stress <small>up to 50 VUs · 6m</small></button>
+            <span class="preset-item"><button type="button" class="preset-btn" data-preset="smoke" aria-pressed="false">Smoke <small>1 VU · 30s</small></button><button data-help="smoke"></button></span>
+            <span class="preset-item"><button type="button" class="preset-btn" data-preset="load" aria-pressed="false">Load <small>up to 10 VUs · 5m</small></button><button data-help="loadTest"></button></span>
+            <span class="preset-item"><button type="button" class="preset-btn" data-preset="stress" aria-pressed="false">Stress <small>up to 50 VUs · 6m</small></button><button data-help="stress"></button></span>
             <button type="button" id="customize-load" class="btn ghost sm" aria-expanded="false" aria-controls="load-custom-editor">Customize</button>
           </div>
           <div class="page-cols">
@@ -183,42 +192,42 @@
               <h3>Load Mode</h3>
               <div class="radio-group">
                 <label class="radio-card">
-                  <input type="radio" name="load-mode" value="simple" checked />
+                  <input type="radio" name="load-mode" value="simple" checked aria-labelledby="load-mode-simple-name" aria-describedby="load-mode-simple-note" />
                   <div>
-                    <strong>Fixed VUs</strong>
-                    <span>Constant number of VUs for the whole duration.</span>
+                    <span class="radio-card-title"><strong id="load-mode-simple-name">Fixed VUs</strong><button data-help="vu"></button></span>
+                    <span id="load-mode-simple-note">Constant number of VUs for the whole duration.</span>
                   </div>
                 </label>
                 <label class="radio-card">
-                  <input type="radio" name="load-mode" value="stages" />
+                  <input type="radio" name="load-mode" value="stages" aria-labelledby="load-mode-stages-name" aria-describedby="load-mode-stages-note" />
                   <div>
-                    <strong>Staged</strong>
-                    <span>Ramp up/down across stages.</span>
+                    <span class="radio-card-title"><strong id="load-mode-stages-name">Staged</strong><button data-help="stages"></button></span>
+                    <span id="load-mode-stages-note">Ramp up/down across stages.</span>
                   </div>
                 </label>
                 <label class="radio-card">
-                  <input type="radio" name="load-mode" value="iterations" />
+                  <input type="radio" name="load-mode" value="iterations" aria-labelledby="load-mode-iterations-name" aria-describedby="load-mode-iterations-note" />
                   <div>
-                    <strong>Iterations</strong>
-                    <span>Each VU runs the flow a set number of times, then stops.</span>
+                    <span class="radio-card-title"><strong id="load-mode-iterations-name">Iterations</strong><button data-help="iterationsMode"></button></span>
+                    <span id="load-mode-iterations-note">Each VU runs the flow a set number of times, then stops.</span>
                   </div>
                 </label>
                 <label class="radio-card">
-                  <input type="radio" name="load-mode" value="race" />
+                  <input type="radio" name="load-mode" value="race" aria-labelledby="load-mode-race-name" aria-describedby="load-mode-race-note" />
                   <div>
-                    <strong>Race burst</strong>
-                    <span>Every VU runs the flow once and sends one request at a planned moment.</span>
+                    <span class="radio-card-title"><strong id="load-mode-race-name">Race burst</strong><button data-help="race"></button></span>
+                    <span id="load-mode-race-note">Every VU runs the flow once and sends one request at a planned moment.</span>
                   </div>
                 </label>
               </div>
 
               <div id="load-simple">
                 <div class="field">
-                  <label>Virtual Users (VUs)</label>
+                  <div class="label-row"><label for="vus">Virtual Users (VUs)</label><button data-help="vu"></button></div>
                   <input type="number" id="vus" min="1" value="10" />
                 </div>
                 <div class="field">
-                  <label>Duration <span class="muted-label">e.g. 30s, 5m, 1h</span></label>
+                  <div class="label-row"><label for="duration">Duration <span class="muted-label">e.g. 30s, 5m, 1h</span></label><button data-help="duration"></button></div>
                   <input type="text" id="duration" value="30s" />
                 </div>
               </div>
@@ -230,24 +239,24 @@
 
               <div id="load-iterations" class="hidden">
                 <div class="field">
-                  <label for="iter-vus">Virtual Users (VUs)</label>
+                  <div class="label-row"><label for="iter-vus">Virtual Users (VUs)</label><button data-help="vu"></button></div>
                   <input type="number" id="iter-vus" min="1" value="1" />
                   <span class="field-note">All VUs start together.</span>
                 </div>
                 <div class="field">
-                  <label for="iterations">Iterations per VU</label>
+                  <div class="label-row"><label for="iterations">Iterations per VU</label><button data-help="iteration"></button></div>
                   <input type="number" id="iterations" min="1" value="1" />
                   <span class="field-note">Each VU runs the whole flow this many times, then stops.</span>
                 </div>
                 <div class="field">
-                  <label for="max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label>
+                  <div class="label-row"><label for="max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label><button data-help="maxDuration"></button></div>
                   <input type="text" id="max-duration" value="1h" />
                   <span class="field-note">Safety limit: k6 stops the test if it is still running after this long.</span>
                 </div>
               </div>
               <div id="load-race" class="load-race hidden">
                 <div class="field">
-                  <label for="race-request">Race request</label>
+                  <div class="label-row"><label for="race-request">Race request</label><button data-help="race"></button></div>
                   <select id="race-request"></select>
                   <span class="field-note">Requests before it run first, such as logging in. Then every VU waits and sends this one at its planned time, right before its pre-processor.</span>
                 </div>
@@ -274,7 +283,7 @@
                   <span class="field-note">Separated by commas: VU 1 sends at T0 + the first offset, and so on. A global variable like <code>{{T2_MS}}</code> works too.</span>
                 </div>
                 <div class="field">
-                  <label for="race-lead">Lead time <span class="muted-label">ms</span></label>
+                  <div class="label-row"><label for="race-lead">Lead time <span class="muted-label">ms</span></label><button data-help="raceLead"></button></div>
                   <input type="text" id="race-lead" value="2000" inputmode="numeric" autocomplete="off" spellcheck="false" />
                   <span class="field-note">T0 = when setup ends + this. It must cover starting the VUs and the requests before the race request; a VU that gets there later is reported as late.</span>
                 </div>
@@ -291,7 +300,7 @@
                   <span class="field-note">Off: a late VU is a warning in Run &amp; Results.</span>
                 </div>
                 <div class="field">
-                  <label for="race-max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label>
+                  <div class="label-row"><label for="race-max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label><button data-help="maxDuration"></button></div>
                   <input type="text" id="race-max-duration" value="1h" />
                   <span class="field-note">Safety limit: k6 stops the test if it is still running after this long.</span>
                 </div>
@@ -339,21 +348,21 @@
           <div class="page-cols">
             <div class="page-col-stack">
               <div class="form-card">
-                <h3>Performance Targets</h3>
+                <div class="label-row"><h3>Performance Targets</h3><button data-help="threshold"></button></div>
                 <div class="field">
-                  <label>Max p95 response time <span class="muted-label">(ms)</span></label>
+                  <div class="label-row"><label for="p95">Max p95 response time <span class="muted-label">(ms)</span></label><button data-help="p95"></button></div>
                   <input type="number" id="p95" min="0" placeholder="e.g. 500" />
                   <span class="field-note">p95 means 95% of requests must finish below this response time.</span>
                 </div>
                 <div class="field">
-                  <label>Max error rate <span class="muted-label">(%)</span></label>
+                  <div class="label-row"><label for="errorRate">Max error rate <span class="muted-label">(%)</span></label><button data-help="errorRate"></button></div>
                   <input type="number" id="errorRate" min="0" max="100" step="0.1" placeholder="e.g. 1" />
                   <span class="field-note">Error rate is the percentage of HTTP requests allowed to fail.</span>
                 </div>
               </div>
 
               <div class="form-card outcome-targets" id="outcome-targets">
-                <h3 id="outcome-targets-title">Outcome Targets</h3>
+                <div class="label-row"><h3 id="outcome-targets-title">Outcome Targets</h3><button data-help="outcomeTarget"></button></div>
                 <p class="field-note">How many responses of a request may get one label of its outcome rules (Request › Outcomes). The count is a number or a global variable such as <code>{{QUOTA}}</code>.</p>
                 <p class="outcome-targets-empty note" id="outcome-targets-empty">No request has outcome rules yet. Add them under Request › Outcomes, then set targets on their labels here.</p>
                 <div id="outcome-targets-list" class="outcome-targets-list" role="list" aria-labelledby="outcome-targets-title"></div>
@@ -473,10 +482,13 @@
 
           <div id="tab-requests" class="results-tab-panel hidden" role="tabpanel" aria-labelledby="results-tab-requests">
             <div class="logging-control">
+              <div class="label-row">
               <label class="toggle-label">
                 <input type="checkbox" id="log-requests" />
                 Record request details on the next run
               </label>
+              <button data-help="recordRequests"></button>
+              </div>
               <div class="logging-options" role="group" aria-label="Which requests to record">
                 <label for="log-filter">Record</label>
                 <select id="log-filter">
@@ -549,7 +561,7 @@
           </p>
           <div class="page-cols">
             <div class="form-card">
-              <h3>Variables</h3>
+              <div class="label-row"><h3>Variables</h3><button data-help="variable"></button></div>
               <div id="global-vars-list"></div>
               <button type="button" id="add-global-var" class="btn ghost sm" data-icon="plus">Add Variable</button>
             </div>
@@ -571,7 +583,7 @@
           </p>
           <div class="page-cols">
             <div class="form-card">
-              <h3>Headers</h3>
+              <div class="label-row"><h3>Headers</h3><button data-help="globalHeaders"></button></div>
               <div id="global-headers-list"></div>
               <button type="button" id="add-global-header" class="btn ghost sm" data-icon="plus">Add Header</button>
             </div>
@@ -593,7 +605,7 @@
           </p>
           <div class="page-cols">
             <div class="form-card">
-              <h3>Data files</h3>
+              <div class="label-row"><h3>Data files</h3><button data-help="dataFile"></button><button data-help="dataFileShare"></button></div>
               <p class="data-files-warning" role="note">
                 The rows are saved inside the project file and written into the generated script.
                 If a file holds passwords or tokens, treat both of them as secrets.
@@ -616,6 +628,23 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Shared tooltip of the "?" help buttons (components/help-tips.js) -->
+<div id="help-tip" class="help-tip" role="tooltip" hidden></div>
+
+<!-- Glossary panel: every term in plain words, from glossary.js -->
+<div id="glossary-panel" class="drawer-overlay hidden">
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="glossary-title">
+    <div class="drawer-head">
+      <h3 id="glossary-title">Glossary</h3>
+      <button type="button" class="row-remove" id="glossary-close" aria-label="Close the glossary">&times;</button>
+    </div>
+    <p class="note">The terms K6UI uses, in plain words. The same text appears when you point at a <span class="help-btn help-btn-sample" aria-hidden="true">?</span> button.</p>
+    <label class="sr-only" for="glossary-filter">Find a term</label>
+    <input type="search" id="glossary-filter" placeholder="Find a term, e.g. p95" autocomplete="off" />
+    <div id="glossary-list" class="glossary-list"></div>
+  </aside>
 </div>
 
 <!-- One data file card, cloned by data-files.js -->
