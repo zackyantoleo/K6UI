@@ -35,6 +35,22 @@ test('project open restores all top-level config domains and request flow', asyn
   assert.match(js, /navigate\('flow'\)/);
 });
 
+test('project open resets the load modes the project does not use', async () => {
+  const js = await source('public/js/project-io.js');
+  const app = await source('public/js/app.js');
+  const flowView = await source('public/js/components/flow-view.js');
+  // Fixed VUs and Iterations fields go back to their index.html value, stages to the starting ones.
+  assert.match(js, /const LOAD_FIELD_IDS = \['vus', 'duration', 'iter-vus', 'iterations', 'max-duration'\]/);
+  assert.match(js, /function resetLoadFields\(\)[\s\S]*field\.value = field\.defaultValue[\s\S]*defaultStageRows\(\)/);
+  // Reset before the project's own mode is filled in.
+  assert.match(js, /resetLoadFields\(\);\s*if \(mode === 'simple'\)/);
+  // A fresh page and a reset start from the same stages.
+  assert.match(flowView, /export const DEFAULT_STAGES/);
+  assert.match(app, /\$\('#stages'\)\.replaceChildren\(\.\.\.defaultStageRows\(\)\)/);
+  // Race burst fields are reset to the defaults when the project is not a race burst.
+  assert.match(js, /restoreRaceSettings\(mode === 'race' \? cfg\.load : \{\}\)/);
+});
+
 test('the exported project format is the same config collected for API generation', async () => {
   const config = await source('public/js/config.js');
   const projectIo = await source('public/js/project-io.js');

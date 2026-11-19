@@ -5,7 +5,7 @@ import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { initUiMode } from './ui-mode.js';
 import { variableRow, headerRow } from './components/rows.js';
-import { addRequest, buildFlowView, stageRow } from './components/flow-view.js';
+import { addRequest, buildFlowView, defaultStageRows, stageRow } from './components/flow-view.js';
 import { collectConfig, validate } from './config.js';
 import {
   runTest, stopTest, applyReqFilter, checkK6, activateResultsTab,
@@ -212,10 +212,7 @@ $('#empty-import-curl').addEventListener('click', () => addRequest({ openCurl: t
 $('#global-vars-list').appendChild(variableRow());
 $('#global-headers-list').appendChild(headerRow());
 
-const stagesEl = $('#stages');
-stagesEl.appendChild(stageRow('30s', '10'));
-stagesEl.appendChild(stageRow('1m',  '20'));
-stagesEl.appendChild(stageRow('30s', '0'));
+$('#stages').replaceChildren(...defaultStageRows());
 
 initDataFiles();
 initLoadChart();

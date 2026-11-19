@@ -407,6 +407,28 @@ try {
       assert.deepEqual(await collect(), kept, `${mode}: unknown version leaves the open project untouched`);
     }
     checks.push('A5 Save in Simple → Open in Advanced → Save → Open in Simple: identical config and byte-identical file, schemaVersion 2, no UI-mode key; v1 file migrates with req_* IDs in both modes; schemaVersion 99 shows an error and changes nothing in both modes');
+
+    // A project saves only its own load mode: opening one puts every other mode's fields
+    // back to a fresh page's values, never those of the project opened before.
+    const loadFields = (target = page) => target.evaluate(() => [...document.querySelectorAll(
+      '#load-simple input, #load-stages input, #load-iterations input, #load-race input, #load-race select',
+    )].map(field => [field.id || field.className, field.type === 'checkbox' ? field.checked : field.value]));
+    const freshPage = await openPage();
+    await openProject(EMPTY, freshPage);
+    const freshLoad = await loadFields(freshPage);
+    await freshPage.context().close();
+    const iterationsProject = { ...EMPTY, load: { mode: 'iterations', vus: '7', iterations: '77', maxDuration: '7m' } };
+    const stagesProject = { ...EMPTY, load: { mode: 'stages', stages: [{ duration: '9s', target: '99' }] } };
+    const raceProject = { ...EMPTY, load: { mode: 'race', vus: '5', maxDuration: '5m', race: { timing: 'spread', spreadMs: '55', leadMs: '5555' } } };
+    for (const previous of [iterationsProject, stagesProject, raceProject]) {
+      await openProject(previous);
+      await openProject(EMPTY);
+      assert.deepEqual(await loadFields(), freshLoad, `${previous.load.mode} project → open a Fixed VUs project: load fields as on a fresh page`);
+    }
+    await openProject(iterationsProject);
+    await openProject(stagesProject);
+    assert.deepEqual((await collect()).load.stages, [{ duration: '9s', target: '99' }], 'Stages project keeps only its own stages');
+    checks.push('A5b Open an Iterations, Stages or Race burst project, then a Fixed VUs one: every load field equals a fresh page (no values left from the project before)');
   }
 
   // 3. Listener duplication: after many switches each action still happens once.

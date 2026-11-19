@@ -5,7 +5,7 @@ import { navigate } from './nav.js';
 import { headerRow, variableRow } from './components/rows.js';
 import { reqCard, refreshRequestSummary, setRequestExpanded } from './components/req-card.js';
 import { renumberMain } from './components/counts.js';
-import { stageRow } from './components/flow-view.js';
+import { defaultStageRows, stageRow } from './components/flow-view.js';
 import { refreshFlowEmptyState } from './components/counts.js';
 import { collectConfig } from './config.js';
 import { migrateProject, projectStore, serializeProject } from './project-store.js';
@@ -37,6 +37,18 @@ export function hydrateRequestCard(card, req) {
   url.value = req.url || '';
   url.dispatchEvent(new Event('input'));
   refreshRequestSummary(card);
+}
+
+// Fixed VUs and Iterations fields back to their value in index.html, the stages back
+// to the starting ones. Race burst fields are reset by restoreRaceSettings().
+const LOAD_FIELD_IDS = ['vus', 'duration', 'iter-vus', 'iterations', 'max-duration'];
+
+function resetLoadFields() {
+  for (const id of LOAD_FIELD_IDS) {
+    const field = $(`#${id}`);
+    field.value = field.defaultValue;
+  }
+  $('#stages').replaceChildren(...defaultStageRows());
 }
 
 function restoreZone(requests) {
@@ -74,6 +86,9 @@ export function applyConfig(cfg) {
   $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
   $('#load-race').classList.toggle('hidden', mode !== 'race');
 
+  // A project saves only the fields of its own load mode, so every other mode goes
+  // back to what a fresh page shows instead of keeping the project opened before.
+  resetLoadFields();
   if (mode === 'simple') {
     $('#vus').value      = cfg.load?.vus      ?? 10;
     $('#duration').value = cfg.load?.duration ?? '30s';
@@ -84,11 +99,8 @@ export function applyConfig(cfg) {
   } else if (mode === 'race') {
     // Filled after the request cards (below): the race request list comes from them.
   } else {
-    const stagesEl = $('#stages');
-    stagesEl.innerHTML = '';
     const saved = cfg.load?.stages || [];
-    if (saved.length) saved.forEach(s => stagesEl.appendChild(stageRow(s.duration, s.target)));
-    else stagesEl.appendChild(stageRow());
+    $('#stages').replaceChildren(...(saved.length ? saved.map(s => stageRow(s.duration, s.target)) : [stageRow()]));
   }
 
   const varsList = $('#global-vars-list');

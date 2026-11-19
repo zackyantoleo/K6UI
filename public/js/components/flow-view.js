@@ -33,6 +33,18 @@ export function addRequestGroup() {
   return group;
 }
 
+// The stages a fresh page starts with, and what opening a project that does not use
+// stages puts back (so the editor never keeps the stages of the project before).
+export const DEFAULT_STAGES = Object.freeze([
+  Object.freeze({ duration: '30s', target: '10' }),
+  Object.freeze({ duration: '1m', target: '20' }),
+  Object.freeze({ duration: '30s', target: '0' }),
+]);
+
+export function defaultStageRows() {
+  return DEFAULT_STAGES.map(stage => stageRow(stage.duration, stage.target));
+}
+
 export function stageRow(dur = '30s', tgt = '20') {
   const row = document.createElement('div');
   row.className = 'stage-row';

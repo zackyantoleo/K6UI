@@ -93,7 +93,7 @@ public/                 Static frontend (ES modules, no bundler)
     ├── curl-export.js  Request record → a cURL command (`curlFromRecord()`: method, URL, request headers, body as recorded, bash/zsh quoting, `notes` when it cannot be complete). Shared by the Requests tab ("Copy as cURL") and the report (pure, no DOM)
     ├── curl-import.js  "Import from cURL" modal: parse + fill a request card
     ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/metrics; keeps the last run for the report (`runReport()`, `downloadRunReport(format)`)
-    ├── project-io.js   Save/load projects (JSON file = config object)
+    ├── project-io.js   Save/load projects (JSON file = config object); opening one resets the load modes it does not use to a fresh page's values
     ├── script-import.js "Import k6 script / JMeter .jmx" modal: text starting with "<" → POST /api/import-jmx, else /api/import-script; applyConfig, list warnings
     └── components/
         ├── req-card.js        Request card: summary row, editor head (title row + protocol/method/URL bar), lazy editor tabs
