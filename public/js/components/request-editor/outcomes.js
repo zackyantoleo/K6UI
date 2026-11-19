@@ -3,7 +3,7 @@
 // matches gets the fallback label. One DOM for Simple and Advanced; values are
 // DOM properties, never markup.
 import {
-  DEFAULT_OUTCOME_FALLBACK, OUTCOME_OPERATORS, OUTCOME_SOURCES, isBlankOutcomeRule, normalizeOutcomeRule,
+  DEFAULT_OUTCOME_FALLBACK, OUTCOME_OPERATORS, OUTCOME_SOURCES, OUTCOME_VARIABLE, isBlankOutcomeRule, normalizeOutcomeRule,
 } from '../../outcomes.js';
 
 const SELECTOR_HINTS = { json: 'JSON path, e.g. code or error.code', header: 'Header name, e.g. X-Error-Code' };
@@ -126,8 +126,12 @@ export function createOutcomesPanel(onCountChange = () => {}) {
   panel.className = 'outcomes-panel';
   const hint = document.createElement('p');
   hint.className = 'ext-hint';
-  hint.textContent = 'Give every response one label, for example success, quota reached or rejected by a lock. '
-    + 'Rules are checked top to bottom and the first one that matches wins. Run & Results counts each label.';
+  hint.append('Give every response one label, for example success, quota reached or rejected by a lock. '
+    + 'Rules are checked top to bottom and the first one that matches wins. Run & Results counts each label; ');
+  const variable = document.createElement('code');
+  variable.textContent = `{{${OUTCOME_VARIABLE}}}`;
+  hint.append(variable, ' holds it for Save to CSV and later requests. An expected rejection (a 400 that is the right answer) '
+    + 'still counts as a failed request until its status is listed under Advanced → Expected statuses.');
   const templates = document.createElement('div');
   templates.className = 'check-template-list';
   templates.setAttribute('aria-label', 'Outcome templates');

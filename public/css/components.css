@@ -183,6 +183,9 @@
 .options-row { display: flex; align-items: center; gap: var(--space-5); flex-wrap: wrap; }
 .opt-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
 .opt-label input[type="number"] { width: 84px; }
+.expected-statuses-row { gap: var(--space-3); }
+.expected-statuses-row .expected-statuses { width: 190px; font-family: var(--font-mono); font-size: 13px; }
+.expected-statuses-status:empty { display: none; }
 .toggle-label {
   display: flex; align-items: center; gap: 8px;
   font-size: 13px; font-weight: 500; color: var(--text); cursor: pointer;

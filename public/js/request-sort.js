@@ -11,6 +11,8 @@ export const SORT_COLUMNS = {
   m:   { label: 'Method',   type: 'text',   read: entry => entry.m },
   url: { label: 'URL',      type: 'text',   read: entry => entry.url },
   s:   { label: 'Status',   type: 'number', read: entry => entry.s },
+  // The outcome label; a request without outcome rules has none and sorts first.
+  oc:  { label: 'Outcome',  type: 'text',   read: entry => entry.oc },
   d:   { label: 'Duration', type: 'number', read: entry => entry.d },
 };
 

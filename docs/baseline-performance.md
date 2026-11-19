@@ -151,3 +151,36 @@ the same with or without tags. The rest is the function call and its `if`s:
 Reading a JSON path that holds an object converts that object to JavaScript, as an
 extraction of it would; a path to a single value (`error.code`) is cheap, and a
 status-only rule placed first answers most responses without reading the body.
+
+## Expected statuses and `{{$outcome}}` (November 2026)
+
+Same machine, flow and harness (`.hermes/bench`), 2026-11-19, 50 VUs, 8 s runs, four
+rounds with the variant order rotated, median of the middle two; requests per CPU
+second of k6. "List" = `expectedStatuses: "2xx,400"` on all three requests (every
+response is a 200, so the list never changes a result).
+
+| Variant | Requests per CPU second |
+| --- | ---: |
+| Hand-written k6 script (`raw.js`) | 6,821 |
+| K6UI, no list (script byte-identical to `main`) | 6,626 |
+| List on every request | 6,175 |
+| Outcome rules (4 rules) on every request | 5,635 |
+| Outcome rules + list + `{{$outcome}}` in a header of the next request | 5,604 |
+
+The list costs k6 a `responseCallback` per request and a check of the list instead of
+200–399; separate rounds put each within the noise: with the status check off,
+7,650 without and 7,447 with the list; with it on, one set of rounds read 6,591
+against 6,236 and the next 6,369 against 6,586. Reading `r.status` once in the check
+instead of up to three times changed nothing measurable, so the check stays an
+expression the importer reads back.
+
+Request details "all": a first version gave `logHttpRequest()` two more parameters
+and called it with four arguments; k6's interpreter ran that 11% slower (6,038 →
+5,393, no overlap between rounds). `logHttpRequest(i, method, url, res)` is
+unchanged now and a request with outcome rules or a list calls `logHttpOutcome()`:
+
+| Request details "all" | `main` | This branch |
+| --- | ---: | ---: |
+| No rules, no list | 6,349 | 6,554 |
+| Outcome rules (records carry `oc`) | 5,928 | 5,777 |
+| Outcome rules + list | — | 5,437 |

@@ -2,6 +2,7 @@
 import {
   Unresolvable, keyOf, resolveConst, safeText, sourceOf, tryStatic, unwrap,
 } from "./values.js";
+import { normalizeExpectedStatuses } from "../../public/js/expected-statuses.js";
 
 const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 const BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -83,6 +84,39 @@ function readTagName(node, ctx) {
   return "";
 }
 
+// http.expectedStatuses() arguments → "200,4xx": a status code, or { min, max } (a whole
+// class such as 400–499 → 4xx, a short range → its codes); null for anything else.
+function expectedStatusesText(args, ctx) {
+  const parts = [];
+  const isStatus = (value) => Number.isInteger(value) && value >= 100 && value <= 599;
+  for (const arg of args) {
+    const value = tryStatic(arg, ctx);
+    if (isStatus(value)) {
+      parts.push(String(value));
+    } else if (value && typeof value === "object" && isStatus(value.min) && isStatus(value.max) && value.min <= value.max) {
+      if (value.min % 100 === 0 && value.max === value.min + 99) parts.push(`${value.min / 100}xx`);
+      else if (value.max - value.min < 10) for (let code = value.min; code <= value.max; code++) parts.push(String(code));
+      else return null;
+    } else {
+      return null;
+    }
+  }
+  return normalizeExpectedStatuses(parts.join(",")) || null;
+}
+
+// `responseCallback: http.expectedStatuses(...)`, inline or a constant (K6UI's own
+// EXPECTED_STATUSES_<n>) → the request's expected statuses.
+function readResponseCallback(node, req, ctx) {
+  const call = resolveConst(node, ctx);
+  const c = call?.type === "CallExpression" ? call.callee : null;
+  const expected = c?.type === "MemberExpression" && !c.computed && c.object.type === "Identifier"
+    && c.object.name === ctx.names.http && c.property.name === "expectedStatuses";
+  const statuses = expected ? expectedStatusesText(call.arguments, ctx) : null;
+  if (statuses) req.expectedStatuses = statuses;
+  else ctx.warn(node, `Request option responseCallback \`${sourceOf(node, ctx)}\` could not be read and was ignored `
+    + "(K6UI reads http.expectedStatuses() with status codes and { min, max } ranges).");
+}
+
 function applyParams(node, req, ctx) {
   if (isNullish(node)) return;
   const obj = resolveConst(node, ctx);
@@ -98,13 +132,14 @@ function applyParams(node, req, ctx) {
     const key = prop.computed ? null : (prop.key.name ?? prop.key.value);
     if (key === "headers") req.headers.push(...readHeaders(prop.value, ctx));
     else if (key === "tags") req.name = readTagName(prop.value, ctx) || req.name;
+    else if (key === "responseCallback") readResponseCallback(prop.value, req, ctx);
     else ctx.warn(prop, `Request option "${key ?? sourceOf(prop.key, ctx)}" is not supported and was ignored.`);
   }
 }
 
-// {{x}} placeholders must survive URL-encoding.
+// {{x}} (and {{$outcome}}) placeholders must survive URL-encoding.
 function encodeForm(text) {
-  return text.split(/(\{\{\w+\}\})/).map((part, i) => (i % 2 ? part : encodeURIComponent(part))).join("");
+  return text.split(/(\{\{\$?\w+\}\})/).map((part, i) => (i % 2 ? part : encodeURIComponent(part))).join("");
 }
 
 // JS value tree for JSON.stringify(): variables stay {{placeholders}}, other

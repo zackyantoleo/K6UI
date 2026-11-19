@@ -12,6 +12,7 @@
 import { loadShape } from './components/load-chart.js';
 import { OUTCOME_METRIC, outcomeMetricKey } from './outcomes.js';
 import { THRESHOLD_VARIABLE, requestTitle } from './outcome-thresholds.js';
+import { DEFAULT_EXPECTED_STATUSES, normalizeExpectedStatuses } from './expected-statuses.js';
 
 export const REPORT_FORMAT = 'k6ui-run-report';
 export const REPORT_VERSION = 1;
@@ -177,6 +178,8 @@ function setupOf(config) {
         url: String(request.type === 'grpc' ? `${request.url || ''} ${request.grpcMethod || ''}`.trim() : request.url || ''),
         group: group ? String(group.name || '') : '',
         enabled: request.enabled !== false && group?.enabled !== false,
+        // The statuses that counted as a success ('' = k6's own rule, 200–399).
+        expectedStatuses: request.type === 'grpc' ? '' : normalizeExpectedStatuses(request.expectedStatuses),
       };
     }),
     dataFiles: (config?.dataSets || []).map(set => ({ name: String(set.name || ''), fileName: String(set.fileName || '') })),
@@ -239,6 +242,7 @@ export function buildRunReport(state, now = new Date()) {
       status: entry.s ?? null,
       durationMs: numberOrNull(Number(entry.d)),
       ok: entry.ok === true,
+      outcome: entry.oc == null ? '' : String(entry.oc),
       error: entry.er ? String(entry.er) : '',
       requestHeaders: headersOf(entry.rqh),
       requestBody: entry.rq == null ? '' : String(entry.rq),
@@ -373,7 +377,7 @@ function recordHtml(row) {
   const where = [row.vu != null ? `VU ${row.vu}` : '', row.iteration != null ? `iter ${row.iteration}` : '', row.request != null ? `#${row.request}` : '']
     .filter(Boolean).join(' · ');
   return `<details class="record${row.ok ? '' : ' bad'}"><summary>
-<span class="badge ${row.ok ? 'ok' : 'bad'}">${escapeHtml(row.status ?? '—')}</span>
+<span class="badge ${row.ok ? 'ok' : 'bad'}">${escapeHtml(row.status ?? '—')}</span>${row.outcome ? ` <span class="badge outcome">${escapeHtml(row.outcome)}</span>` : ''}
 <span class="method">${escapeHtml(row.method)}</span> <span class="url">${escapeHtml(row.url)}</span>
 <span class="muted rec-meta">${escapeHtml([where, duration].filter(Boolean).join(' · '))}</span></summary>
 ${row.error ? `<p class="rec-error">${escapeHtml(row.error)}</p>` : ''}<div class="sides">
@@ -405,6 +409,7 @@ p { margin: 0 0 8px; }
 .badge.ok, .badge.passed { color: var(--ok); background: var(--ok-bg); }
 .badge.bad, .badge.failed, .badge.aborted { color: var(--bad); background: var(--bad-bg); }
 .badge.threshold-failed { color: var(--warn); background: var(--warn-bg); }
+.badge.outcome { color: var(--text); background: var(--code); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; }
 dl.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 0; }
 dl.meta div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
 dl.meta dt { color: var(--muted); font-size: 12px; }
@@ -527,9 +532,13 @@ export function reportToHtml(report) {
 <div><dt>Data files</dt><dd>${escapeHtml(setup.dataFiles.length ? setup.dataFiles.map(file => file.name || file.fileName).join(', ') : 'None')}</dd></div>
 </dl>`);
   if (setup.loadSummary) parts.push(`<p class="muted">${escapeHtml(setup.loadSummary)}</p>`);
-  parts.push(table(['#', 'Name', 'Method', 'URL', 'Group', 'On'], setup.requests.map(request => ({
+  // "Success statuses" only when a request has expected statuses; the others use 200–399.
+  const withStatuses = setup.requests.some(request => request.expectedStatuses);
+  parts.push(table(['#', 'Name', 'Method', 'URL', 'Group', ...(withStatuses ? ['Success statuses'] : []), 'On'], setup.requests.map(request => ({
     className: request.enabled ? '' : 'off',
-    cells: [request.number, request.name || '—', request.method, request.url, request.group || '—', request.enabled ? 'Yes' : 'No'],
+    cells: [request.number, request.name || '—', request.method, request.url, request.group || '—',
+      ...(withStatuses ? [request.expectedStatuses || (request.type === 'grpc' ? '—' : DEFAULT_EXPECTED_STATUSES)] : []),
+      request.enabled ? 'Yes' : 'No'],
   })), { numeric: [0] }));
 
   parts.push('<h2>All metrics</h2>');

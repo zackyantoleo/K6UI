@@ -3,6 +3,7 @@
 // settings that still run. Switching modes never changes what runs.
 import { usableDataFileCount } from '../data-files.js';
 import { hasOutcomeRules } from '../outcomes.js';
+import { hasExpectedStatuses } from '../expected-statuses.js';
 import { readOutcomesPanel } from './request-editor/outcomes.js';
 
 const DEFAULT_PAUSE_SECONDS = 1;
@@ -23,6 +24,7 @@ const REQUEST_CATEGORIES = [
   { id: 'scripts', label: 'Pre/post scripts', test: request => hasText(request.preScript) || hasText(request.postScript) },
   { id: 'pacing', label: 'Custom pause after request', test: request => pauseSeconds(request.sleepAfter) !== DEFAULT_PAUSE_SECONDS },
   { id: 'statusCheck', label: 'Automatic 2xx check turned off', test: request => request.checkStatus === false },
+  { id: 'expectedStatuses', label: 'Expected statuses', test: request => hasExpectedStatuses(request.expectedStatuses) },
 ];
 
 const hasGroupHeaders = group => (group.headers || []).some(header => hasText(header?.key));
@@ -100,6 +102,7 @@ export function readRequestSettings(card) {
     postScript: scriptsReady ? field('.post-script').value : saved.postScript,
     sleepAfter: optionsReady ? field('.sleep').value : saved.sleepAfter,
     checkStatus: optionsReady ? field('.check-status').checked : saved.checkStatus !== false,
+    expectedStatuses: optionsReady ? field('.expected-statuses').value : saved.expectedStatuses,
   };
 }
 

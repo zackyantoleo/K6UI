@@ -74,6 +74,7 @@ that will run with:
 - pre/post scripts (whitespace-only scripts do not count)
 - a pause other than the default 1 second
 - the automatic 2xx check turned off
+- expected statuses (requests with a list in the Advanced tab; never the statuses themselves)
 - group header defaults (groups only)
 - conditional groups: groups with a "Run only if" row filled in (groups only; a turned-off group counts under "configured but not run")
 - data files that will be used (a count of files; the notice is not per request)

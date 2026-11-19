@@ -212,7 +212,9 @@ function renderReqLogRow(entry) {
   row.dataset.ok = entry.ok ? '1' : '0';
   row.tabIndex = 0;
   row.setAttribute('aria-expanded', 'false');
-  row.setAttribute('aria-label', `${entry.m || 'request'} ${entry.url || ''}, status ${entry.s ?? 'unknown'}, ${entry.d ?? 0} milliseconds`);
+  const outcome = entry.oc == null ? '' : String(entry.oc);
+  row.setAttribute('aria-label', `${entry.m || 'request'} ${entry.url || ''}, status ${entry.s ?? 'unknown'}`
+    + `${outcome ? `, outcome ${outcome}` : ''}, ${entry.d ?? 0} milliseconds`);
 
   appendCell(row, entry.vu);
   appendCell(row, entry.it);
@@ -222,6 +224,7 @@ function renderReqLogRow(entry) {
   urlCell.title = String(entry.url || '');
   const statusCell = appendCell(row, entry.s, `status-code ${statusClass(Number(entry.s))}`);
   statusCell.setAttribute('aria-label', `HTTP status ${entry.s}`);
+  appendCell(row, outcome, 'req-outcome-cell');
   appendCell(row, `${entry.d} ms`);
 
   const toggleDetail = () => {
@@ -237,7 +240,7 @@ function renderReqLogRow(entry) {
     const detail = document.createElement('tr');
     detail.className = 'req-detail-row';
     const cell = appendCell(detail, '');
-    cell.colSpan = 7;
+    cell.colSpan = 8;
     cell.appendChild(renderRequestDetail(entry));
     row.after(detail);
   };
