@@ -10,6 +10,7 @@ import { renderRaceResult } from './race-results.js';
 import { markOutcomeResultsStopped, renderOutcomeResults, resetOutcomeResults } from './outcome-results.js';
 import { outcomeThresholdText } from './outcome-thresholds.js';
 import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
+import { curlFromRecord } from './curl-export.js';
 
 export const MAX_REQ_LOGS = 500;
 const MAX_LOG_LINES = 1500;
@@ -150,8 +151,8 @@ function makeElement(tag, className, text) {
   return node;
 }
 
-function copyButton(label, text) {
-  const button = makeElement('button', 'btn ghost sm', 'Copy');
+function copyButton(label, text, caption = 'Copy') {
+  const button = makeElement('button', 'btn ghost sm', caption);
   button.type = 'button';
   button.setAttribute('aria-label', `Copy ${label}`);
   if (!navigator.clipboard) button.hidden = true;
@@ -162,18 +163,25 @@ function copyButton(label, text) {
     } catch {
       button.textContent = 'Copy failed';
     }
-    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+    setTimeout(() => { button.textContent = caption; }, 1500);
   });
   return button;
 }
 
 // One side of a record: "Request" (headers + payload) or "Response" (headers + body).
-function detailSection(title, summary, headers, body) {
+// `curl` (Request side of an HTTP record): a "Copy as cURL" button and its notes.
+function detailSection(title, summary, headers, body, curl = null) {
   const section = makeElement('section', 'req-detail-section');
   section.setAttribute('aria-label', title);
   const head = makeElement('div', 'req-detail-head');
   head.append(makeElement('h4', '', title), makeElement('span', 'req-detail-summary', summary));
+  if (curl) {
+    const button = copyButton('this request as a cURL command', curl.command, 'Copy as cURL');
+    button.classList.add('req-detail-curl');
+    head.appendChild(button);
+  }
   section.appendChild(head);
+  if (curl?.notes.length) section.appendChild(makeElement('p', 'req-detail-note', curl.notes.join(' ')));
 
   const recorded = headers && typeof headers === 'object';
   const names = recorded ? Object.keys(headers) : [];
@@ -202,7 +210,7 @@ function renderRequestDetail(entry) {
   if (entry.er) detail.appendChild(makeElement('p', 'req-detail-error', entry.er));
   const grid = makeElement('div', 'req-detail-grid');
   grid.append(
-    detailSection('Request', `${entry.m || 'request'} ${entry.url || ''}`, entry.rqh, entry.rq),
+    detailSection('Request', `${entry.m || 'request'} ${entry.url || ''}`, entry.rqh, entry.rq, curlFromRecord(entry)),
     detailSection('Response', `Status ${entry.s ?? 'unknown'} · ${entry.d ?? 0} ms`, entry.rh, entry.rb),
   );
   detail.appendChild(grid);

@@ -15,6 +15,7 @@ import { THRESHOLD_VARIABLE, requestTitle } from './outcome-thresholds.js';
 import { DEFAULT_EXPECTED_STATUSES, normalizeExpectedStatuses } from './expected-statuses.js';
 import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './race.js';
 import { raceGantt } from './race-gantt.js';
+import { curlFromRecord } from './curl-export.js';
 
 export const REPORT_FORMAT = 'k6ui-run-report';
 export const REPORT_VERSION = 1;
@@ -368,11 +369,19 @@ function headersHtml(headers) {
   return `<dl class="headers">${names.map(name => `<dt>${escapeHtml(name)}</dt><dd>${escapeHtml(headers[name])}</dd>`).join('')}</dl>`;
 }
 
-function sideHtml(title, summary, headers, body) {
+// The report runs no scripts, so the command is text to select and copy.
+function curlHtml(row) {
+  const curl = curlFromRecord({ m: row.method, url: row.url, rqh: row.requestHeaders, rq: row.requestBody });
+  if (!curl) return '';
+  const notes = curl.notes.length ? `<p class="muted">${escapeHtml(curl.notes.join(' '))}</p>` : '';
+  return `<details class="curl"><summary>cURL</summary>${notes}<pre>${escapeHtml(curl.command)}</pre></details>`;
+}
+
+function sideHtml(title, summary, headers, body, extra = '') {
   const count = headers ? Object.keys(headers).length : 0;
   return `<section class="side"><h3>${escapeHtml(title)} <span class="muted">${escapeHtml(summary)}</span></h3>
 <h4>Headers (${count})</h4>${headersHtml(headers)}
-<h4>Body</h4><pre>${body ? escapeHtml(prettyBody(body)) : '<span class="muted">(empty)</span>'}</pre></section>`;
+<h4>Body</h4><pre>${body ? escapeHtml(prettyBody(body)) : '<span class="muted">(empty)</span>'}</pre>${extra}</section>`;
 }
 
 // One request record: a summary line that opens to its payload and response.
@@ -385,7 +394,7 @@ function recordHtml(row) {
 <span class="method">${escapeHtml(row.method)}</span> <span class="url">${escapeHtml(row.url)}</span>
 <span class="muted rec-meta">${escapeHtml([where, duration].filter(Boolean).join(' · '))}</span></summary>
 ${row.error ? `<p class="rec-error">${escapeHtml(row.error)}</p>` : ''}<div class="sides">
-${sideHtml('Request', `${row.method} ${row.url}`, row.requestHeaders, row.requestBody)}
+${sideHtml('Request', `${row.method} ${row.url}`, row.requestHeaders, row.requestBody, curlHtml(row))}
 ${sideHtml('Response', `Status ${row.status ?? 'unknown'}${duration ? ` · ${duration}` : ''}`, row.responseHeaders, row.responseBody)}
 </div></details>`;
 }
@@ -454,6 +463,8 @@ dl.headers { display: grid; grid-template-columns: minmax(90px, max-content) 1fr
 dl.headers dt { color: var(--muted); overflow-wrap: anywhere; }
 dl.headers dd { margin: 0; overflow-wrap: anywhere; }
 .side pre { max-height: 420px; overflow: auto; }
+.curl > summary { font-size: 12px; color: var(--muted); }
+.curl p { margin: 6px 0 0; font-size: 12px; }
 .note { padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--text); font-size: 13px; }
 .note.ok { background: var(--ok-bg); }
 .figure-value.small { font-size: 16px; }
