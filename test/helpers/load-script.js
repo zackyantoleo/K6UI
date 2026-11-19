@@ -54,14 +54,14 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
     connect(address) { grpcCalls.push({ step: 'connect', address }); }
     invoke(method, message) {
       grpcCalls.push({ step: 'invoke', method, message });
-      return { status: 0, timings: { duration: 1 }, ...(grpcResponse ?? { message: {} }) };
+      return { status: 0, timings: { blocked: 0, connecting: 0, tls_handshaking: 0, duration: 1 }, ...(grpcResponse ?? { message: {} }) };
     }
     close() { grpcCalls.push({ step: 'close' }); }
   }
   const request = (method, url, body, params) => {
     const call = { method, url, body, params };
     calls.push(call);
-    return { status: 200, body: '{}', headers: {}, timings: { duration: 1 }, ...respond?.(call), json: jsonRead };
+    return { status: 200, body: '{}', headers: {}, timings: { blocked: 0, connecting: 0, tls_handshaking: 0, duration: 1 }, ...respond?.(call), json: jsonRead };
   };
   const modules = {
     'k6/http': {

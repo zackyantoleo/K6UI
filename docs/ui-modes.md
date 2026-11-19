@@ -53,6 +53,7 @@ when changing either mode.
 | `public/js/components/advanced-notice.js` | Simple notice: pure `summarizeAdvancedSettings()` plus a DOM adapter that reads live panels when hydrated, otherwise `card.requestState` |
 | `public/css/base.css`, `flow.css`, `views.css` | `[data-ui-only="simple|advanced"]` hides one-mode pieces (`base.css`); `html[data-ui-mode="advanced"]` rules lay out the outline and editor (`flow.css`) and keep the load editor open (`views.css`) |
 | `public/js/components/load-chart.js` | "Load shape" on the Load view, shown in both modes; it reads the load inputs as typed (and, for a race burst, the global variable rows) and never the store or the mode |
+| `public/js/race-results.js` | The "Race burst" card in the Overview of Run & Results, shown in both modes; it renders the `race` of `done` (note, figures, Gantt, table) into one DOM with `textContent` only |
 | `public/js/components/race-settings.js` | The "Race burst" fields of the Load view, one DOM for both modes (inside the custom load editor). The race request list is read from the cards with `readRequestSettings()` (never hydrating a lazy panel) and refreshed when the view is shown or the flow changes; names are DOM text |
 
 Structural edits (add, duplicate, move, delete, cURL import, group changes)

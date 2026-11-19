@@ -28,7 +28,7 @@ import {
   buildOutcomeThresholdsSource, outcomeTargets, planThresholds, usesOutcomeVariable, validateOutcomes,
 } from "./outcomes.js";
 import { buildExpectedStatusesSource, validateExpectedStatuses } from "./expected-statuses.js";
-import { buildRaceSource, buildRaceWaitCode, planRaceScript } from "./race.js";
+import { buildRaceSource, buildRaceWaitCode, planRaceScript, raceRequestCode } from "./race.js";
 import { OUTCOME_VARIABLE } from "../../public/js/outcomes.js";
 import { expandSubRequests } from "../../public/js/sub-requests.js";
 import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/request-log.js";
@@ -512,7 +512,8 @@ export function generateScript(config, meta = null) {
     } else {
       const target = outcomeByIndex.get(i);
       const outcome = target ? buildOutcomeCode(target, `res_main_${i}`, keepOutcome) : null;
-      out += "\n" + buildRequestCode(req, i, "main", ctx, null, logRequests, outcome);
+      const raceCode = race && race.index === i ? raceRequestCode(race, outcome?.name) : null;
+      out += "\n" + buildRequestCode(req, i, "main", ctx, null, logRequests, outcome, raceCode);
       // From here on (this request's Save to CSV included), {{$outcome}} has a value.
       if (outcome && keepOutcome) dynamicVars.set(OUTCOME_VARIABLE, OUTCOME_VARIABLE);
     }

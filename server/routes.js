@@ -62,11 +62,18 @@ apiRouter.post("/import-jmx", express.text({ type: ["application/xml", "text/xml
   }
 });
 
+// The outcome labels of the race request, in rule order (the Gantt colours follow it).
+function raceLabels(meta) {
+  const target = (meta.outcomes || []).find((item) => item.rq === meta.race?.rq);
+  return target ? { labels: target.labels, fallback: target.fallback } : null;
+}
+
 // POST /api/run — run a k6 test and stream live output via Server-Sent Events.
 // Emitted events: status, log, req-log, req-log-skipped, export, metrics, error, done (see k6-runner.js);
 // `done` also has `outcomes` when a request has outcome rules (public/js/outcomes.js readOutcomeResults),
 // `outcomeThresholds` when outcome targets are set (public/js/outcome-thresholds.js), and `race` in
-// race burst mode (public/js/race.js readRaceResult: how many VUs were late). Each live
+// race burst mode (public/js/race.js readRaceResult: how many VUs were late, and every VU's
+// planned and actual send time from the script's records). Each live
 // `metrics` event gets the same two outcome fields from its `outcomeCounts`, with live target statuses.
 apiRouter.post("/run", async (req, res) => {
   let script;
@@ -104,9 +111,13 @@ apiRouter.post("/run", async (req, res) => {
       if (event === "done" && meta.outcomeThresholds?.length) {
         data = { ...data, outcomeThresholds: readOutcomeThresholdResults(meta.outcomeThresholds, data?.summary) };
       }
-      // Race burst: how many VUs reached the race request late (from the summary).
-      if (event === "done" && meta.race) {
-        data = { ...data, race: readRaceResult(meta.race, data?.summary) };
+      // Race burst: how many VUs were late (from the summary) and the per-VU records
+      // the script logged (k6-runner.js `raceRecords`, which is not sent as such).
+      if (event === "done" && data?.raceRecords) {
+        const { raceRecords, ...rest } = data;
+        data = meta.race ? { ...rest, race: readRaceResult(meta.race, rest.summary, raceRecords, raceLabels(meta)) } : rest;
+      } else if (event === "done" && meta.race) {
+        data = { ...data, race: readRaceResult(meta.race, data?.summary, null, raceLabels(meta)) };
       }
       // Live: the same two fields while k6 runs, from the counts read so far.
       if (event === "metrics" && meta.outcomes?.length) {

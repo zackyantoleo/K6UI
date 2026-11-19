@@ -13,6 +13,8 @@ import { loadShape } from './components/load-chart.js';
 import { OUTCOME_METRIC, outcomeMetricKey } from './outcomes.js';
 import { THRESHOLD_VARIABLE, requestTitle } from './outcome-thresholds.js';
 import { DEFAULT_EXPECTED_STATUSES, normalizeExpectedStatuses } from './expected-statuses.js';
+import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './race.js';
+import { raceGantt } from './race-gantt.js';
 import { curlFromRecord } from './curl-export.js';
 
 export const REPORT_FORMAT = 'k6ui-run-report';
@@ -232,6 +234,7 @@ export function buildRunReport(state, now = new Date()) {
     setup: setupOf(state?.config),
     thresholds: reportThresholds(summary, state?.outcomeThresholds),
     outcomes: reportOutcomes(state?.outcomes),
+    race: isObject(state?.race) ? state.race : null,
     checks: summaryChecks(summary),
     metrics: summaryMetrics(summary),
     requests: records.map(entry => ({
@@ -330,6 +333,7 @@ function keyFigures(report) {
 
 function loadText(setup) {
   const load = setup.load || {};
+  if (load.mode === 'race') return `Race burst: ${load.vus || '?'} VUs, ${load.race?.timing || 'together'} (max ${load.maxDuration || '1h'})`;
   if (load.mode === 'stages') {
     const stages = (load.stages || []).map(stage => `${stage.duration || '?'} → ${stage.target ?? '?'} VUs`).join(', ');
     return `Staged: ${stages || 'no stages'}`;
@@ -397,10 +401,14 @@ ${sideHtml('Response', `Status ${row.status ?? 'unknown'}${duration ? ` · ${dur
 
 const REPORT_CSS = `
 :root { color-scheme: light dark; --bg: #f7f8fa; --surface: #ffffff; --text: #1b1f24; --muted: #5b6470; --line: #d9dee5;
-  --ok: #17663a; --ok-bg: #e5f4ea; --bad: #a3221b; --bad-bg: #fbe9e7; --warn: #8a5300; --warn-bg: #fdf1dc; --code: #f0f2f5; }
+  --ok: #17663a; --ok-bg: #e5f4ea; --bad: #a3221b; --bad-bg: #fbe9e7; --warn: #8a5300; --warn-bg: #fdf1dc; --code: #f0f2f5;
+  --tone-1: #2a78d6; --tone-2: #eb6834; --tone-3: #1baf7a; --tone-4: #eda100; --tone-5: #e87ba4; --tone-6: #008300;
+  --tone-7: #6250d6; --tone-8: #e34948; --tone-other: #7a828f; }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #14171b; --surface: #1c2026; --text: #e7eaee; --muted: #a2abb6; --line: #343b44;
-    --ok: #7fd79f; --ok-bg: #173323; --bad: #ff9c94; --bad-bg: #3a1c1a; --warn: #f3c06b; --warn-bg: #3a2c12; --code: #252a31; }
+    --ok: #7fd79f; --ok-bg: #173323; --bad: #ff9c94; --bad-bg: #3a1c1a; --warn: #f3c06b; --warn-bg: #3a2c12; --code: #252a31;
+    --tone-1: #3987e5; --tone-2: #d95926; --tone-3: #199e70; --tone-4: #c98500; --tone-5: #d55181; --tone-6: #0ca30c;
+    --tone-7: #9085e9; --tone-8: #e66767; --tone-other: #7d8597; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -458,6 +466,24 @@ dl.headers dd { margin: 0; overflow-wrap: anywhere; }
 .curl > summary { font-size: 12px; color: var(--muted); }
 .curl p { margin: 6px 0 0; font-size: 12px; }
 .note { padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--text); font-size: 13px; }
+.note.ok { background: var(--ok-bg); }
+.figure-value.small { font-size: 16px; }
+.race-chart { margin: 12px 0; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; break-inside: avoid; }
+.race-chart figcaption { font-size: 12px; margin-top: 6px; }
+svg.gantt { display: block; width: 100%; height: auto; }
+.gantt .grid { stroke: var(--line); stroke-width: 1; }
+.gantt .zero { stroke: var(--muted); stroke-width: 1; }
+.gantt .tick, .gantt .vu, .gantt .peak-label { fill: var(--muted); font-size: 11px; font-family: system-ui, sans-serif; }
+.gantt .plan { stroke: var(--text); stroke-width: 2; }
+.gantt .late .bar { stroke: var(--warn); stroke-width: 1.5; }
+.gantt .peak { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.tone-1 { fill: var(--tone-1); background: var(--tone-1); } .tone-2 { fill: var(--tone-2); background: var(--tone-2); }
+.tone-3 { fill: var(--tone-3); background: var(--tone-3); } .tone-4 { fill: var(--tone-4); background: var(--tone-4); }
+.tone-5 { fill: var(--tone-5); background: var(--tone-5); } .tone-6 { fill: var(--tone-6); background: var(--tone-6); }
+.tone-7 { fill: var(--tone-7); background: var(--tone-7); } .tone-8 { fill: var(--tone-8); background: var(--tone-8); }
+.tone-other { fill: var(--tone-other); background: var(--tone-other); }
+.legend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; padding: 0; font-size: 12px; }
+.legend .key { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
 @media print {
   body { background: #fff; color: #000; }
@@ -467,6 +493,54 @@ footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
   h2 { break-after: avoid; }
 }
 `;
+
+// The race burst Gantt (race-gantt.js layout) as inline SVG: no scripts, a <title> per row.
+const REPORT_RACE_ROWS = 2000;
+function ganttSvg(layout) {
+  const parts = [];
+  for (const tick of layout.ticks) {
+    parts.push(`<line class="${tick.label === 'T0' ? 'zero' : 'grid'}" x1="${tick.x}" x2="${tick.x}" y1="${layout.top - 6}" y2="${layout.bottom}"/>`);
+    parts.push(`<text class="tick" x="${tick.x}" y="${layout.top - 10}" text-anchor="${tick.anchor}">${escapeHtml(tick.label)}</text>`);
+  }
+  for (const row of layout.rows) {
+    parts.push(`<g class="row${row.late ? ' late' : ''}"><title>${escapeHtml(row.title)}</title>`
+      + (row.label ? `<text class="vu" x="${layout.left - 8}" y="${row.mid}" dominant-baseline="central" text-anchor="end">${escapeHtml(row.label)}</text>` : '')
+      + `<rect class="bar ${row.tone}" x="${row.x}" y="${row.barY}" width="${row.w}" height="${row.barH}" rx="2"/>`
+      + `<line class="plan" x1="${row.planX}" x2="${row.planX}" y1="${row.y + 1}" y2="${row.y + row.h - 1}"/></g>`);
+  }
+  let height = layout.height;
+  if (layout.peak) {
+    parts.push(`<line class="peak" x1="${layout.peak.x}" x2="${layout.peak.x}" y1="${layout.top - 4}" y2="${layout.bottom}"/>`);
+    parts.push(`<text class="peak-label" x="${layout.peak.labelX}" y="${layout.bottom + 6}" dominant-baseline="hanging" text-anchor="${layout.peak.anchor}">${escapeHtml(layout.peak.label)}</text>`);
+    height += 14;
+  }
+  return `<svg class="gantt" viewBox="0 0 ${layout.width} ${height}" role="img" aria-label="One row per VU: send time to response, with a tick at the planned send time">${parts.join('')}</svg>`;
+}
+
+function raceHtml(race) {
+  const parts = ['<h2>Race burst</h2>'];
+  const note = raceResultText(race);
+  if (note) parts.push(`<p class="${raceResultWarns(race) ? 'note' : 'note ok'}" role="note">${escapeHtml(note)}</p>`);
+  const figures = raceFigures(race);
+  if (figures.length) {
+    parts.push(`<div class="figures">${figures.map(figure =>
+      `<div class="figure" title="${escapeHtml(figure.hint)}"><div class="figure-label">${escapeHtml(figure.label)}</div><div class="figure-value small">${escapeHtml(figure.value)}</div></div>`).join('')}</div>`);
+  }
+  const layout = raceGantt(race);
+  if (!layout) {
+    parts.push('<p class="muted">No VU sent the race request, so there is nothing to chart.</p>');
+    return parts.join('\n');
+  }
+  const shown = layout.shown < layout.total ? `The first ${layout.shown} of ${layout.total} VUs by planned time. ` : '';
+  const legend = layout.legend.length
+    ? `<ul class="legend">${layout.legend.map(item => `<li><span class="key ${item.tone}"></span>${escapeHtml(item.label)} <span class="muted">${escapeHtml(formatNumber(item.count))}</span></li>`).join('')}</ul>`
+    : '';
+  parts.push(`<figure class="race-chart">${ganttSvg(layout)}<figcaption class="muted">${escapeHtml(`${shown}Each row is one VU: the bar runs from the moment it sent Request ${race.rq} to its response, the tick marks its planned send time. Times are the k6 clock (1 ms resolution), not arrival at the server.`)}</figcaption>${legend}</figure>`);
+  const rows = race.records.slice(0, REPORT_RACE_ROWS);
+  if (rows.length < race.records.length) parts.push(`<p class="muted">The first ${formatNumber(rows.length)} of ${formatNumber(race.records.length)} VUs by planned time.</p>`);
+  parts.push(table(RACE_RECORD_COLUMNS, rows.map(entry => ({ className: entry.late ? 'bad' : '', cells: raceRecordCells(entry) })), { numeric: [0, 1, 2, 3, 4, 5] }));
+  return parts.join('\n');
+}
 
 // One row of the Targets table; an outcome target reads as its label, request and count.
 function thresholdRow(row) {
@@ -523,6 +597,8 @@ export function reportToHtml(report) {
       })), { numeric: [1, 2] }));
     }
   }
+
+  if (report.race) parts.push(raceHtml(report.race));
 
   parts.push('<h2>Checks</h2>');
   parts.push(report.checks.length

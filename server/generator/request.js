@@ -7,7 +7,9 @@ import { expectedStatusTest, expectedStatusesName, expectedStatusesOf } from "./
 // ctx = { localVars, processorVars, dataVars, globalVars, hoistedVars, dynamicVars } — see interpolate.js.
 // outcome = { code, name } of a request with outcome rules (outcomes.js): the lines that
 // label this response, after the extractions, and the variable that holds the label.
-export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests, outcome = null) {
+// race = { before, after } of a race burst's race request (race.js raceRequestCode):
+// `before` right before http.request, `after` after the outcome lines.
+export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests, outcome = null, race = null) {
   const method = (req.method || "GET").toUpperCase();
   const urlCode = interpolate(req.url, ctx);
 
@@ -42,10 +44,12 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
   if (hasBody) {
     const bodyCode = interpolate(req.body, ctx);
     lines.push(`  const body_${prefix}_${index} = ${bodyCode};`);
+    if (race) lines.push(race.before);
     lines.push(
       `  const ${resVar} = http.request(${JSON.stringify(method)}, ${urlCode}, body_${prefix}_${index}, ${paramsCode});`
     );
   } else {
+    if (race) lines.push(race.before);
     lines.push(
       `  const ${resVar} = http.request(${JSON.stringify(method)}, ${urlCode}, null, ${paramsCode});`
     );
@@ -67,6 +71,7 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
   );
   if (extractCode) lines.push(extractCode);
   if (outcome) lines.push(outcome.code);
+  if (race) lines.push(race.after);
 
   // Per-request log: logHttpRequest() (helpers in generator/index.js) prints
   // one {__r:1,...} JSON line that k6-runner.js turns into a req-log event. A
