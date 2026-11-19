@@ -5,7 +5,7 @@ import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
 import { addExportRows, exportSummary, resetExports } from './export-results.js';
 import { buildRunReport, reportFileName, reportToHtml } from './run-report.js';
-import { renderOutcomeResults, resetOutcomeResults } from './outcome-results.js';
+import { markOutcomeResultsStopped, renderOutcomeResults, resetOutcomeResults } from './outcome-results.js';
 import { outcomeThresholdText } from './outcome-thresholds.js';
 import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
 
@@ -30,6 +30,8 @@ let runStartedAt = null;
 let elapsedTimer = null;
 let lastElapsedMs = 0;
 let stopRequested = false;
+// Set by `done`: a `metrics` event after it (none should come) never replaces the final values.
+let runFinished = false;
 // The run the report describes: set when a run starts, null after Clear results.
 let lastRun = null;
 let verdictState = { status: 'idle', title: '', detail: '' };
@@ -446,7 +448,17 @@ function applySummaryMetadata(summary) {
   if (totalRequests != null) setText('#run-request-total', totalRequests);
 }
 
+// A `metrics` event while k6 runs: live outcome counts and target statuses. The other
+// live values (requests, response times, VUs) are not shown yet.
+function showLiveMetrics(data) {
+  if (runFinished) return;
+  const outcomes = Array.isArray(data?.outcomes) ? data.outcomes : [];
+  const targets = Array.isArray(data?.outcomeThresholds) ? data.outcomeThresholds : [];
+  if (outcomes.length || targets.length) renderOutcomeResults(outcomes, targets, { live: true });
+}
+
 function finishRun(data) {
+  runFinished = true;
   stopElapsedTimer();
   flushLog();
   const dot = $('#nav-run-dot');
@@ -488,6 +500,7 @@ function handleSSE(event, data) {
   } else if (event === 'req-log') addRequestLog(data);
   else if (event === 'req-log-skipped') showSkippedRequestLogs(data.skipped);
   else if (event === 'export') addExportRows(data);
+  else if (event === 'metrics') showLiveMetrics(data);
   else if (event === 'done') finishRun(data);
 }
 
@@ -552,6 +565,7 @@ export async function runTest() {
   startElapsedTimer();
   setRunning(true);
   stopRequested = false;
+  runFinished = false;
   abortCtrl = new AbortController();
 
   try {
@@ -592,6 +606,8 @@ export async function runTest() {
       setVerdict({ status: 'failed', title: 'Test failed to run', detail: error.message, mark: '×' });
     }
   } finally {
+    // Stopped, interrupted, or a stream that ended without `done`: live counts stay, marked as such.
+    if (!runFinished) markOutcomeResultsStopped();
     stopElapsedTimer();
     setRunning(false);
     abortCtrl = null;

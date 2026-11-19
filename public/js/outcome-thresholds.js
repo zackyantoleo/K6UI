@@ -227,6 +227,16 @@ export function planOutcomeThresholds(config) {
 
 export const outcomeThresholdsProblem = config => planOutcomeThresholds(config).problem;
 
+// One planned target as a result, before anything was counted (status "unknown").
+function emptyResult(target) {
+  return {
+    number: target.number, request: text(target.request), name: text(target.name), method: text(target.method),
+    url: text(target.url), rq: target.rq ?? null, label: text(target.label), op: text(target.op),
+    value: text(target.value), resolved: target.resolved ?? null, expression: text(target.expression),
+    skipped: text(target.skipped), status: 'unknown', count: null,
+  };
+}
+
 // The planned targets + a k6 --summary-export → [{ ...target, status, count }], status
 // "met" | "not-met" | "skipped" | "unknown" (no summary, e.g. a stopped run). In a k6
 // summary export a threshold maps to `true` when it FAILED, `false` when it passed.
@@ -234,12 +244,7 @@ export function readOutcomeThresholdResults(thresholds, summary) {
   if (!Array.isArray(thresholds)) return [];
   const metrics = isObject(summary?.metrics) ? summary.metrics : null;
   return thresholds.filter(isObject).map(target => {
-    const result = {
-      number: target.number, request: text(target.request), name: text(target.name), method: text(target.method),
-      url: text(target.url), rq: target.rq ?? null, label: text(target.label), op: text(target.op),
-      value: text(target.value), resolved: target.resolved ?? null, expression: text(target.expression),
-      skipped: text(target.skipped), status: 'unknown', count: null,
-    };
+    const result = emptyResult(target);
     if (result.skipped) return { ...result, status: 'skipped' };
     if (!metrics || !result.rq) return result;
     const metric = metrics[outcomeMetricKey(result.rq, result.label)];
@@ -248,6 +253,33 @@ export function readOutcomeThresholdResults(thresholds, summary) {
     const failed = metric?.thresholds?.[result.expression];
     if (failed === true) result.status = 'not-met';
     else if (failed === false) result.status = 'met';
+    return result;
+  });
+}
+
+// While the test runs: the planned targets + the live outcome counts
+// ({ "k6ui_outcome{rq:1,outcome:success}": 12 }, the `outcomeCounts` of a `metrics`
+// event) → [{ ...target, status, count }] with what the count says so far. A count
+// only grows, so some answers are already final:
+//   <, <=  holds: "on-track" (may still break)   broken: "not-met" (final)
+//   >, >=  holds: "met" (final)                    not yet: "not-yet" (may still be met)
+//   ==     below: "not-yet"   equal: "on-track"   above: "not-met" (final)
+// "skipped" for a target that is not checked, "unknown" while its label has no count.
+// The final word is k6's, at the end of the run (readOutcomeThresholdResults).
+export function readLiveOutcomeThresholdResults(thresholds, counts) {
+  if (!Array.isArray(thresholds)) return [];
+  const live = isObject(counts) ? counts : {};
+  return thresholds.filter(isObject).map(target => {
+    const result = emptyResult(target);
+    if (result.skipped) return { ...result, status: 'skipped' };
+    const count = live[outcomeMetricKey(result.rq, result.label)];
+    const limit = result.resolved;
+    if (!result.rq || typeof count !== 'number' || !Number.isFinite(count) || typeof limit !== 'number') return result;
+    result.count = count;
+    const op = result.op;
+    if (op === '<' || op === '<=') result.status = (op === '<' ? count < limit : count <= limit) ? 'on-track' : 'not-met';
+    else if (op === '>' || op === '>=') result.status = (op === '>' ? count > limit : count >= limit) ? 'met' : 'not-yet';
+    else if (op === '==') result.status = count < limit ? 'not-yet' : count === limit ? 'on-track' : 'not-met';
     return result;
   });
 }
