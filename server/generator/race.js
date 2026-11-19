@@ -7,6 +7,10 @@
 //   flow        right before the race request's pre-processor:
 //                 k6uiRaceWarmup(<its URL>);            (with the warm-up)
 //                 const race_at_<i> = k6uiRaceWait(data.k6uiRaceT0);
+//               in the race request (request.js): `const race_sent_<i> = Date.now();`
+//               right before http.request, and after the response (and its outcome)
+//                 try { k6uiRaceRecord(data.k6uiRaceT0, race_at_<i>, race_sent_<i>, res_main_<i>, <label>); } catch (e) {}
+//               one {"k6uiRace":1,...} line per VU for the Race card (server/race-collector.js)
 // The wait sits before the pre-processor, so what it computes (a timestamp, a
 // signature) is fresh when the request leaves. A script without race mode is unchanged.
 import { DEFAULT_MAX_DURATION } from "./options.js";
@@ -45,12 +49,16 @@ export function setup() {
   return { k6uiRaceT0: Date.now() + RACE.leadMs };
 }
 
+// Race burst: when this VU reached k6uiRaceWait() (for its record).
+let k6uiRaceArrived = 0;
+
 // Race burst: sleeps until this VU's planned send time (T0 + its offset), busy-waits the
 // last RACE.spinMs ms (sleep wakes up a few ms late), and returns that time. A VU that
 // gets here at or after it is late: it is counted in k6ui_race_late and sends at once.
 function k6uiRaceWait(t0) {
   const at = t0 + RACE.offsets[(__VU - 1) % RACE.offsets.length];
-  const wait = at - Date.now();
+  k6uiRaceArrived = Date.now();
+  const wait = at - k6uiRaceArrived;
   if (wait <= 0) {
     RACE_LATE.add(1);
     return at;
@@ -58,6 +66,20 @@ function k6uiRaceWait(t0) {
   if (wait > RACE.spinMs) sleep((wait - RACE.spinMs) / 1000);
   while (Date.now() < at) { /* busy-wait */ }
   return at;
+}
+
+// Race burst: one record per VU for the Race card of Run & Results (k6-runner.js hands
+// the line to race-collector.js, never to the live log): T0, the planned send time,
+// when the VU reached the wait, when it sent, how long the request took in ms (blocked +
+// connecting + TLS handshake + k6's duration), whether it opened a connection, the
+// status, k6's error code and the outcome label.
+function k6uiRaceRecord(t0, at, sent, res, oc) {
+  const t = res.timings;
+  console.log(JSON.stringify({
+    k6uiRace: 1, vu: __VU, t0, at, ar: k6uiRaceArrived, sent,
+    ms: t.blocked + t.connecting + t.tls_handshaking + t.duration, cn: t.connecting + t.tls_handshaking > 0,
+    s: res.status, ec: res.error_code || undefined, oc,
+  }));
 }`;
 
 const WARMUP_HELPER = String.raw`
@@ -118,4 +140,15 @@ export function buildRaceWaitCode(race, req, ctx, assigned) {
   }
   out += `  const race_at_${race.index} = k6uiRaceWait(data.k6uiRaceT0);\n`;
   return out;
+}
+
+// The race request's own lines (request.js): `before` right before http.request (the
+// k6-side send time), `after` once the response and its outcome label are known.
+// `outcomeName` = the variable that holds the label (outcomes.js), or null.
+export function raceRequestCode(race, outcomeName) {
+  const i = race.index;
+  return {
+    before: `  const race_sent_${i} = Date.now();`,
+    after: `  try { k6uiRaceRecord(data.k6uiRaceT0, race_at_${i}, race_sent_${i}, res_main_${i}, ${outcomeName || "undefined"}); } catch (e) {}`,
+  };
 }

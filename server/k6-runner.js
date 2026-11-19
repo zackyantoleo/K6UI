@@ -10,10 +10,13 @@
 //   req-log-skipped — { skipped }: records left out by that rate limit (running total)
 //   export  — rows saved with "Save to CSV" (console.log JSON {"k6uiExport":...}, see
 //             export-collector.js); never shown as a log line, flushed before done
+//             (a race burst's per-VU records, {"k6uiRace":1,...}, are kept by
+//             race-collector.js and go out with done as `raceRecords`)
 //   metrics — live counts while k6 runs, about once a second (see live-metrics.js
 //             readLiveMetrics); polled from k6's REST API, never after done
 //   error   — failures (k6 not installed, failed to write the file, etc.)
-//   done    — process finished: { code, summary } (summary from --summary-export)
+//   done    — process finished: { code, outcome, summary } (summary from --summary-export),
+//             plus raceRecords: { records, dropped } when the script logged race records
 // onEnd() is called once the process ends. Return value: { stop() } to
 // terminate k6 (e.g. when the client closes the connection).
 //
@@ -28,6 +31,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createExportCollector } from "./export-collector.js";
+import { createRaceCollector } from "./race-collector.js";
 import { createRequestLogThrottle } from "./request-log-throttle.js";
 import { METRICS_INTERVAL_MS, freePort, startMetricsPoller } from "./live-metrics.js";
 
@@ -81,6 +85,7 @@ export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = M
 
   const requestLogs = createRequestLogThrottle(onEvent);
   const exportRows = createExportCollector(onEvent);
+  const raceRecords = createRaceCollector();
 
   // Split the stdout/stderr streams into whole lines.
   function makeLineSplitter(onLine) {
@@ -104,6 +109,7 @@ export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = M
         // logrus escaping is equivalent to JSON string body escaping — reverse it
         const raw = JSON.parse('"' + consoleMatch[1] + '"');
         if (exportRows.addLine(raw)) return;
+        if (raceRecords.addLine(raw)) return;
         if (raw.startsWith('{"__r":1,')) {
           requestLogs.add(JSON.parse(raw));
           return;
@@ -127,7 +133,7 @@ export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = M
     const outcome = code === 0 ? "passed" : code === 99 ? "threshold-failed" : "failed";
     exportRows.flush();
     requestLogs.flush();
-    onEvent("done", { code, outcome, summary });
+    onEvent("done", { code, outcome, summary, ...raceRecords.result() });
     await cleanup();
     onEnd();
   });

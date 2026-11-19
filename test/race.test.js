@@ -186,11 +186,14 @@ test('done.race: the late count from the summary, and its wording', () => {
   const summary = late => ({ metrics: { k6ui_race_late: { count: late, rate: 0, thresholds: { 'count>=0': false } } } });
   assert.deepEqual(readRaceResult(race, summary(2)), {
     rq: 2, name: 'Redeem voucher', method: 'POST', url: '{{host}}/req_redeem', vus: 3, failIfLate: false, late: 2,
-  });
+    timing: 'together', leadMs: 2000, labels: [], fallback: '', t0: null, sent: 0, missing: 3, dropped: 0, records: [], stats: null,
+  }, 'a summary and no record: no VU sent the race request');
   assert.equal(readRaceResult(race, summary(0)).late, 0);
   assert.equal(readRaceResult(race, null).late, null, 'no summary: unknown');
+  assert.equal(readRaceResult(race, null).missing, null, 'no summary, no records: unknown');
   assert.equal(readRaceResult(null, summary(1)), null);
-  assert.equal(raceResultText(readRaceResult(race, summary(0))), 'Race burst: all 3 VUs reached Request 2 in time and sent it at their planned time.');
+  const records = { records: [1, 2, 3].map(vu => ({ vu, t0: 1000, at: 1000, ar: 900, sent: 1000, ms: 5, cn: false, s: 200 })), dropped: 0 };
+  assert.equal(raceResultText(readRaceResult(race, summary(0), records)), 'Race burst: all 3 VUs reached Request 2 in time and sent it at their planned time.');
   assert.equal(raceResultText(readRaceResult(race, summary(1))),
     'Race burst: 1 of 3 VUs was late: it reached Request 2 at or after its planned send time and sent it at once, so the burst was not as planned. Raise the lead time in Load Profile.');
   assert.match(raceResultText(readRaceResult(race, summary(2))), /^Race burst: 2 of 3 VUs were late: they reached Request 2 at or after their planned send time/);

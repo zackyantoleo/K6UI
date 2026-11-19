@@ -247,10 +247,15 @@ function addRequest(call, info, state) {
 
 // K6UI's race burst lines (generator/race.js), when the script declares K6UI's
 // k6uiRaceWait(t0) helper: `k6uiRaceWarmup(<url>);` is skipped (the warm-up comes back
-// as a setting) and `const race_at_<i> = k6uiRaceWait(data.k6uiRaceT0);` marks the
-// next request as the race request.
+// as a setting), `const race_at_<i> = k6uiRaceWait(data.k6uiRaceT0);` marks the
+// next request as the race request, and `const race_sent_<i> = Date.now();` (the send
+// time of its record) is skipped.
 const isRaceWarmup = (node, ctx) => ctx.raceHelper && isCallTo(node, "k6uiRaceWarmup") && node.arguments.length === 1;
 const isRaceWait = (node, ctx) => ctx.raceHelper && isCallTo(node, "k6uiRaceWait") && node.arguments.length === 1;
+const isRaceSent = (name, node, ctx) =>
+  ctx.raceHelper && /^race_sent_\d+$/.test(name) && node?.type === "CallExpression" && !node.arguments.length
+  && node.callee.type === "MemberExpression" && !node.callee.computed
+  && node.callee.object.type === "Identifier" && node.callee.object.name === "Date" && node.callee.property.name === "now";
 
 function handleCheck(call, state) {
   const { ctx } = state;
@@ -463,6 +468,7 @@ function bind(name, rawInit, state) {
   // back where it is used (values.js).
   if (name === OUTCOME_VARIABLE && ctx.outcomeHelper) return;
   const init = unwrap(rawInit);
+  if (isRaceSent(name, init, ctx)) return;
   if (isRaceWait(init, ctx)) {
     ctx.racePending = true;
     ctx.bindings.delete(name);
@@ -549,8 +555,9 @@ function unsupported(stmt, state) {
 }
 
 // try { console.log(...) } catch {} or try { logHttpRequest(...) } catch {} — the
-// request-log line K6UI itself generates (helpers: server/generator/index.js).
-const REQUEST_LOG_CALLS = new Set(["logHttpRequest", "logHttpOutcome", "logGrpcRequest"]);
+// request-log line K6UI itself generates (helpers: server/generator/index.js), and the
+// race burst's per-VU record `try { k6uiRaceRecord(...) } catch (e) {}` (generator/race.js).
+const REQUEST_LOG_CALLS = new Set(["logHttpRequest", "logHttpOutcome", "logGrpcRequest", "k6uiRaceRecord"]);
 const isRequestLogCall = (node) =>
   isConsoleCall(node)
   || (node?.type === "CallExpression" && node.callee.type === "Identifier" && REQUEST_LOG_CALLS.has(node.callee.name));

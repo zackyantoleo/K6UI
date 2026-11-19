@@ -258,31 +258,175 @@ export function describeRacePlan(race) {
   return `${plural(race.vus, 'VU')} each send ${request} once, ${when}. T0 = ${race.leadMs} ms after setup.`;
 }
 
-// The plan + a k6 --summary-export → { rq, name, method, url, vus, failIfLate, late }.
-// `late` = how many VUs reached the race request at or after their planned time;
-// null without a summary (a stopped run).
-export function readRaceResult(race, summary) {
+// The plan + a k6 --summary-export + the records the script logged (k6-runner.js
+// `raceRecords`: { records, dropped }, see server/race-collector.js) + the race
+// request's outcome labels ({ labels, fallback } in rule order, or null) → the result:
+//   { rq, name, method, url, vus, failIfLate, late,
+//     timing, leadMs, labels, fallback, t0, sent, missing, dropped, records, stats }
+// `late` = how many VUs reached the race request at or after their planned time: k6's
+// count when there is a summary, else counted from the records, else null (a stopped run).
+// `records` = one per VU that sent the race request, by planned time then VU, every time
+// in ms after T0: { vu, offset (planned), arrived (reached the wait), sent, ms (how long
+// the request took), late, status, errorCode, outcome, newConnection }. `sent` = how many
+// records there are, `missing` = VUs that never sent it (null when nothing is known);
+// `stats` = null without records, else see raceStats().
+export function readRaceResult(race, summary, collected = null, outcome = null) {
   if (!isObject(race)) return null;
   const metric = isObject(summary?.metrics) ? summary.metrics[RACE_LATE_METRIC] : undefined;
   const count = Number(metric?.count);
+  const vus = Number(race.vus) || 0;
+  const raw = Array.isArray(collected?.records) ? collected.records : [];
+  const records = raw.filter(isObject).map(entry => ({
+    vu: entry.vu,
+    offset: entry.at - entry.t0,
+    arrived: entry.ar - entry.t0,
+    sent: entry.sent - entry.t0,
+    ms: Number(entry.ms) || 0,
+    late: entry.ar >= entry.at,
+    status: Number(entry.s) || 0,
+    errorCode: Number(entry.ec) || 0,
+    outcome: text(entry.oc),
+    newConnection: entry.cn === true,
+  })).sort((a, b) => a.offset - b.offset || a.vu - b.vu);
+  const known = Boolean(collected) || isObject(summary);
+  const recordLate = records.filter(entry => entry.late).length;
+  let late = null;
+  if (isObject(metric)) late = Number.isFinite(count) ? count : 0;
+  else if (collected) late = recordLate;
+  const labels = Array.isArray(outcome?.labels) ? outcome.labels.map(text).filter(Boolean) : [];
   return {
     rq: race.rq ?? null,
     name: text(race.name),
     method: text(race.method),
     url: text(race.url),
-    vus: Number(race.vus) || 0,
+    vus,
     failIfLate: race.failIfLate === true,
-    late: isObject(metric) ? (Number.isFinite(count) ? count : 0) : null,
+    late,
+    timing: text(race.timing),
+    leadMs: Number(race.leadMs) || 0,
+    labels,
+    fallback: labels.length ? text(outcome?.fallback) : '',
+    t0: Number.isFinite(raw[0]?.t0) ? raw[0].t0 : null,
+    sent: known ? records.length : null,
+    missing: known ? Math.max(0, vus - records.length - (Number(collected?.dropped) || 0)) : null,
+    dropped: Number(collected?.dropped) || 0,
+    records,
+    stats: raceStats(records),
   };
 }
 
-// The Overview note and the Errors entry for a result ('' when nothing is known).
-export function raceResultText(result) {
-  if (!isObject(result) || result.late == null) return '';
+// The concurrency figures of a result's records (null without records), in ms after T0:
+//   spreadMs        first send → last send
+//   offBy           { min, max } of sent − planned over the VUs that were on time
+//                   (null when every VU was late)
+//   peakInFlight    the most race requests in flight at once (k6 side: from the send
+//                   time to the send time + how long it took; two that share a
+//                   millisecond overlap) and peakAt, when it was first reached
+//   newConnections  race requests that opened a connection (TCP connect or TLS > 0)
+//   marginMs        the smallest planned − reached-the-wait: how much of the lead time
+//                   the slowest VU had left (negative = that VU was late by that much)
+export function raceStats(records) {
+  if (!Array.isArray(records) || !records.length) return null;
+  const sends = records.map(entry => entry.sent);
+  const onTime = records.filter(entry => !entry.late).map(entry => entry.sent - entry.offset);
+  // Sweep: +1 at each send, −1 at each end; at the same time a send counts first.
+  const edges = records.flatMap(entry => [[entry.sent, 1], [entry.sent + entry.ms, -1]])
+    .sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+  let current = 0, peak = 0, peakAt = 0;
+  for (const [at, step] of edges) {
+    current += step;
+    if (current > peak) {
+      peak = current;
+      peakAt = at;
+    }
+  }
+  return {
+    spreadMs: Math.max(...sends) - Math.min(...sends),
+    offBy: onTime.length ? { min: Math.min(...onTime), max: Math.max(...onTime) } : null,
+    peakInFlight: peak,
+    peakAt,
+    newConnections: records.filter(entry => entry.newConnection).length,
+    marginMs: Math.min(...records.map(entry => entry.offset - entry.arrived)),
+  };
+}
+
+const signedMs = value => `${value >= 0 ? '+' : '−'}${Math.abs(value).toLocaleString('en-US')} ms`;
+const groupMs = value => `${Math.round(value).toLocaleString('en-US')} ms`;
+
+// "HH:MM:SS.mmm" in the viewer's time zone ('' for no time).
+export function clockTime(epochMs) {
+  if (!Number.isFinite(epochMs)) return '';
+  const date = new Date(epochMs);
+  const two = value => String(value).padStart(2, '0');
+  return `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+}
+
+// The figures above the Gantt chart: [{ label, value, hint }] ([] without records).
+export function raceFigures(result) {
+  const stats = result?.stats;
+  if (!stats) return [];
+  const { offBy } = stats;
+  const sentVsPlan = !offBy ? 'every VU late'
+    : offBy.min === offBy.max ? signedMs(offBy.min) : `${signedMs(offBy.min).replace(' ms', '')} to ${signedMs(offBy.max)}`;
+  const margin = stats.marginMs > 0 ? `${groupMs(stats.marginMs)} to spare` : `late by ${groupMs(-stats.marginMs)}`;
+  return [
+    { label: 'T0', value: clockTime(result.t0), hint: `Every planned send time counts from here: ${result.leadMs} ms after setup() ended.` },
+    { label: 'VUs that sent', value: `${result.sent} of ${result.vus}`, hint: `How many VUs sent Request ${result.rq}.` },
+    { label: 'First to last send', value: groupMs(stats.spreadMs), hint: 'From the first send to the last, by the k6 clock (1 ms resolution).' },
+    { label: 'Sent vs planned', value: sentVsPlan, hint: 'Send time minus planned time, over the VUs that were on time.' },
+    { label: 'Peak in flight', value: `${stats.peakInFlight} at ${signedMs(Math.round(stats.peakAt))}`, hint: 'The most race requests on their way at once, from their send time to their response (k6 side).' },
+    { label: 'New connections', value: `${stats.newConnections} of ${result.sent}`, hint: 'Race requests that had to connect (TCP or TLS) at race time. The warm-up keeps this at 0.' },
+    { label: 'Tightest margin', value: margin, hint: 'Lead time the slowest VU had left when it reached the wait. Raise the lead time when it is small.' },
+  ];
+}
+
+// One table row per record (text cells, in the order of RACE_RECORD_COLUMNS).
+export const RACE_RECORD_COLUMNS = ['VU', 'Planned', 'Reached the wait', 'Sent', 'Sent vs planned', 'Took', 'Status', 'Outcome', 'New connection'];
+export function raceRecordCells(entry) {
+  const margin = entry.offset - entry.arrived;
+  return [
+    String(entry.vu),
+    signedMs(entry.offset),
+    entry.late ? `late by ${groupMs(-margin)}` : `${groupMs(margin)} before`,
+    signedMs(entry.sent),
+    signedMs(entry.sent - entry.offset),
+    `${(Math.round(entry.ms * 10) / 10).toFixed(1)} ms`,
+    entry.status ? String(entry.status) : `failed${entry.errorCode ? ` (k6 error ${entry.errorCode})` : ''}`,
+    entry.outcome || '—',
+    entry.newConnection ? 'Yes' : 'No',
+  ];
+}
+
+const lateText = result => {
   const request = `Request ${result.rq}`;
-  if (!result.late) return `Race burst: all ${plural(result.vus, 'VU')} reached ${request} in time and sent it at their planned time.`;
   const what = result.late === 1
     ? `was late: it reached ${request} at or after its planned send time and sent it at once`
     : `were late: they reached ${request} at or after their planned send time and sent it at once`;
   return `Race burst: ${result.late} of ${plural(result.vus, 'VU')} ${what}, so the burst was not as planned. Raise the lead time in Load Profile.`;
+};
+
+const missingText = result => {
+  const sent = result.sent ? `only ${result.sent} of ${plural(result.vus, 'VU')} sent Request ${result.rq}` : `none of the ${plural(result.vus, 'VU')} sent Request ${result.rq}`;
+  return `Race burst: ${sent}. The others ended their iteration before it (an error in an earlier request or a script, or a group that did not run): see Errors and Live Log.`;
+};
+
+// The Overview note for a result ('' when nothing is known): the late VUs first, then
+// VUs that never sent the race request, else "all in time".
+export function raceResultText(result) {
+  if (!isObject(result) || result.late == null) return '';
+  if (result.late) return lateText(result);
+  if (result.missing) return missingText(result);
+  return `Race burst: all ${plural(result.vus, 'VU')} reached Request ${result.rq} in time and sent it at their planned time.`;
 }
+
+// The entries a result adds under Errors: late VUs, VUs that never sent the race request.
+export function raceErrors(result) {
+  if (!isObject(result)) return [];
+  const errors = [];
+  if (result.late) errors.push(lateText(result));
+  if (result.missing) errors.push(missingText(result));
+  return errors;
+}
+
+// Does the note read as a warning (amber)?
+export const raceResultWarns = result => Boolean(result?.late || result?.missing);

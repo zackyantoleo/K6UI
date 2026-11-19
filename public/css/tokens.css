@@ -41,6 +41,20 @@
   --accent-3l:   rgba(90, 184, 255, .13);
   --focus:       #5ab8ff;
 
+  /* Chart categories (outcome labels in the race burst Gantt), in this fixed order,
+     never cycled. Checked as a set on --surface-2: lightness band, chroma, colour-vision
+     separation of neighbours (ΔE ≥ 8) and ≥ 3:1 contrast. --tone-other is the neutral
+     for a fallback label and for labels past the eighth. */
+  --tone-1:      #3987e5;   /* blue */
+  --tone-2:      #d95926;   /* orange */
+  --tone-3:      #199e70;   /* aqua */
+  --tone-4:      #c98500;   /* yellow */
+  --tone-5:      #d55181;   /* magenta */
+  --tone-6:      #0ca30c;   /* green */
+  --tone-7:      #9085e9;   /* violet */
+  --tone-8:      #e66767;   /* red */
+  --tone-other:  #7d8597;
+
   /* Type */
   --font-ui:   "Inter Variable", Inter, "Segoe UI Variable Text", "SF Pro Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", ui-monospace, Menlo, Consolas, monospace;

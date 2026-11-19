@@ -123,7 +123,25 @@ test('offsets 0,1000,1000,1030: every VU sends within 2 ms of its planned time',
   const errors = errorsOf(run);
   t.diagnostic(`send time − plan (ms) per try: ${JSON.stringify(tries.map(errorsOf))}`);
   assert.ok(errors.every(error => error >= 0 && error <= 2), `send time − plan (ms) per try: ${JSON.stringify(tries.map(errorsOf))}`);
-  assert.deepEqual(run.done.race, { rq: 2, name: '', method: 'POST', url: run.done.race.url, vus: 4, failIfLate: false, late: 0 });
+  const result = run.done.race;
+  assert.deepEqual({ rq: result.rq, method: result.method, vus: result.vus, failIfLate: result.failIfLate, late: result.late, sent: result.sent, missing: result.missing },
+    { rq: 2, method: 'POST', vus: 4, failIfLate: false, late: 0, sent: 4, missing: 0 });
+  // The script's own records (k6uiRaceRecord) agree with what the server received:
+  // planned times as typed, send time right after the pre-processor's Date.now().
+  assert.deepEqual(result.records.map(record => record.offset), [0, 1000, 1000, 1030]);
+  for (const record of result.records) {
+    const body = run.races.find(entry => entry.body.vu === record.vu).body;
+    assert.equal(result.t0, body.t0);
+    const after = result.t0 + record.sent - body.sent;
+    assert.ok(after >= 0 && after <= 1, `VU ${record.vu}: record sent ${after} ms after the pre-processor`);
+    assert.ok(record.sent - record.offset >= 0 && record.sent - record.offset <= 2, `VU ${record.vu}: ${record.sent - record.offset} ms off`);
+    assert.equal(record.late, false);
+    assert.equal(record.status, 200);
+    assert.ok(record.arrived < record.offset, 'reached the wait before its time');
+  }
+  assert.ok(Math.abs(result.stats.spreadMs - 1030) <= 2, `spread ${result.stats.spreadMs}`);
+  assert.equal(result.stats.newConnections, 0, 'the login and the warm-up opened the connection');
+  t.diagnostic(`stats: ${JSON.stringify(result.stats)}`);
 });
 
 test('200 VUs together: the k6-side spread is at most 2 ms, and the warm-up leaves no new connection at race time', options, async t => {
@@ -148,6 +166,14 @@ test('200 VUs together: the k6-side spread is at most 2 ms, and the warm-up leav
   assert.equal(warmups.length, 200);
   assert.equal(fresh, 0, 'race requests on a new connection');
   assert.equal(run.sockets, 200);
+  // The Race card says the same from the k6 side.
+  const { stats, sent, missing } = run.done.race;
+  t.diagnostic(`Race card: ${JSON.stringify(stats)}`);
+  assert.equal(sent, 200);
+  assert.equal(missing, 0);
+  assert.equal(stats.newConnections, 0);
+  assert.ok(stats.spreadMs <= spreadOf(run) + 1, `records spread ${stats.spreadMs}, server-side bodies ${spreadOf(run)}`);
+  assert.ok(stats.peakInFlight > 1, `peak in flight ${stats.peakInFlight}`);
 });
 
 test('without the warm-up and with nothing before it, every race request opens its own connection', options, async t => {
@@ -162,6 +188,8 @@ test('without the warm-up and with nothing before it, every race request opens i
     assert.equal(races.length, 50);
     t.diagnostic(`race requests on a new connection: ${races.filter(record => record.before === 0).length} of 50`);
     assert.equal(races.filter(record => record.before === 0).length, 50, 'the control: the socket count sees new connections');
+    // k6's own timings see the same: every race request had to connect.
+    assert.equal(events.find(event => event.event === 'done').data.race.stats.newConnections, 50);
   } finally {
     await server.close();
   }
@@ -173,9 +201,41 @@ test('a lead time too short reports late VUs; the run fails only with "fail if l
   assert.equal(warn.done.code, 0, 'a late VU is a warning');
   assert.ok(warn.done.race.late > 0, `late: ${warn.done.race.late}`);
   assert.equal(warn.races.length, 20, 'a late VU still sends');
+  assert.equal(warn.done.race.records.filter(record => record.late).length, warn.done.race.late, 'the records name the late VUs');
+  assert.ok(warn.done.race.stats.marginMs <= 0, `margin ${warn.done.race.stats.marginMs}`);
   const fail = await race({ timing: 'together', leadMs: '0', failIfLate: true }, { vus: '20' });
   assert.equal(fail.done.code, 99);
   assert.equal(fail.done.outcome, 'threshold-failed');
   assert.ok(fail.done.race.late > 0);
   assert.equal(fail.done.race.failIfLate, true);
+});
+
+test('VUs that end their iteration before the race request are missing; outcome labels come with each record', options, async () => {
+  const server = await target();
+  try {
+    const events = await runStream({
+      load: { mode: 'race', vus: '4', maxDuration: '1m', race: { request: 'req_race', timing: 'together', leadMs: '1000' } },
+      scenario: {
+        requests: [
+          { id: 'req_login', method: 'GET', url: `${server.origin}/login`, checkStatus: false, sleepAfter: '0', postScript: 'if (__VU > 2) throw new Error("no login");' },
+          {
+            id: 'req_race', method: 'GET', url: `${server.origin}/race`, checkStatus: false, sleepAfter: '0',
+            outcomes: { rules: [{ label: 'redeemed', status: '200', source: 'none' }], fallback: 'other' },
+          },
+        ],
+      },
+    });
+    const done = events.find(event => event.event === 'done')?.data;
+    assert.equal(done.code, 0, 'an iteration error does not fail the run');
+    const result = done.race;
+    assert.equal(result.sent, 2);
+    assert.equal(result.missing, 2);
+    assert.deepEqual(result.records.map(record => record.vu).sort(), [1, 2]);
+    assert.deepEqual(result.records.map(record => record.outcome), ['redeemed', 'redeemed']);
+    assert.deepEqual(result.labels, ['redeemed', 'other']);
+    assert.equal(result.fallback, 'other');
+    assert.ok(!events.some(event => event.event === 'log' && event.data.line.includes('k6uiRace')), 'records never reach the live log');
+  } finally {
+    await server.close();
+  }
 });

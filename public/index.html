@@ -426,8 +426,27 @@
               <div><dt>Requests</dt><dd id="run-request-total">0</dd></div>
               <div><dt>Errors</dt><dd id="run-error-total">0</dd></div>
             </dl>
-            <p id="run-race" class="run-race" role="note" hidden></p>
             <div id="overview-metrics" class="metrics-grid" aria-label="Key performance metrics"></div>
+            <section id="run-race" class="run-race" aria-labelledby="run-race-title" hidden>
+              <h3 id="run-race-title">Race burst</h3>
+              <p id="run-race-note" class="run-race-note" role="note"></p>
+              <dl id="run-race-figures" class="run-race-figures"></dl>
+              <figure id="run-race-chart" class="run-race-chart" hidden>
+                <svg id="run-race-gantt" class="run-race-gantt" role="img" aria-labelledby="run-race-caption"></svg>
+                <figcaption id="run-race-caption" class="run-race-caption"></figcaption>
+                <ul id="run-race-legend" class="run-race-legend" aria-label="Outcome colours" hidden></ul>
+              </figure>
+              <details id="run-race-records" class="run-race-records" hidden>
+                <summary>Every VU (<span id="run-race-record-count">0</span>)</summary>
+                <div class="req-log-wrap" tabindex="0" aria-label="Scrollable race records">
+                  <table class="req-log-table run-race-table" aria-label="Race burst: one row per VU">
+                    <caption id="run-race-table-caption">Times in ms after T0, by the k6 clock (1 ms resolution): when each VU was planned to send, how early it reached the wait, when it sent, and how long the request took.</caption>
+                    <thead><tr id="run-race-head"></tr></thead>
+                    <tbody id="run-race-rows"></tbody>
+                  </table>
+                </div>
+              </details>
+            </section>
             <section id="run-outcomes" class="run-outcomes" aria-labelledby="run-outcomes-title" hidden>
               <h3 id="run-outcomes-title">Outcomes</h3>
               <p class="results-panel-hint">How many responses got each label of the request's outcome rules (Request › Outcomes).</p>

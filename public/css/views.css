@@ -248,9 +248,6 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 .run-outcomes { display: flex; flex-direction: column; gap: 10px; }
 .run-outcomes[hidden] { display: none; }
 .run-outcomes h3 { font-size: 15px; margin: 0; }
-.run-race { margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--ok-lite); font-size: var(--text-sm); }
-.run-race.late { background: var(--warn-lite); }
-.run-race[hidden] { display: none; }
 .run-outcomes-state { margin: 0; font-size: var(--text-sm); color: var(--accent-3); }
 .run-outcomes-state[hidden] { display: none; }
 .run-outcomes[data-state="stopped"] .run-outcomes-state { color: var(--warn); }
@@ -271,6 +268,54 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 .run-outcome-fill { height: 100%; background: var(--accent); transition: width .6s ease-out; }
 .run-outcome-label.fallback .run-outcome-fill { background: var(--text-muted); }
 .run-outcome-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
+
+/* Race burst: the note, the figures, the Gantt (one row per VU) and the per-VU table */
+.run-race { display: flex; flex-direction: column; gap: 10px; }
+.run-race[hidden] { display: none; }
+.run-race h3 { font-size: 15px; margin: 0; }
+.run-race-note { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--ok-lite); font-size: var(--text-sm); }
+.run-race.late .run-race-note { background: var(--warn-lite); }
+.run-race-note:empty { display: none; }
+.run-race-figures { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-2); margin: 0; }
+.run-race-figures:empty { display: none; }
+.run-race-figures div { padding: var(--space-2) var(--space-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); min-width: 0; }
+.run-race-figures dt { font-size: var(--text-sm); color: var(--text-muted); }
+.run-race-figures dd { margin: 2px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.run-race-chart { margin: 0; padding: var(--space-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.run-race-chart[hidden] { display: none; }
+.run-race-gantt { display: block; width: 100%; height: auto; }
+.run-race-gantt .grid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.run-race-gantt .zero { stroke: var(--border-2); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.run-race-gantt .tick, .run-race-gantt .vu { fill: var(--text-muted); font-size: 11px; font-family: var(--font-ui); }
+.run-race-gantt .vu { text-anchor: end; }
+.run-race-gantt .hit { fill: transparent; }
+.run-race-gantt .row:hover .hit { fill: var(--surface-4); }
+.run-race-gantt .plan { stroke: var(--text); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.run-race-gantt .late .bar { stroke: var(--warn); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.run-race-gantt .peak { stroke: var(--accent-text); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.run-race-gantt .peak-label { fill: var(--accent-text); font-size: 11px; font-family: var(--font-ui); }
+.tone-1 { fill: var(--tone-1); background: var(--tone-1); }
+.tone-2 { fill: var(--tone-2); background: var(--tone-2); }
+.tone-3 { fill: var(--tone-3); background: var(--tone-3); }
+.tone-4 { fill: var(--tone-4); background: var(--tone-4); }
+.tone-5 { fill: var(--tone-5); background: var(--tone-5); }
+.tone-6 { fill: var(--tone-6); background: var(--tone-6); }
+.tone-7 { fill: var(--tone-7); background: var(--tone-7); }
+.tone-8 { fill: var(--tone-8); background: var(--tone-8); }
+.tone-other { fill: var(--tone-other); background: var(--tone-other); }
+.run-race-caption { margin: var(--space-2) 0 0; font-size: var(--text-sm); color: var(--text-muted); }
+.run-race-legend { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--text-sm); }
+.run-race-legend[hidden] { display: none; }
+.run-race-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.run-race-key { display: inline-block; width: 14px; height: 4px; border-radius: 2px; }
+.run-race-legend-label { font-family: var(--font-mono); font-size: 12px; }
+.run-race-legend-count { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.run-race-records[hidden] { display: none; }
+.run-race-records > summary { cursor: pointer; font-weight: 600; font-size: var(--text-sm); margin-bottom: var(--space-2); }
+.run-race-table td { padding: 7px var(--space-3); border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.run-race-table td.outcome { font-family: var(--font-mono); font-size: 12px; }
+.run-race-records .req-log-wrap { max-height: 420px; }
+.run-race-table tr.late td { color: var(--warn); }
 
 /* Outcome targets: met, not met or not checked, one line each */
 .run-outcome-targets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
