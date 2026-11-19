@@ -245,6 +245,9 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 .run-outcomes { display: flex; flex-direction: column; gap: 10px; }
 .run-outcomes[hidden] { display: none; }
 .run-outcomes h3 { font-size: 15px; margin: 0; }
+.run-outcomes-state { margin: 0; font-size: var(--text-sm); color: var(--accent-3); }
+.run-outcomes-state[hidden] { display: none; }
+.run-outcomes[data-state="stopped"] .run-outcomes-state { color: var(--warn); }
 .run-outcomes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .run-outcome {
   display: flex; flex-direction: column; gap: var(--space-2); padding: 10px 12px;
@@ -259,7 +262,7 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 }
 .run-outcome-label-name { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
 .run-outcome-bar { height: 8px; background: var(--surface-3); border-radius: var(--radius-sm); overflow: hidden; }
-.run-outcome-fill { height: 100%; background: var(--accent); }
+.run-outcome-fill { height: 100%; background: var(--accent); transition: width .6s ease-out; }
 .run-outcome-label.fallback .run-outcome-fill { background: var(--text-muted); }
 .run-outcome-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
 
@@ -276,6 +279,9 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 }
 .run-outcome-target.met .run-outcome-target-status { color: var(--ok); background: var(--ok-lite); }
 .run-outcome-target.not-met .run-outcome-target-status { color: var(--danger); background: var(--danger-lite); }
+/* Live only: holds so far (may still break) / not reached yet (may still be met) */
+.run-outcome-target.on-track .run-outcome-target-status { color: var(--accent-3); background: var(--accent-3l); }
+.run-outcome-target.not-yet .run-outcome-target-status { color: var(--warn); background: var(--warn-lite); }
 .run-outcome-target-text { min-width: 0; overflow-wrap: anywhere; }
 .run-outcome-target-rule { font-family: var(--font-mono); font-size: 13px; }
 .run-outcome-target-request { display: block; font-size: var(--text-sm); color: var(--text-muted); }

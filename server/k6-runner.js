@@ -1,6 +1,6 @@
 // Runs k6 against a temporary script and forwards its output as events.
 //
-// startK6Run(script, { onEvent, onEnd }) writes the script to a temp folder,
+// startK6Run(script, { onEvent, onEnd, metricsIntervalMs }) writes the script to a temp folder,
 // spawns `k6 run`, then emits events through onEvent(event, data):
 //   status  — progress message, e.g. "Starting k6..."
 //   log     — one raw line of k6 output
@@ -10,10 +10,18 @@
 //   req-log-skipped — { skipped }: records left out by that rate limit (running total)
 //   export  — rows saved with "Save to CSV" (console.log JSON {"k6uiExport":...}, see
 //             export-collector.js); never shown as a log line, flushed before done
+//   metrics — live counts while k6 runs, about once a second (see live-metrics.js
+//             readLiveMetrics); polled from k6's REST API, never after done
 //   error   — failures (k6 not installed, failed to write the file, etc.)
 //   done    — process finished: { code, summary } (summary from --summary-export)
 // onEnd() is called once the process ends. Return value: { stop() } to
 // terminate k6 (e.g. when the client closes the connection).
+//
+// k6 gets `--address 127.0.0.1:<port>` with a port the OS reports free, so its REST
+// API never clashes with another run (k6 exits with code 106 when the port is
+// taken), and the runner polls `GET /v1/metrics` there until k6 exits or stop() is
+// called. A poll that fails is skipped and never affects the run. Without a free port
+// k6 starts as before (its own default address) and no metrics events are sent.
 import { spawn } from "node:child_process";
 import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,8 +29,9 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createExportCollector } from "./export-collector.js";
 import { createRequestLogThrottle } from "./request-log-throttle.js";
+import { METRICS_INTERVAL_MS, freePort, startMetricsPoller } from "./live-metrics.js";
 
-export async function startK6Run(script, { onEvent, onEnd }) {
+export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = METRICS_INTERVAL_MS }) {
   const workDir = join(tmpdir(), `k6ui-${randomUUID()}`);
   const scriptPath = join(workDir, "test.js");
   const summaryPath = join(workDir, "summary.json");
@@ -46,11 +55,21 @@ export async function startK6Run(script, { onEvent, onEnd }) {
 
   onEvent("status", { message: "Starting k6..." });
 
-  const child = spawn("k6", ["run", "--summary-export", summaryPath, scriptPath], {
-    cwd: workDir,
-  });
+  const apiPort = await freePort().catch(() => null);
+  const args = ["run", "--summary-export", summaryPath];
+  if (apiPort) args.push("--address", `127.0.0.1:${apiPort}`);
+  args.push(scriptPath);
+  const child = spawn("k6", args, { cwd: workDir });
+  const poller = apiPort
+    ? startMetricsPoller({
+      url: `http://127.0.0.1:${apiPort}/v1/metrics`,
+      intervalMs: metricsIntervalMs,
+      onMetrics: (metrics) => onEvent("metrics", metrics),
+    })
+    : null;
 
   child.on("error", (err) => {
+    poller?.stop();
     if (err.code === "ENOENT") {
       onEvent("error", { message: "k6 was not found on the server. Make sure k6 is installed (https://k6.io/docs/get-started/installation/)." });
     } else {
@@ -98,6 +117,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
   child.stderr.on("data", makeLineSplitter(handleOutputLine));
 
   child.on("close", async (code) => {
+    poller?.stop();
     let summary = null;
     try {
       summary = JSON.parse(await readFile(summaryPath, "utf8"));
@@ -114,6 +134,7 @@ export async function startK6Run(script, { onEvent, onEnd }) {
 
   return {
     stop() {
+      poller?.stop();
       if (!child.killed) child.kill("SIGTERM");
     },
   };
