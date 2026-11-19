@@ -10,6 +10,7 @@ import { readExportBlocks } from './components/export-rows.js';
 import { exportsProblem } from './csv-export.js';
 import { normalizeRequestLog } from './request-log.js';
 import { outcomesProblem } from './outcomes.js';
+import { expectedStatusesListProblem } from './expected-statuses.js';
 import { readOutcomesPanel } from './components/request-editor/outcomes.js';
 import { outcomeThresholdsProblem } from './outcome-thresholds.js';
 import { readOutcomeTargetRows } from './components/outcome-target-rows.js';
@@ -45,6 +46,8 @@ function collectReqList(containerId) {
     if (!card.dataset.requestId) card.dataset.requestId = createRequestId();
     // Outcome rules: saved only when the request has some (no `outcomes` key otherwise).
     const outcomes = readOutcomesPanel(body.querySelector('.outcomes-panel'));
+    // Expected statuses: saved only when typed (empty = k6's own rule, no key).
+    const expectedStatuses = card.querySelector('.expected-statuses').value.trim();
     return {
       id:          card.dataset.requestId,
       name:        card.querySelector('.request-name')?.value.trim() || '',
@@ -58,6 +61,7 @@ function collectReqList(containerId) {
       headers:     readHeaderRows(body.querySelector('.headers-list')),
       body:        card.querySelector('.body').value,
       checkStatus: card.querySelector('.check-status').checked,
+      ...(expectedStatuses ? { expectedStatuses } : {}),
       sleepAfter:  card.querySelector('.sleep').value,
       extractions: readExtractionRows(body.querySelector('.extractions-list')),
       exports:     readExportBlocks(body.querySelector('.exports-list')),
@@ -139,6 +143,10 @@ export function validate(config) {
   if (exportError) return exportError;
   const outcomeError = outcomesProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, type: r.type, outcomes: r.outcomes })));
   if (outcomeError) return outcomeError;
+  const statusError = expectedStatusesListProblem(runnable.map((r, i) => ({
+    label: `Request ${i + 1}`, type: r.type, expectedStatuses: r.expectedStatuses,
+  })));
+  if (statusError) return statusError;
   // Outcome targets: the same check as the generator, over the same request numbers.
   const targetError = outcomeThresholdsProblem(config);
   if (targetError) return targetError;

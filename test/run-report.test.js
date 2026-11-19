@@ -96,7 +96,7 @@ test('the JSON report carries the run, setup, results and raw summary', () => {
   assert.equal(report.setup.requests[1].group, 'Checkout');
   assert.equal(report.setup.requests[1].enabled, false, 'a request of a turned-off group is off');
   assert.deepEqual(report.requests[0], {
-    vu: 1, iteration: 0, request: 1, method: 'POST', url: 'https://x/a', status: 500, durationMs: 12, ok: false, error: 'boom <script>alert(1)</script>',
+    vu: 1, iteration: 0, request: 1, method: 'POST', url: 'https://x/a', status: 500, durationMs: 12, ok: false, outcome: '', error: 'boom <script>alert(1)</script>',
     requestHeaders: { 'Content-Type': 'application/json' }, requestBody: '{"order":"A<1>"}',
     responseHeaders: { 'Set-Cookie': 'sid=abc' }, responseBody: '{"error":"out of stock"}',
   });

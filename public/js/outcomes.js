@@ -11,6 +11,10 @@
 
 export const OUTCOME_METRIC = 'k6ui_outcome';
 export const DEFAULT_OUTCOME_FALLBACK = 'other';
+// {{$outcome}}: the label of the latest request with outcome rules in this iteration,
+// for Save to CSV columns and later requests. `$` names are K6UI's own (dynamic
+// variables); user variables are [A-Za-z_]\w* and can never take one.
+export const OUTCOME_VARIABLE = '$outcome';
 // Tag values become part of k6 threshold selectors (k6ui_outcome{rq:1,outcome:x}),
 // so a label stays a plain word, and few enough labels keep the metric small.
 export const OUTCOME_LABEL = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;

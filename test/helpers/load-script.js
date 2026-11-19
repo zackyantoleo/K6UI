@@ -7,6 +7,8 @@
 //   respond(call) → the response of one http.request (default: 200 with body "{}")
 //   grpcResponse  → what a gRPC invoke returns (default: status 0, message {})
 // `metrics` records every Counter.add() as { name, value, tags } (outcome rules).
+// `checks` records every check() as { name, ok } (the predicate run on the response).
+// `http.expectedStatuses(...)` returns { expectedStatuses: [...its arguments] }.
 // k6's `res.json(path)` as the generator uses it: a gjson path ("." between keys,
 // "\" makes the next character literal, a number indexes an array) gives undefined
 // when the path, the body or valid JSON is missing; without a path the whole body
@@ -33,6 +35,7 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
   const logs = [];
   const sleeps = [];
   const metrics = [];
+  const checks = [];
   const exec = { scenario: { iterationInTest: 0 } };
   class SharedArray {
     constructor(name, init) {
@@ -55,13 +58,24 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
   }
   const modules = {
     'k6/http': {
+      expectedStatuses: (...statuses) => ({ expectedStatuses: statuses }),
       request: (method, url, body, params) => {
         const call = { method, url, body, params };
         calls.push(call);
         return { status: 200, body: '{}', headers: {}, timings: { duration: 1 }, ...respond?.(call), json: jsonRead };
       },
     },
-    k6: { sleep: seconds => sleeps.push(seconds), check: () => true },
+    k6: {
+      sleep: seconds => sleeps.push(seconds),
+      check: (res, sets) => {
+        for (const [name, predicate] of Object.entries(sets)) {
+          let ok = false;
+          try { ok = predicate(res) === true; } catch { ok = false; }
+          checks.push({ name, ok });
+        }
+        return true;
+      },
+    },
     'k6/data': { SharedArray },
     'k6/execution': exec,
     'k6/net/grpc': { Client: GrpcClient, StatusOK: 0 },
@@ -75,7 +89,7 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
   const factory = new Function('__k6', 'console', `${code}\nreturn { options, main: __main };`);
   const { options, main } = factory(modules, { warn: message => logs.push(message), log: message => logs.push(message) });
   return {
-    options, calls, grpcCalls, logs, sleeps, metrics,
+    options, calls, grpcCalls, logs, sleeps, metrics, checks,
     iteration(vu, iterationInTest) {
       globalThis.__VU = vu;
       globalThis.__ITER = iterationInTest;

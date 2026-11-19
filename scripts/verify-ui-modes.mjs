@@ -542,7 +542,8 @@ try {
       assert.match(results.verdict, /\bpassed\b/);
       const sortState = async () => page.evaluate(() => {
         const rows = [...document.querySelectorAll('#req-log-tbody .req-log-row')];
-        const durations = rows.map(row => parseFloat(row.cells[6].textContent));
+        const column = [...document.querySelectorAll('.req-log-table thead th')].findIndex(th => th.dataset.sortKey === 'd');
+        const durations = rows.map(row => parseFloat(row.cells[column].textContent));
         const expanded = document.querySelector('#req-log-tbody .req-log-row.expanded');
         return {
           descending: durations.every((value, index) => index === 0 || durations[index - 1] >= value),

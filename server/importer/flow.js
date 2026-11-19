@@ -4,12 +4,13 @@
 // request group, and values read from a response become extractions (created
 // when the variable is first used in a URL, header, or body).
 import { buildRequest, httpCallInfo } from "./request.js";
-import { convertPredicate, regexSelector } from "./checks.js";
+import { convertPredicate, regexSelector, statusListOf } from "./checks.js";
 import { groupNameBefore, readRunIf } from "./run-if.js";
 import {
   Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, safeText, sourceOf, staticValue, tryStatic, unwrap,
 } from "./values.js";
-import { normalizeOutcomes } from "../../public/js/outcomes.js";
+import { OUTCOME_VARIABLE, normalizeOutcomes } from "../../public/js/outcomes.js";
+import { normalizeExpectedStatuses } from "../../public/js/expected-statuses.js";
 
 // ── Where does a value come from? ──────────────────────────────
 // Descriptors: { kind: 'response', req } | { kind: 'json', req, path } |
@@ -270,6 +271,14 @@ function handleCheck(call, state) {
       continue;
     }
     const label = prop.computed ? sourceOf(prop.key, ctx) : String(prop.key.name ?? prop.key.value);
+    // A request with expected statuses: K6UI's status check tests that list.
+    if (req.expectedStatuses) {
+      const list = statusListOf(fn, resName, ctx);
+      if (list && normalizeExpectedStatuses(list) === req.expectedStatuses) {
+        req.checkStatus = true;
+        continue;
+      }
+    }
     const { assertions, statusCheck, skipped } = convertPredicate(fn, resName, ctx);
     if (statusCheck) req.checkStatus = true;
     for (const a of assertions) {
@@ -438,6 +447,9 @@ function handleOutcome(call, state) {
 // `name = <init>` (declaration or assignment): remember where the value comes from.
 function bind(name, rawInit, state) {
   const { ctx } = state;
+  // K6UI's `let $outcome = ""` and `$outcome = outcome_main_<i>`: {{$outcome}} is read
+  // back where it is used (values.js).
+  if (name === OUTCOME_VARIABLE && ctx.outcomeHelper) return;
   const init = unwrap(rawInit);
   if (handleOutcome(init, state)) {
     ctx.bindings.delete(name);
@@ -519,7 +531,7 @@ function unsupported(stmt, state) {
 
 // try { console.log(...) } catch {} or try { logHttpRequest(...) } catch {} — the
 // request-log line K6UI itself generates (helpers: server/generator/index.js).
-const REQUEST_LOG_CALLS = new Set(["logHttpRequest", "logGrpcRequest"]);
+const REQUEST_LOG_CALLS = new Set(["logHttpRequest", "logHttpOutcome", "logGrpcRequest"]);
 const isRequestLogCall = (node) =>
   isConsoleCall(node)
   || (node?.type === "CallExpression" && node.callee.type === "Identifier" && REQUEST_LOG_CALLS.has(node.callee.name));

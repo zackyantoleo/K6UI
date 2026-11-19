@@ -8,12 +8,16 @@
 //   globalVars    → GLOBALS.varName    (global variables)
 // A column of the same name as an extracted variable therefore reads the data
 // row until a request has extracted it, and the extracted value afterwards.
+// Names starting with `$` are K6UI's own dynamic variables and only come from
+//   dynamicVars   → a JS expression     ({{$outcome}}: the latest outcome label,
+//                                        once a request with outcome rules came before)
 // Unknown names are left as-is as literal {{...}} text.
 
 // The JS expression that reads a variable by the precedence above, or null when
 // the name is unknown. Also used by "run only if" conditions (run-if.js).
 export function resolveVariable(name, ctx) {
-  const { localVars, processorVars, dataVars, globalVars } = ctx || {};
+  const { localVars, processorVars, dataVars, globalVars, dynamicVars } = ctx || {};
+  if (name.startsWith("$")) return (dynamicVars && dynamicVars.get(name)) || null;
   if (localVars && localVars.has(name)) return name;
   if (processorVars && processorVars.has(name)) return `vars.${name}`;
   if (dataVars && dataVars.has(name)) return `${dataVars.get(name)}.${name}`;
@@ -26,7 +30,7 @@ export function interpolate(str, ctx) {
   const s = String(str);
   if (!s.includes("{{")) return JSON.stringify(s);
 
-  const pattern = /\{\{(\w+)\}\}/g;
+  const pattern = /\{\{(\$?\w+)\}\}/g;
   let result = "`";
   let last = 0;
   let m;

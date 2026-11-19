@@ -26,9 +26,9 @@ export function exportColumnRow(column = {}) {
   row.className = 'export-column-row';
   const name = input('export-col-name', 'column_name', 'Column name', column.name || '');
   const value = input('export-col-value', '{{variable}} or text', 'Column value', column.value || '');
-  // A value that is just {{name}} names an unnamed column after it.
+  // A value that is just {{name}} (or {{$outcome}}) names an unnamed column after it.
   value.addEventListener('change', () => {
-    const only = /^\{\{(\w+)\}\}$/.exec(value.value.trim());
+    const only = /^\{\{\$?(\w+)\}\}$/.exec(value.value.trim());
     if (only && !name.value.trim()) name.value = only[1];
   });
   const remove = removeButton('export-col-remove', 'Remove column');

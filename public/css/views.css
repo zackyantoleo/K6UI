@@ -188,6 +188,7 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
   max-width: 320px; overflow: hidden; text-overflow: ellipsis;
   font-family: var(--font-mono); font-size: 12px;
 }
+.req-outcome-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 12px; }
 .req-detail-row td { padding: 0; background: var(--code-bg) !important; }
 /* One record, expanded: Request and Response side by side (stacked on narrow screens). */
 /* The table can be wider than its scroll box (narrow screens): the detail stays in view,

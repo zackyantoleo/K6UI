@@ -10,7 +10,7 @@
 // them back; the function is derived from that data and nothing else.
 import {
   activeOutcomeRules, hasOutcomeRules, normalizeOutcomes, outcomeLabels, outcomeMetricKey,
-  outcomeRegexParts, outcomesProblem, parseOutcomeStatus, OUTCOME_METRIC,
+  outcomeRegexParts, outcomesProblem, parseOutcomeStatus, OUTCOME_METRIC, OUTCOME_VARIABLE,
 } from "../../public/js/outcomes.js";
 import { planOutcomeThresholds } from "../../public/js/outcome-thresholds.js";
 import { buildGjsonPath, jsLiteral } from "./helpers.js";
@@ -230,9 +230,23 @@ export function buildOutcomeRulesSource(targets, requests) {
   return out;
 }
 
-// The lines after the request (in its block): label + count this response.
-export function buildOutcomeCode(target, resVar) {
+// The lines after the request (in its block): label + count this response, and with
+// `keepLast` (the flow uses {{$outcome}}) keep the label in `$outcome`, declared at the
+// start of the default function. → { code, name }: name = the variable with the label.
+export function buildOutcomeCode(target, resVar, keepLast = false) {
   const name = `outcome_${resVar.replace(/^res_/, "")}`;
-  return `  const ${name} = outcomeOf_${target.rq}(${resVar});\n`
+  let code = `  const ${name} = outcomeOf_${target.rq}(${resVar});\n`
     + `  OUTCOME.add(1, OUTCOME_TAGS_${target.rq}[${name}]);`;
+  if (keepLast) code += `\n  ${OUTCOME_VARIABLE} = ${name};`;
+  return { code, name };
+}
+
+// Does a request that runs use {{$outcome}} (URL, headers, body, Save to CSV columns)?
+const OUTCOME_PLACEHOLDER = `{{${OUTCOME_VARIABLE}}}`;
+export function usesOutcomeVariable(req) {
+  const texts = [req.url, req.body, ...(req.headers || []).map((h) => h && h.value)];
+  for (const exp of Array.isArray(req.exports) ? req.exports : []) {
+    for (const column of Array.isArray(exp?.columns) ? exp.columns : []) texts.push(column && column.value);
+  }
+  return texts.some((text) => typeof text === "string" && text.includes(OUTCOME_PLACEHOLDER));
 }

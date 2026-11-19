@@ -3,6 +3,7 @@
 import { normalizeRunIf } from './run-if.js';
 import { normalizeExports } from './csv-export.js';
 import { normalizeOutcomes } from './outcomes.js';
+import { normalizeExpectedStatuses } from './expected-statuses.js';
 import { isBlankOutcomeThreshold, normalizeOutcomeThresholds } from './outcome-thresholds.js';
 import { expandSubRequests } from './sub-requests.js';
 
@@ -121,6 +122,13 @@ function normalizeRequest(rawRequest, index, used, validGroupIds) {
     const outcomes = normalizeOutcomes(request.outcomes);
     if (outcomes) request.outcomes = outcomes;
     else delete request.outcomes;
+  }
+  // Expected statuses (see expected-statuses.js): "200,4xx" as text; empty means k6's
+  // own rule, so "" (or a value that is not text or a number) drops the key.
+  if (request.expectedStatuses !== undefined) {
+    const statuses = normalizeExpectedStatuses(request.expectedStatuses);
+    if (statuses) request.expectedStatuses = statuses;
+    else delete request.expectedStatuses;
   }
   return request;
 }

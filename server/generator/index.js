@@ -9,6 +9,7 @@
 //   run-if.js      → "run only if" condition of a request group → if (...) { ... }
 //   csv-export.js  → "Save to CSV" exports → one logged row after the request
 //   outcomes.js    → outcome rules → one label per response, counted in k6ui_outcome
+//   expected-statuses.js → expected statuses → responseCallback + the status check
 import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
@@ -23,8 +24,10 @@ import { buildRunIfCondition, runIfComment } from "./run-if.js";
 import { buildExportCode, extractionDefaultsByName, validateExports } from "./csv-export.js";
 import {
   OUTCOME_HELPER_SOURCE, addOutcomeThresholds, buildOutcomeCode, buildOutcomeRulesSource,
-  buildOutcomeThresholdsSource, outcomeTargets, planThresholds, validateOutcomes,
+  buildOutcomeThresholdsSource, outcomeTargets, planThresholds, usesOutcomeVariable, validateOutcomes,
 } from "./outcomes.js";
+import { buildExpectedStatusesSource, validateExpectedStatuses } from "./expected-statuses.js";
+import { OUTCOME_VARIABLE } from "../../public/js/outcomes.js";
 import { expandSubRequests } from "../../public/js/sub-requests.js";
 import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/request-log.js";
 import { REQ_LOG_RATE } from "../request-log-throttle.js";
@@ -131,10 +134,23 @@ function skippedBefore() {
 function logHttpRequest(i, method, url, res) {
   const ok = res.status >= 200 && res.status < 400;
   if (!shouldLogRequest(ok) || !takeLogBudget(ok)) return;
+  printHttpRecord(i, method, url, res, ok, undefined);
+}
+
+// A request with outcome rules or expected statuses: oc = its outcome label (undefined
+// without rules), ok = whether the status counts as a success (its expected statuses,
+// else 200–399). Apart from logHttpRequest() so that one keeps its four arguments:
+// k6's interpreter ran a six-parameter version called with four about 10% slower.
+function logHttpOutcome(i, method, url, res, oc, ok) {
+  if (!shouldLogRequest(ok) || !takeLogBudget(ok)) return;
+  printHttpRecord(i, method, url, res, ok, oc);
+}
+
+function printHttpRecord(i, method, url, res, ok, oc) {
   const request = res.request || {};
   console.log(JSON.stringify({
     __r: 1, sk: skippedBefore(), vu: __VU, it: __ITER, i: i, m: method, url: redactRequestUrl(url),
-    s: res.status, d: +(res.timings.duration.toFixed(1)), ok: ok, er: errorText(res.error),
+    s: res.status, d: +(res.timings.duration.toFixed(1)), ok: ok, oc: oc, er: errorText(res.error),
     rqh: redactHeaders(request.headers), rq: redactResponseSample(request.body, REQUEST_LOG.bodyLimit),
     rh: redactHeaders(res.headers), rb: redactResponseSample(res.body, REQUEST_LOG.bodyLimit),
   }));
@@ -305,6 +321,7 @@ export function generateScript(config, meta = null) {
   // gets an always-passing threshold so k6 reports its count. Outcome targets add
   // their expressions to those thresholds (same request numbers: the requests that run).
   validateOutcomes(mainReqs);
+  validateExpectedStatuses(mainReqs);
   const outcomes = outcomeTargets(mainReqs);
   const outcomeByIndex = new Map(outcomes.map((target) => [target.index, target]));
   const outcomeThresholds = planThresholds(config);
@@ -359,10 +376,18 @@ export function generateScript(config, meta = null) {
     out += `\n${OUTCOME_HELPER_SOURCE}`;
     out += buildOutcomeRulesSource(outcomes, mainReqs);
   }
+  out += buildExpectedStatusesSource(mainReqs);
+
+  // {{$outcome}} reads the label of the latest request with outcome rules that ran in
+  // this iteration: kept in one variable, only when a request uses it.
+  const keepOutcome = outcomes.length > 0 && mainReqs.some(usesOutcomeVariable);
 
   out += `\nexport default function() {\n`;
   out += buildDataRowCode(dataSets);
   out += buildDataHoists(dataSets);
+  if (keepOutcome) {
+    out += `  let ${OUTCOME_VARIABLE} = ""; // {{${OUTCOME_VARIABLE}}}: the latest outcome label of this iteration\n`;
+  }
 
   // Variables already declared — prevents a double `let`
   const declaredVars   = new Set();
@@ -371,7 +396,9 @@ export function generateScript(config, meta = null) {
   const hoistedVars    = new Set();
   // {{name}}s made available by processor scripts assigning vars.<name>
   const processorVars  = new Set();
-  const ctx = { localVars: declaredVars, processorVars, dataVars: dataColumns(dataSets), globalVars, hoistedVars };
+  // {{$name}}: K6UI's own variables, known from the point where they get a value
+  const dynamicVars    = new Map();
+  const ctx = { localVars: declaredVars, processorVars, dataVars: dataColumns(dataSets), globalVars, hoistedVars, dynamicVars };
 
   const hasProcessors = mainReqs.some(
     (r) => String(r.preScript || "").trim() || String(r.postScript || "").trim()
@@ -469,8 +496,10 @@ export function generateScript(config, meta = null) {
       out += "\n" + buildGrpcRequestCode(req, i, "main", ctx, logRequests);
     } else {
       const target = outcomeByIndex.get(i);
-      const outcomeCode = target ? buildOutcomeCode(target, `res_main_${i}`) : "";
-      out += "\n" + buildRequestCode(req, i, "main", ctx, null, logRequests, outcomeCode);
+      const outcome = target ? buildOutcomeCode(target, `res_main_${i}`, keepOutcome) : null;
+      out += "\n" + buildRequestCode(req, i, "main", ctx, null, logRequests, outcome);
+      // From here on (this request's Save to CSV included), {{$outcome}} has a value.
+      if (outcome && keepOutcome) dynamicVars.set(OUTCOME_VARIABLE, OUTCOME_VARIABLE);
     }
     out += "\n";
 

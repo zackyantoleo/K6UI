@@ -2,10 +2,12 @@
 // extractions + optional request logging + sleep.
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
+import { expectedStatusTest, expectedStatusesName, expectedStatusesOf } from "./expected-statuses.js";
 
-// ctx = { localVars, processorVars, dataVars, globalVars, hoistedVars } — see interpolate.js.
-// outcomeCode = the line that labels this response (outcomes.js), after the extractions.
-export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests, outcomeCode = "") {
+// ctx = { localVars, processorVars, dataVars, globalVars, hoistedVars, dynamicVars } — see interpolate.js.
+// outcome = { code, name } of a request with outcome rules (outcomes.js): the lines that
+// label this response, after the extractions, and the variable that holds the label.
+export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests, outcome = null) {
   const method = (req.method || "GET").toUpperCase();
   const urlCode = interpolate(req.url, ctx);
 
@@ -19,7 +21,13 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
   const headersCode = Object.entries(headers)
     .map(([k, v]) => `${JSON.stringify(k)}: ${interpolate(v, ctx)}`)
     .join(", ");
-  const paramsCode = headersCode ? `{ headers: { ${headersCode} } }` : "{}";
+  // Expected statuses: k6 counts any other status in http_req_failed, and the
+  // status check and the request record follow the same list.
+  const expected = expectedStatusesOf(req);
+  const params = [];
+  if (headersCode) params.push(`headers: { ${headersCode} }`);
+  if (expected) params.push(`responseCallback: ${expectedStatusesName(index)}`);
+  const paramsCode = params.length ? `{ ${params.join(", ")} }` : "{}";
 
   const hasBody =
     ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
@@ -44,10 +52,9 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
   }
 
   if (req.checkStatus !== false) {
-    const label = `status 2xx: request ${index + 1}`;
-    lines.push(
-      `  check(${resVar}, { ${JSON.stringify(label)}: (r) => r.status >= 200 && r.status < 400 });`
-    );
+    const label = `status ${expected || "2xx"}: request ${index + 1}`;
+    const test = expected ? expectedStatusTest(expected, "r.status") : "r.status >= 200 && r.status < 400";
+    lines.push(`  check(${resVar}, { ${JSON.stringify(label)}: (r) => ${test} });`);
   }
 
   const extractCode = buildExtractionLines(
@@ -59,12 +66,20 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
     ctx && ctx.hoistedVars
   );
   if (extractCode) lines.push(extractCode);
-  if (outcomeCode) lines.push(outcomeCode);
+  if (outcome) lines.push(outcome.code);
 
   // Per-request log: logHttpRequest() (helpers in generator/index.js) prints
-  // one {__r:1,...} JSON line that k6-runner.js turns into a req-log event.
+  // one {__r:1,...} JSON line that k6-runner.js turns into a req-log event. A
+  // request with outcome rules or expected statuses calls logHttpOutcome() with its
+  // label and whether the status counts as a success.
   if (logRequests) {
-    lines.push(`  try { logHttpRequest(${index}, ${JSON.stringify(method)}, ${urlCode}, ${resVar}); } catch (e) {}`);
+    const args = `${index}, ${JSON.stringify(method)}, ${urlCode}, ${resVar}`;
+    if (outcome || expected) {
+      const ok = expected ? expectedStatusTest(expected, `${resVar}.status`) : `${resVar}.status >= 200 && ${resVar}.status < 400`;
+      lines.push(`  try { logHttpOutcome(${args}, ${outcome ? outcome.name : "undefined"}, ${ok}); } catch (e) {}`);
+    } else {
+      lines.push(`  try { logHttpRequest(${args}); } catch (e) {}`);
+    }
   }
 
   const sleepAfter = Number(req.sleepAfter);

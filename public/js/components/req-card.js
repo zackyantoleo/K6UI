@@ -19,7 +19,7 @@ import { assertionRow, createChecksPanel } from './request-editor/checks.js';
 import { createExtractPanel } from './request-editor/extract.js';
 import { createScriptsPanel } from './request-editor/scripts.js';
 import {
-  createOutcomesPanel, fillOutcomesPanel, outcomeRuleRow, readOutcomeRuleRow,
+  createOutcomesPanel, fillOutcomesPanel, outcomeRuleRow, readOutcomeRuleRow, readOutcomesPanel,
 } from './request-editor/outcomes.js';
 import { createAdvancedPanel } from './request-editor/advanced.js';
 import { createRequestId } from '../project-store.js';
@@ -99,12 +99,21 @@ function handleTabKeydown(card, event) {
   activateTab(card, tabs[next].dataset.tab, { focus: true });
 }
 
+// The outcome rules as they stand: the Outcomes tab once it was opened, else the saved ones.
+function outcomesOf(card) {
+  const panel = card.querySelector('.req-tab-panel[data-panel="outcomes"]');
+  return panel?.dataset.panelReady === 'true'
+    ? readOutcomesPanel(panel.querySelector('.outcomes-panel'))
+    : card.requestState?.outcomes;
+}
+
 function panelContent(factory, card) {
   return factory({
     onExtCount: () => updateExtCount(card),
     onAssertCount: () => updateAssertCount(card),
     onScriptCount: () => updateScriptCount(card),
     onOutcomeCount: () => updateOutcomeCount(card),
+    readOutcomes: () => outcomesOf(card),
   });
 }
 
@@ -115,7 +124,7 @@ const lazyPanelFactories = {
   assertions: ({ onAssertCount }) => createChecksPanel(onAssertCount),
   outcomes: ({ onOutcomeCount }) => createOutcomesPanel(onOutcomeCount),
   scripts: ({ onScriptCount }) => createScriptsPanel(onScriptCount),
-  options: () => createAdvancedPanel(),
+  options: ({ readOutcomes }) => createAdvancedPanel(readOutcomes),
 };
 
 export function ensureRequestPanel(card, panelId) {
@@ -159,6 +168,7 @@ export function ensureRequestPanel(card, panelId) {
       updateScriptCount(card);
     } else if (panelId === 'options') {
       panel.querySelector('.check-status').checked = request.checkStatus !== false;
+      panel.querySelector('.expected-statuses').value = request.expectedStatuses || '';
       panel.querySelector('.sleep').value = request.sleepAfter ?? 1;
     }
   }
@@ -177,7 +187,7 @@ function requestSnapshot(card) {
   const snapshot = {};
   const selectors = [
     '.request-name', '.protocol', '.method', '.url', '.grpc-method', '.grpc-plaintext',
-    '.body', '.check-status', '.sleep', '.pre-script', '.post-script', '.request-enabled',
+    '.body', '.check-status', '.expected-statuses', '.sleep', '.pre-script', '.post-script', '.request-enabled',
     '.request-group-select', '.outcome-fallback',
   ];
   for (const selector of selectors) {
@@ -204,6 +214,7 @@ function applySnapshot(card, snapshot) {
   const requiredPanels = {
     '.body': 'body',
     '.check-status': 'options',
+    '.expected-statuses': 'options',
     '.sleep': 'options',
     '.pre-script': 'scripts',
     '.post-script': 'scripts',

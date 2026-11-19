@@ -119,6 +119,47 @@ function convertTerm(term, m, ctx) {
   return null;
 }
 
+function flattenOr(node, out = []) {
+  const n = unwrap(node);
+  if (n.type === "LogicalExpression" && n.operator === "||") {
+    flattenOr(n.left, out);
+    flattenOr(n.right, out);
+  } else {
+    out.push(n);
+  }
+  return out;
+}
+
+// K6UI's status check of a request with expected statuses (generator/request.js):
+// `(r) => r.status === 200 || (r.status >= 400 && r.status < 500)` → "200,4xx";
+// null for any other shape.
+export function statusListOf(fnNode, resName, ctx) {
+  const param = fnNode.params?.[0];
+  const roots = new Set([resName].filter(Boolean));
+  if (param?.type === "Identifier") roots.add(param.name);
+  let expr = fnNode.body;
+  if (expr.type === "BlockStatement") {
+    if (expr.body.length !== 1 || expr.body[0].type !== "ReturnStatement" || !expr.body[0].argument) return null;
+    expr = expr.body[0].argument;
+  }
+  const m = makeMatchers(roots);
+  const compares = (term, ops) => term?.type === "BinaryExpression" && ops.includes(term.operator)
+    && m.isStatus(term.left) && num(term.right, ctx) != null;
+  const parts = [];
+  for (const term of flattenOr(expr)) {
+    if (compares(term, ["===", "=="])) {
+      parts.push(String(num(term.right, ctx)));
+      continue;
+    }
+    const range = term.type === "LogicalExpression" && term.operator === "&&" ? flattenAnd(term) : [];
+    const low = range.length === 2 && compares(range[0], [">="]) ? num(range[0].right, ctx) : null;
+    const high = range.length === 2 && compares(range[1], ["<"]) ? num(range[1].right, ctx) : null;
+    if (low == null || low % 100 !== 0 || high !== low + 100) return null;
+    parts.push(`${low / 100}xx`);
+  }
+  return parts.join(",") || null;
+}
+
 // Status ranges: >=200 && <300 → status-2xx; >=200 && <400 is K6UI's automatic status check.
 function takeStatusRange(terms, m, ctx) {
   const find = (ops) => terms.findIndex((t) =>
