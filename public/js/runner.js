@@ -5,6 +5,7 @@ import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
 import { addExportRows, exportSummary, resetExports } from './export-results.js';
 import { buildRunReport, reportFileName, reportToHtml } from './run-report.js';
+import { raceResultText } from './race.js';
 import { markOutcomeResultsStopped, renderOutcomeResults, resetOutcomeResults } from './outcome-results.js';
 import { outcomeThresholdText } from './outcome-thresholds.js';
 import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
@@ -443,6 +444,15 @@ function renderMetrics(summary) {
   cards.slice(0, 4).forEach(card => renderCard(overview, card));
 }
 
+// Race burst: how many VUs reached the race request late (the `race` of `done`).
+function renderRaceResult(race) {
+  const note = $('#run-race');
+  const text = raceResultText(race);
+  note.hidden = !text;
+  note.textContent = text;
+  note.classList.toggle('late', Boolean(race?.late));
+}
+
 function applySummaryMetadata(summary) {
   const totalRequests = summary?.metrics?.http_reqs?.count;
   if (totalRequests != null) setText('#run-request-total', totalRequests);
@@ -469,8 +479,10 @@ function finishRun(data) {
     lastRun.exitCode = data.code ?? null;
     lastRun.outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
     lastRun.outcomeThresholds = Array.isArray(data.outcomeThresholds) ? data.outcomeThresholds : [];
+    lastRun.race = data.race || null;
   }
   renderOutcomeResults(data.outcomes, data.outcomeThresholds);
+  renderRaceResult(data.race);
   if (data.summary) {
     renderMetrics(data.summary);
     applySummaryMetadata(data.summary);
@@ -488,6 +500,7 @@ function finishRun(data) {
     setVerdict({ status: 'failed', title: 'Test failed to run', detail, mark: '×' });
     addError(detail);
   }
+  if (data.race?.late) addError(raceResultText(data.race));
 }
 
 function handleSSE(event, data) {
@@ -519,6 +532,7 @@ function resetRunWorkspace() {
   resetErrors();
   resetExports();
   resetOutcomeResults();
+  renderRaceResult(null);
   $('#run-metrics').replaceChildren();
   $('#overview-metrics').replaceChildren();
   setText('#run-started', '—');

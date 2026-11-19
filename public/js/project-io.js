@@ -14,6 +14,7 @@ import { restoreDataSets } from './data-files.js';
 import { normalizeRequestLog } from './request-log.js';
 import { syncRequestLogFields } from './runner.js';
 import { restoreOutcomeTargetRows } from './components/outcome-target-rows.js';
+import { restoreRaceSettings } from './components/race-settings.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 export function hydrateRequestCard(card, req) {
@@ -71,6 +72,7 @@ export function applyConfig(cfg) {
   $('#load-simple').classList.toggle('hidden', mode !== 'simple');
   $('#load-stages').classList.toggle('hidden', mode !== 'stages');
   $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
+  $('#load-race').classList.toggle('hidden', mode !== 'race');
 
   if (mode === 'simple') {
     $('#vus').value      = cfg.load?.vus      ?? 10;
@@ -79,6 +81,8 @@ export function applyConfig(cfg) {
     $('#iter-vus').value     = cfg.load?.vus        ?? 1;
     $('#iterations').value   = cfg.load?.iterations ?? 1;
     $('#max-duration').value = cfg.load?.maxDuration ?? '1h';
+  } else if (mode === 'race') {
+    // Filled after the request cards (below): the race request list comes from them.
   } else {
     const stagesEl = $('#stages');
     stagesEl.innerHTML = '';
@@ -118,6 +122,8 @@ export function applyConfig(cfg) {
   restoreZone(cfg.scenario?.requests || []);
   // After the cards: a target's request and label lists come from them.
   restoreOutcomeTargetRows(cfg.thresholds?.outcomes || []);
+  // Race burst settings: those of the project, else the defaults (the request list follows the cards).
+  restoreRaceSettings(mode === 'race' ? cfg.load : {});
   window.dispatchEvent(new CustomEvent('k6ui:project-applied'));
   navigate('flow');
 }

@@ -14,6 +14,8 @@ import { expectedStatusesListProblem } from './expected-statuses.js';
 import { readOutcomesPanel } from './components/request-editor/outcomes.js';
 import { outcomeThresholdsProblem } from './outcome-thresholds.js';
 import { readOutcomeTargetRows } from './components/outcome-target-rows.js';
+import { readRaceSettings } from './components/race-settings.js';
+import { raceProblem } from './race.js';
 
 // ── Row readers ────────────────────────────────────────────────
 function readHeaderRows(scope) {
@@ -100,6 +102,8 @@ export function collectConfig() {
     load.vus         = $('#iter-vus').value;
     load.iterations  = $('#iterations').value;
     load.maxDuration = $('#max-duration').value.trim();
+  } else if (mode === 'race') {
+    Object.assign(load, readRaceSettings());
   } else {
     load.stages = $$('.stage-row').map(s => ({
       duration: s.querySelector('.stage-dur').value.trim(),
@@ -150,6 +154,9 @@ export function validate(config) {
   // Outcome targets: the same check as the generator, over the same request numbers.
   const targetError = outcomeThresholdsProblem(config);
   if (targetError) return targetError;
+  // Race burst: the same check as the generator (race request, timing, {{globals}}).
+  const raceError = raceProblem(config);
+  if (raceError) return raceError;
   if (config.load.mode === 'stages') {
     if (!(config.load.stages || []).filter(s => s.duration && s.target !== '').length)
       return 'Add at least one valid stage in the Load Profile.';

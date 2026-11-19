@@ -9,6 +9,8 @@
 // `metrics` records every Counter.add() as { name, value, tags } (outcome rules).
 // `checks` records every check() as { name, ok } (the predicate run on the response).
 // `http.expectedStatuses(...)` returns { expectedStatuses: [...its arguments] }.
+// `http.get(url, params)` is recorded as a GET call like http.request. A race burst
+// script's `setup()` is returned as `setup`; pass its data to iteration(vu, i, data).
 // k6's `res.json(path)` as the generator uses it: a gjson path ("." between keys,
 // "\" makes the next character literal, a number indexes an array) gives undefined
 // when the path, the body or valid JSON is missing; without a path the whole body
@@ -56,14 +58,16 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
     }
     close() { grpcCalls.push({ step: 'close' }); }
   }
+  const request = (method, url, body, params) => {
+    const call = { method, url, body, params };
+    calls.push(call);
+    return { status: 200, body: '{}', headers: {}, timings: { duration: 1 }, ...respond?.(call), json: jsonRead };
+  };
   const modules = {
     'k6/http': {
       expectedStatuses: (...statuses) => ({ expectedStatuses: statuses }),
-      request: (method, url, body, params) => {
-        const call = { method, url, body, params };
-        calls.push(call);
-        return { status: 200, body: '{}', headers: {}, timings: { duration: 1 }, ...respond?.(call), json: jsonRead };
-      },
+      request,
+      get: (url, params) => request('GET', url, null, params),
     },
     k6: {
       sleep: seconds => sleeps.push(seconds),
@@ -85,17 +89,19 @@ export function loadScript(script, { respond, grpcResponse } = {}) {
     .replace(/^import (\w+) from '([^']+)';$/gm, (_, name, from) => `const ${name} = __k6[${JSON.stringify(from)}];`)
     .replace(/^import (\{[^}]+\}) from '([^']+)';$/gm, (_, names, from) => `const ${names} = __k6[${JSON.stringify(from)}];`)
     .replace('export const options =', 'const options =')
-    .replace('export default function()', 'const __main = function()');
-  const factory = new Function('__k6', 'console', `${code}\nreturn { options, main: __main };`);
-  const { options, main } = factory(modules, { warn: message => logs.push(message), log: message => logs.push(message) });
+    .replace('export function setup()', 'function setup()')
+    .replace(/export default function\((data)?\)/, (_, data) => `const __main = function(${data || ''})`);
+  const setupName = /^function setup\(\)/m.test(code) ? 'setup' : 'null';
+  const factory = new Function('__k6', 'console', `${code}\nreturn { options, main: __main, setup: ${setupName} };`);
+  const { options, main, setup } = factory(modules, { warn: message => logs.push(message), log: message => logs.push(message) });
   return {
-    options, calls, grpcCalls, logs, sleeps, metrics, checks,
-    iteration(vu, iterationInTest) {
+    options, calls, grpcCalls, logs, sleeps, metrics, checks, setup,
+    iteration(vu, iterationInTest, data) {
       globalThis.__VU = vu;
       globalThis.__ITER = iterationInTest;
       exec.scenario.iterationInTest = iterationInTest;
       const before = calls.length;
-      main();
+      main(data);
       return calls.slice(before);
     },
   };

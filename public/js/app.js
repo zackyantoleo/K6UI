@@ -19,6 +19,7 @@ import { initAdvancedNotice } from './components/advanced-notice.js';
 import { initDataFiles } from './data-files.js';
 import { initLoadChart } from './components/load-chart.js';
 import { initOutcomeTargets } from './components/outcome-target-rows.js';
+import { initRaceSettings } from './components/race-settings.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -47,6 +48,7 @@ function setLoadMode(mode) {
   $('#load-simple').classList.toggle('hidden', mode !== 'simple');
   $('#load-stages').classList.toggle('hidden', mode !== 'stages');
   $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
+  $('#load-race').classList.toggle('hidden', mode !== 'race');
 }
 
 function setLoadEditorExpanded(expanded) {
@@ -221,6 +223,7 @@ initCurlImport();
 initScriptImport();
 initAdvancedNotice();
 initOutcomeTargets();
+initRaceSettings();
 initUiMode();
 navigate('flow', { focusHeading: false });
 checkK6();

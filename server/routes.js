@@ -8,6 +8,7 @@ import { importJmx } from "./importer/jmx/index.js";
 import { startK6Run } from "./k6-runner.js";
 import { readOutcomeResults } from "../public/js/outcomes.js";
 import { readLiveOutcomeThresholdResults, readOutcomeThresholdResults } from "../public/js/outcome-thresholds.js";
+import { readRaceResult } from "../public/js/race.js";
 
 export const apiRouter = Router();
 
@@ -64,8 +65,9 @@ apiRouter.post("/import-jmx", express.text({ type: ["application/xml", "text/xml
 // POST /api/run — run a k6 test and stream live output via Server-Sent Events.
 // Emitted events: status, log, req-log, req-log-skipped, export, metrics, error, done (see k6-runner.js);
 // `done` also has `outcomes` when a request has outcome rules (public/js/outcomes.js readOutcomeResults),
-// and `outcomeThresholds` when outcome targets are set (public/js/outcome-thresholds.js). Each live
-// `metrics` event gets the same two fields from its `outcomeCounts`, with live target statuses.
+// `outcomeThresholds` when outcome targets are set (public/js/outcome-thresholds.js), and `race` in
+// race burst mode (public/js/race.js readRaceResult: how many VUs were late). Each live
+// `metrics` event gets the same two outcome fields from its `outcomeCounts`, with live target statuses.
 apiRouter.post("/run", async (req, res) => {
   let script;
   const meta = {};
@@ -101,6 +103,10 @@ apiRouter.post("/run", async (req, res) => {
       // Outcome targets: met, not met, or not checked, each with its label's count.
       if (event === "done" && meta.outcomeThresholds?.length) {
         data = { ...data, outcomeThresholds: readOutcomeThresholdResults(meta.outcomeThresholds, data?.summary) };
+      }
+      // Race burst: how many VUs reached the race request late (from the summary).
+      if (event === "done" && meta.race) {
+        data = { ...data, race: readRaceResult(meta.race, data?.summary) };
       }
       // Live: the same two fields while k6 runs, from the counts read so far.
       if (event === "metrics" && meta.outcomes?.length) {
