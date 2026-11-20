@@ -1,8 +1,11 @@
-// Stage 2 only: real browser shell checks; never run k6 or contact fixture targets.
+// Real browser shell checks. Nothing leaves 127.0.0.1: the page may only reach K6UI,
+// and the only k6 this runs is stage 8's Send once, whose request must resolve to the
+// local target started below (any other host is refused before it reaches the server).
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { createServer as createHttpServer } from 'node:http';
 import { createServer } from '../server/index.js';
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -10,7 +13,7 @@ const output = resolve('.hermes/plans/k6ui-ui-revamp-preview/stage2');
 await mkdir(output, { recursive: true });
 const server = createServer({ port: 0, host: '127.0.0.1' });
 let browser;
-const errors = [], forbidden = [], checks = [], layouts = [];
+const errors = [], forbidden = [], checks = [], layouts = [], sendOnceTargets = [];
 let generated = 0;
 try {
   await once(server, 'listening');
@@ -25,6 +28,20 @@ try {
       return route.abort();
     }
     if (url.pathname === '/favicon.ico') return route.fulfill({ status: 204 });
+    // Send once: the request it sends must resolve to 127.0.0.1 (stage 8).
+    if (url.pathname === '/api/send-once') {
+      const { config, requestId } = route.request().postDataJSON();
+      const request = config.scenario.requests.find(item => item.id === requestId);
+      const values = Object.fromEntries((config.variables || []).map(variable => [variable.key, variable.value]));
+      const target = String(request?.url || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (match, name) => values[name] ?? match);
+      let host = '';
+      try { host = new URL(target).hostname; } catch { /* not a URL */ }
+      sendOnceTargets.push(target);
+      if (host !== '127.0.0.1') {
+        forbidden.push(`Send once to ${target}`);
+        return route.abort();
+      }
+    }
     return route.continue();
   });
   context.on('page', page => {
@@ -1176,6 +1193,171 @@ try {
     assert.equal(await page.locator('#run-per-request').isVisible(), false);
     await page.unroute('**/api/run');
     checks.push('Smoke test: chosen from the checklist, a passing run is remembered in this tab (the item turns OK for a later Custom run) and suggests a load test next; Clear results opens Before you run again and empties the reading');
+  }
+
+  // First run and Send once (stage 8). Send once runs k6 once per click against a
+  // target on 127.0.0.1 started here (the route above refuses any other host).
+  {
+    const seen = [];
+    const target = createHttpServer((req, res) => {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        seen.push({ method: req.method, url: req.url, authorization: req.headers.authorization || '', body });
+        if (req.url === '/login') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ token: 'tok-123', user: { id: 7, roles: ['buyer', 'admin'] }, note: '<img src=x onerror="window.__k6uiXss=1">' }));
+        } else if (req.url === '/me') {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'bad token', got: req.headers.authorization || '' }));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end('<b>not json</b>');
+        }
+      });
+    });
+    target.listen(0, '127.0.0.1');
+    await once(target, 'listening');
+    const base = `http://127.0.0.1:${target.address().port}`;
+    const first = await context.newPage();
+    try {
+      await first.setViewportSize({ width: 1440, height: 900 });
+      await first.goto(origin);
+      await first.waitForFunction(() => document.querySelector('#reqs-main'));
+      await first.locator('input[name="ui-mode"][value="simple"]').check();
+      const screen = first.locator('#flow-empty-state');
+      assert.equal(await screen.isVisible(), true, 'an empty project shows the first-run screen');
+      assert.equal(await first.locator('#flow-first-title').textContent(), 'New to load testing? It takes three steps');
+      assert.deepEqual(await first.locator('.first-step-title').allTextContents(), ['Write down what a user does', 'Choose how much traffic', 'Read the verdict']);
+      assert.deepEqual(await first.locator('.first-start strong').allTextContents(),
+        ['One blank request', 'A cURL command', 'Template: log in, then use the token', 'A k6 or JMeter file']);
+      // "?" beside a step's label, not inside it, opening the shared tooltip.
+      const help = first.locator('.first-step-head .help-btn, .first-step-head [data-help]').first();
+      assert.equal(await help.evaluate(button => button.previousElementSibling?.className), 'first-step-title');
+      await help.focus();
+      await first.waitForFunction(() => /Smoke test/.test(document.querySelector('[role="tooltip"]:not([hidden])')?.textContent || ''));
+      await first.keyboard.press('Escape');
+      await first.screenshot({ path: resolve(output, 'stage8-first-run-1440.png'), fullPage: true });
+      await first.setViewportSize({ width: 375, height: 812 });
+      assert.equal(await first.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, '375 px: first run without sideways scroll');
+      await first.screenshot({ path: resolve(output, 'stage8-first-run-375.png'), fullPage: true });
+      await first.setViewportSize({ width: 1440, height: 900 });
+      // One DOM: the same screen in Advanced.
+      const node = await screen.elementHandle();
+      await first.locator('input[name="ui-mode"][value="advanced"]').check();
+      assert.equal(await screen.isVisible(), true);
+      assert.equal(await first.evaluate(element => element === document.querySelector('#flow-empty-state'), node), true);
+      await first.locator('input[name="ui-mode"][value="simple"]').check();
+      // A k6 or JMeter file: the import dialog; Cancel brings focus back.
+      await first.locator('#empty-import-file').click();
+      assert.equal(await first.locator('#k6-import-modal').isVisible(), true);
+      await first.locator('#k6-import-cancel').click();
+      assert.equal(await first.evaluate(() => document.activeElement?.id), 'empty-import-file');
+      // The template: two requests, the token passed on, variables added, the screen gone.
+      await first.locator('#empty-template-login').click();
+      assert.equal(await screen.isVisible(), false);
+      assert.deepEqual(await first.locator('#reqs-main .req-card .request-name').evaluateAll(fields => fields.map(field => field.value)), ['Log in', 'Use the token']);
+      const templated = await first.evaluate(async () => structuredClone((await import('/js/config.js')).collectConfig()));
+      assert.deepEqual(templated.variables.map(variable => variable.key), ['base_url', 'username', 'password']);
+      assert.deepEqual(templated.scenario.requests[0].extractions, [{ varName: 'token', source: 'json', selector: 'token' }]);
+      assert.deepEqual(templated.scenario.requests[1].headers, [{ key: 'Authorization', value: 'Bearer {{token}}' }]);
+      assert.equal(await first.locator('#flow-announcer').textContent(), 'Added two requests: Log in, then Use the token. Change base_url, username and password under Test data.');
+      checks.push('First run: an empty project explains load testing in three steps ("?" beside the step labels) and offers four starts, the same screen in Advanced; the k6/JMeter start opens the import dialog; the template adds Log in + Use the token with {{token}} passed on and base_url/username/password in Test data; 1440 + 375 px without sideways scroll');
+
+      // Point base_url at the local target, then Send once on "Log in".
+      await first.evaluate(value => {
+        const row = [...document.querySelectorAll('#global-vars-list .var-row')].find(item => item.querySelector('.var-key').value === 'base_url');
+        row.querySelector('.var-val').value = value;
+        row.querySelector('.var-val').dispatchEvent(new Event('input', { bubbles: true }));
+      }, base);
+      const login = first.locator('#reqs-main .req-card').nth(0);
+      assert.equal(await login.evaluate(card => card.classList.contains('expanded')), true);
+      const sendButton = login.locator('.req-send-once');
+      assert.equal(await sendButton.isVisible(), true);
+      assert.equal(await sendButton.evaluate(button => button.nextElementSibling?.matches('[data-help="sendOnce"], .help-btn')), true, '"?" beside Send once');
+      const before = await first.evaluate(async () => structuredClone((await import('/js/config.js')).collectConfig()));
+      await sendButton.click();
+      await login.locator('.so-status.ok').waitFor({ timeout: 30_000 });
+      assert.equal(await login.locator('.so-status').textContent(), '200');
+      assert.equal(seen.length, 1, 'one request reached the target');
+      assert.equal(seen[0].method, 'POST');
+      assert.equal(seen[0].url, '/login');
+      assert.deepEqual(JSON.parse(seen[0].body), { username: 'test_user', password: 'change_me' });
+      // Markup in the response is text: no element, nothing ran.
+      assert.match(await login.locator('.so-body').textContent(), /<img src=x onerror=/);
+      assert.equal(await login.locator('.send-once img').count(), 0);
+      assert.equal(await first.evaluate(() => window.__k6uiXss), undefined);
+      assert.equal(await login.locator('.so-note').textContent(), 'Click a value to take it for later requests.');
+      // Values are buttons with one Tab stop; arrows move between them.
+      const values = login.locator('.so-take');
+      assert.deepEqual(await values.allTextContents(), ['"tok-123"', '7', '"buyer"', '"admin"', '"<img src=x onerror=\\"window.__k6uiXss=1\\">"']);
+      assert.deepEqual(await values.evaluateAll(buttons => buttons.map(button => button.tabIndex)), [0, -1, -1, -1, -1]);
+      await values.nth(0).focus();
+      await first.keyboard.press('ArrowDown');
+      assert.equal(await values.nth(1).evaluate(button => button === document.activeElement), true);
+      // The token is already taken by the template; user.id becomes {{id}}.
+      await values.nth(0).click();
+      assert.equal(await login.locator('.so-live').textContent(), '{{token}} already takes token.');
+      await values.nth(1).click();
+      assert.match(await login.locator('.so-live').textContent(), /^Took user\.id as \{\{id\}\}\./);
+      await values.nth(2).click();
+      assert.match(await login.locator('.so-live').textContent(), /^Took user\.roles\[0\] as \{\{roles\}\}\./);
+      const after = await first.evaluate(async () => structuredClone((await import('/js/config.js')).collectConfig()));
+      assert.deepEqual(after.scenario.requests[0].extractions, [
+        { varName: 'token', source: 'json', selector: 'token' },
+        { varName: 'id', source: 'json', selector: 'user.id' },
+        { varName: 'roles', source: 'json', selector: 'user.roles[0]' },
+      ]);
+      after.scenario.requests[0].extractions = before.scenario.requests[0].extractions;
+      assert.deepEqual(after, before, 'Send once and taking values change nothing else');
+      assert.equal(await login.locator('.req-section-extractions').isVisible(), true);
+      assert.match(await first.locator('#flow-vars').textContent(), /\{\{id\}\}/, 'the variables panel lists the taken value');
+      await login.screenshot({ path: resolve(output, 'stage8-send-once-1440.png') });
+      await first.setViewportSize({ width: 375, height: 812 });
+      assert.equal(await first.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, '375 px: Send once response without sideways scroll');
+      await login.locator('.send-once').screenshot({ path: resolve(output, 'stage8-send-once-375.png') });
+      await first.setViewportSize({ width: 1440, height: 900 });
+      checks.push('Send once (real k6, local target only): the open request is sent once with Test data values, the response is shown as text (markup never becomes an element), JSON values are buttons with one Tab stop and arrow keys; clicking one adds "Take a value from the response" rows (an existing path is reused, names never clash), the variables panel follows, and nothing else in the project changes; 1440 + 375 px without sideways scroll');
+
+      // The second request sends {{token}} as typed (no earlier request ran) and says so.
+      const profile = first.locator('#reqs-main .req-card').nth(1);
+      await profile.locator('.request-expand').click();
+      await profile.locator('.req-send-once').click();
+      await profile.locator('.so-status.bad').waitFor({ timeout: 30_000 });
+      assert.equal(await profile.locator('.so-status').textContent(), '401');
+      assert.equal(seen.at(-1).authorization, 'Bearer {{token}}');
+      assert.equal(await profile.locator('.so-unresolved').textContent(), '{{token}} has no value before this request, so it was sent as typed. In a run, an earlier request or Test data gives the value.');
+      assert.equal(await profile.locator('.so-verdict').textContent(), 'Counts as a failure in a run.');
+      await profile.locator('.so-sent > summary').click();
+      assert.match(await profile.locator('.so-sent').textContent(), new RegExp(`GET ${base.replace(/\./g, '\\.')}/me`));
+
+      // Advanced: the same card and response; a body that is not JSON is text only.
+      const panelNode = await profile.locator('.send-once').elementHandle();
+      await first.locator('input[name="ui-mode"][value="advanced"]').check();
+      assert.equal(await first.evaluate(element => element.isConnected && !element.hidden, panelNode), true);
+      await first.locator('#flow-outline .outline-item').nth(1).click();
+      assert.equal(await first.evaluate(element => element === document.querySelectorAll('#reqs-main .req-card')[1].querySelector('.send-once'), panelNode), true);
+      await profile.locator('.url').fill('{{base_url}}/page');
+      await profile.locator('.req-send-once').click();
+      await first.waitForFunction(() => /not JSON/.test(document.querySelectorAll('#reqs-main .req-card')[1].querySelector('.so-note').textContent));
+      assert.equal(await profile.locator('.so-take').count(), 0);
+      assert.equal(await profile.locator('.so-body').textContent(), '<b>not json</b>');
+      assert.equal(await profile.locator('.send-once b').count(), 0);
+      // Nothing listening: the error, and no response.
+      target.close();
+      await profile.locator('.req-send-once').click();
+      await first.waitForFunction(() => document.querySelectorAll('#reqs-main .req-card')[1].querySelector('.so-status').textContent === 'No response');
+      assert.match(await profile.locator('.so-error').textContent(), /refused/);
+      await profile.locator('.so-close').click();
+      assert.equal(await profile.locator('.send-once').isVisible(), false);
+      assert.equal(await profile.locator('.req-send-once').evaluate(button => button === document.activeElement), true);
+      await first.locator('input[name="ui-mode"][value="simple"]').check();
+      assert.ok(sendOnceTargets.length >= 4 && sendOnceTargets.every(url => url.startsWith(`${base}/`)), 'Send once only went to the local target');
+      checks.push('Send once on a request that needs {{token}}: sent as typed and said so, the failing status counts as a failure, "What was sent" shows the request; Advanced keeps the same card and response; a body that is not JSON stays text, a closed port gives the error; × closes the response and focus returns to Send once');
+    } finally {
+      target.close();
+      await first.close();
+    }
   }
 
   assert.deepEqual(forbidden, []);

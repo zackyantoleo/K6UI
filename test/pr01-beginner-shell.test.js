@@ -43,11 +43,13 @@ test('unfinished features are absent from the active shell', async () => {
   assert.doesNotMatch(html, />\s*(CSV Data|Cookies|Timers|Multi Scenario)\s*</i);
 });
 
-test('first-use flow offers accessible blank and cURL starts', async () => {
+test('first-use flow explains three steps and offers four labelled starts', async () => {
   const html = await read('public/index.html');
-  assert.match(html, /id="flow-empty-state"[^>]*role="status"/);
-  assert.match(html, /id="empty-add-request"[^>]*type="button"/);
-  assert.match(html, /id="empty-import-curl"[^>]*type="button"/);
+  assert.match(html, /<section id="flow-empty-state"[^>]*aria-labelledby="flow-first-title"/);
+  assert.equal(matches(html, /<li class="first-step">/g).length, 3);
+  for (const id of ['empty-add-request', 'empty-import-curl', 'empty-template-login', 'empty-import-file']) {
+    assert.match(html, new RegExp(`id="${id}" type="button"`));
+  }
 });
 
 test('load step starts from a question with five goals and results has a pre-run state', async () => {

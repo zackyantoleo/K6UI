@@ -43,6 +43,8 @@ when changing either mode.
 
 ## Code map
 
+Stage 8: `components/send-once.js` (Send once response in the open request, one DOM, text only, never saved) and `components/first-run.js` (`#flow-empty-state`, the same screen in both modes).
+
 | File | Role |
 |---|---|
 | `public/js/ui-mode.js` | Read/write the mode enum, apply `html[data-ui-mode]`, show the matching nav, emit `k6ui:ui-mode-changed` |

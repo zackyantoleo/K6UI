@@ -6,6 +6,7 @@ import { generateScript } from "./generator/index.js";
 import { ScriptImportError, importK6Script } from "./importer/index.js";
 import { importJmx } from "./importer/jmx/index.js";
 import { startK6Run } from "./k6-runner.js";
+import { SendOnceError, sendOnce } from "./send-once.js";
 import { readOutcomeResults } from "../public/js/outcomes.js";
 import { readLiveOutcomeThresholdResults, readOutcomeThresholdResults } from "../public/js/outcome-thresholds.js";
 import { readRaceResult } from "../public/js/race.js";
@@ -59,6 +60,26 @@ apiRouter.post("/import-jmx", express.text({ type: ["application/xml", "text/xml
   } catch (err) {
     if (!(err instanceof ScriptImportError)) throw err;
     res.status(400).json({ error: err.message, warnings: err.warnings });
+  }
+});
+
+// POST /api/send-once — send one request of the project a single time with k6 (see
+// send-once.js). Body: { config, requestId }. Response: { sent, ok, error, request,
+// response, unresolved, log } (or { sent: false, error, log }); 400 { error } for a
+// request that cannot be sent, 413 for a body over 24 MB, 429 while two are running,
+// 503 without k6, 504 after 30 s. The browser renders every value as text.
+apiRouter.post("/send-once", async (req, res) => {
+  res.set({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+  const controller = new AbortController();
+  // The client went away (closed tab, a new Send once): stop k6.
+  res.on("close", () => { if (!res.writableFinished) controller.abort(); });
+  try {
+    const result = await sendOnce(req.body?.config, req.body?.requestId, { signal: controller.signal });
+    if (!controller.signal.aborted) res.json(result);
+  } catch (err) {
+    if (controller.signal.aborted) return;
+    if (err instanceof SendOnceError) res.status(err.status).json({ error: err.message });
+    else res.status(500).json({ error: `Send once failed: ${err.message}` });
   }
 });
 

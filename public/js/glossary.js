@@ -59,6 +59,8 @@ export const GLOSSARY = Object.freeze({
     'The label the latest response with outcome rules got in this iteration, such as success or sold_out. Use it in a later request, or in Save to CSV of that request or a later one.'),
   extraction: entry('requests', 'Extraction',
     'Keep part of a response, such as a login token, under a name. Later requests use it as {{token}} in the URL, a header or the body.'),
+  sendOnce: entry('requests', 'Send once',
+    'Sends this request one time, right now, the way the test sends it, and shows the response. Click a value in the response to take it for later requests. A value only an earlier request gives, such as {{token}}, is sent as typed.'),
   check: entry('requests', 'Check',
     'A test on one response, such as "status is 200" or "body contains orderId". Failed checks are counted in the results; the virtual user carries on with the next request.'),
   expectedStatuses: entry('requests', 'Expected statuses',

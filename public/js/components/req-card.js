@@ -394,6 +394,39 @@ function removeSection(card, panelId) {
   card.querySelector('.req-add-btn').focus();
 }
 
+// A value taken from the Send once response: one more row in "Take a value from the
+// response" (shown if it was not), or the empty row a user added and left blank.
+// A row that already reads the same place is kept as it is. Returns the row, its
+// name, and whether it was there already.
+export function takeExtraction(card, extraction) {
+  const panel = ensureRequestPanel(card, 'extractions');
+  const list = panel.querySelector('.extractions-list');
+  const rows = [...list.querySelectorAll('.extraction-row')];
+  const field = (row, selector) => row.querySelector(selector).value.trim();
+  let row = rows.find(item => item.querySelector('.ext-source').value === extraction.source
+    && field(item, '.ext-selector') === extraction.selector);
+  const existing = Boolean(row);
+  if (!row) {
+    row = rows.find(item => !field(item, '.ext-name') && !field(item, '.ext-selector') && !field(item, '.ext-default'));
+    if (row) {
+      row.querySelector('.ext-name').value = extraction.varName;
+      const source = row.querySelector('.ext-source');
+      source.value = extraction.source;
+      source.dispatchEvent(new Event('change'));
+      row.querySelector('.ext-selector').value = extraction.selector;
+    } else {
+      row = extractionRow(extraction);
+      list.appendChild(row);
+    }
+  }
+  sectionOf(card, 'extractions').hidden = false;
+  syncAddMenu(card);
+  updateExtCount(card);
+  // The variables panel and the warnings read the cards on input.
+  row.querySelector('.ext-name').dispatchEvent(new Event('input', { bubbles: true }));
+  return { row, name: field(row, '.ext-name'), existing };
+}
+
 export function ensureRequestPanel(card, panelId) {
   ensureEditor(card);
   const panel = panelOf(card, panelId);
@@ -698,7 +731,16 @@ export function reqCard(index, context, requestId = '') {
   const expand = button(`Expand request ${index + 1}`, 'req-action-btn request-expand', '▾');
   expand.setAttribute('aria-expanded', 'false');
   actions.append(more, expand);
-  head.append(handle, num, namePreview, methodPreview, nameInput, protocol, method, kind, url, preview, enabledLabel, actions);
+  // "Send once" (components/send-once.js): sends this request one time and shows the response.
+  const send = document.createElement('div');
+  send.className = 'req-send';
+  const sendButton = document.createElement('button');
+  sendButton.type = 'button';
+  sendButton.className = 'btn ghost sm req-send-once';
+  sendButton.dataset.icon = 'play';
+  sendButton.textContent = 'Send once';
+  send.append(sendButton, helpButton('sendOnce'));
+  head.append(handle, num, namePreview, methodPreview, nameInput, protocol, method, kind, url, send, preview, enabledLabel, actions);
 
   const grpcRow = document.createElement('div');
   grpcRow.className = 'grpc-row hidden';

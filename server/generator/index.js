@@ -195,9 +195,9 @@ export function requestLogBudget(options) {
   };
 }
 
-function requestLogSource(settings, withGrpc, options) {
+function requestLogSource(settings, withGrpc, options, bodyLimit = LOG_BODY_LIMIT) {
   const config = {
-    filter: settings.logFilter, every: settings.logSampleEvery, redact: settings.logRedact, bodyLimit: LOG_BODY_LIMIT,
+    filter: settings.logFilter, every: settings.logSampleEvery, redact: settings.logRedact, bodyLimit,
     ...requestLogBudget(options),
   };
   return `\n// Request details for K6UI (Run & Results → Requests)\nconst REQUEST_LOG = ${JSON.stringify(config)};\n`
@@ -269,7 +269,9 @@ function mergeHeaders(globalHeaders, reqHeaders) {
 // `meta` (optional) receives what the run needs to read the results back:
 // meta.outcomes = the requests with outcome rules (see outcomes.js outcomeTargets),
 // meta.race = the race burst plan (race.js), only in race mode.
-export function generateScript(config, meta = null) {
+// `logBodyLimit` (optional) raises the request record's body cap (LOG_BODY_LIMIT) for
+// Send once (server/send-once.js); without it the script is unchanged.
+export function generateScript(config, meta = null, { logBodyLimit } = {}) {
   const scenario    = config.scenario || {};
   // Race burst: checked first (a 400 naming the field), it decides the scenario.
   const race        = planRaceScript(config);
@@ -349,7 +351,7 @@ export function generateScript(config, meta = null) {
   out += `export const options = ${JSON.stringify(options, null, 2)};\n`;
   out += buildOutcomeThresholdsSource(outcomeThresholds);
   if (race) out += buildRaceSource(race);
-  if (logRequests) out += requestLogSource(requestLog, grpcIndexes.length > 0, options);
+  if (logRequests) out += requestLogSource(requestLog, grpcIndexes.length > 0, options, logBodyLimit);
 
   if (globals.size > 0) {
     out += `\n// Global variables — used via {{name}} in URLs, headers, and bodies\n`;
