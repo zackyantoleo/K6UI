@@ -68,7 +68,17 @@ try {
   const card = id => page.locator(`#reqs-main > .req-card[data-request-id="${id}"]`);
   const group = id => page.locator(`#request-groups > .request-group[data-group-id="${id}"]`);
   const outlineRequest = id => page.locator(`#flow-outline .outline-request[data-id="${id}"]`);
-  const outlineGroup = id => page.locator(`#flow-outline .outline-group[data-id="${id}"]`);
+  // A group split by other requests has one head per part; the first selects it too.
+  const outlineGroup = id => page.locator(`#flow-outline .outline-group[data-id="${id}"]`).first();
+  const outlineToggle = id => page.locator(`#flow-outline .outline-toggle[data-group-id="${id}"]`).first();
+  const sectionOf = id => page.$eval(`#flow-outline .outline-request[data-id="${id}"]`,
+    node => node.closest('.outline-section')?.dataset.groupId || '');
+  const shownRows = async () => {
+    await settle();
+    return page.$$eval('#flow-outline .outline-request', nodes =>
+      nodes.filter(node => node.getClientRects().length > 0).map(node => node.dataset.id));
+  };
+  const folded = id => group(id).evaluate(node => node.classList.contains('collapsed'));
   const settle = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => setTimeout(done, 0))));
   const rows = async () => {
     await settle();
@@ -96,24 +106,42 @@ try {
   assert.equal(await page.locator('#flow-outline .outline-empty').isVisible(), true);
   await openProject(FIXTURE);
 
-  // 1. Outline mirrors stable IDs and global order; groups annotate, never regroup.
+  // 1. Outline mirrors stable IDs and global order; requests sit inside their
+  // group, one head per run of that group (as the script runs it).
   let list = await rows();
   assert.deepEqual(list.map(row => row.id), ['req_login', 'req_cart', 'req_profile', 'req_stock']);
-  for (const [index, expected] of [['#1', 'POST', 'Login', 'Auth'], ['#2', 'GET', 'Cart', 'Checkout'],
-    ['#3', 'GET', 'Profile', 'Auth', 'Disabled'], ['#4', 'gRPC', 'Stock', 'Admin', 'Group off']].entries()) {
+  for (const [index, expected] of [['#1', 'POST', 'Login'], ['#2', 'GET', 'Cart'],
+    ['#3', 'GET', 'Profile', 'Disabled'], ['#4', 'gRPC', 'Stock', 'Group off']].entries()) {
     for (const text of expected) assert.ok(list[index].text.includes(text), `${list[index].text} includes ${text}`);
   }
+  assert.deepEqual(await Promise.all(list.map(row => sectionOf(row.id))), ['grp_auth', 'grp_checkout', 'grp_auth', 'grp_admin']);
   assert.deepEqual(await selectedIds(), ['req_login'], 'Opening a project selects its first request');
   assert.deepEqual(await visibleCards(), ['req_login'], 'Selected card shows although its group is collapsed');
   assert.deepEqual(await page.$$eval('#flow-outline .outline-group', nodes => nodes.map(node => [node.dataset.id, node.textContent.replace(/\s+/g, ' ').trim()])), [
-    ['grp_auth', 'Auth 2'], ['grp_checkout', 'Checkout 1'], ['grp_admin', 'Admin Off 1'],
+    ['grp_auth', 'Auth Part 1 of 2 1'], ['grp_checkout', 'Checkout 1'], ['grp_auth', 'Auth Part 2 of 2 1'], ['grp_admin', 'Admin Off 1'],
   ]);
   await radio('simple').check();
   assert.equal(await page.locator('#flow-outline').isVisible(), false, 'Simple hides the outline');
   assert.deepEqual(await visibleCards(), ['req_cart', 'req_stock'], 'Simple keeps the collapsed-group presentation');
   await radio('advanced').check();
   assert.deepEqual(await visibleCards(), ['req_login']);
-  checks.push('Outline mirrors stable IDs, global order #1 Auth/#2 Checkout/#3 Auth, honest skipped labels; Simple presentation unchanged');
+  checks.push('Outline mirrors stable IDs and global order inside group heads (Auth split in two parts), honest skipped labels; Simple presentation unchanged');
+
+  // 1b. Each group folds in the outline with its saved collapsed flag (shared with Simple).
+  assert.deepEqual(await shownRows(), ['req_cart', 'req_stock'], 'A collapsed group starts folded in the outline');
+  assert.deepEqual(await page.$$eval('#flow-outline .outline-toggle[data-group-id="grp_auth"]', nodes => nodes.map(node => node.getAttribute('aria-expanded'))), ['false', 'false']);
+  assert.equal(await outlineGroup('grp_auth').evaluate(node => node.classList.contains('outline-holds-current')), true, 'The folded head marks the selected request inside it');
+  assert.match(await outlineGroup('grp_auth').getAttribute('aria-label'), /holds the selected request/);
+  assert.equal(await page.locator('#flow-outline .outline-toggle[data-group-id="grp_checkout"]').getAttribute('aria-expanded'), 'true');
+  await outlineToggle('grp_auth').click();
+  assert.deepEqual(await shownRows(), ['req_login', 'req_cart', 'req_profile', 'req_stock'], 'Unfolding shows both parts of the group');
+  assert.equal(await folded('grp_auth'), false, 'The outline unfolds the group itself');
+  assert.equal(await outlineGroup('grp_auth').evaluate(node => node.classList.contains('outline-holds-current')), false);
+  assert.deepEqual(await selectedIds(), ['req_login'], 'Folding never changes the selection');
+  await radio('simple').check();
+  assert.deepEqual(await visibleCards(), ['req_login', 'req_cart', 'req_profile', 'req_stock'], 'Simple follows the same flag');
+  await radio('advanced').check();
+  checks.push('Groups fold in the outline (aria-expanded, folded head marks the selection), one flag shared with Simple');
 
   // 2. Selecting a summary shows the same canonical card without reparenting.
   await page.evaluate(() => { window.cardsBefore = [...document.querySelector('#reqs-main').children]; });
@@ -202,9 +230,16 @@ try {
   assert.ok((await rows())[0].text.includes('#1'));
   await cart.locator('.request-move-down').click();
   assert.deepEqual(await cardOrder(), ['req_login', 'req_cart', 'req_profile', 'req_stock']);
+  // Folding the group of the selected request, then duplicating it, unfolds the group.
+  await outlineToggle('grp_checkout').click();
+  assert.equal(await outlineRequest('req_cart').isVisible(), false, 'Folding hides the requests of the group');
+  assert.equal(await folded('grp_checkout'), true);
+  if (!(await cart.locator('.req-more-panel').isVisible())) await cart.locator('.request-more').click();
   await cart.locator('.request-duplicate').click();
   list = await rows();
   const cloneId = list[2].id;
+  assert.equal(await folded('grp_checkout'), false, 'Duplicating into a folded group unfolds it');
+  assert.equal(await outlineRequest(cloneId).isVisible(), true);
   assert.equal(list.length, 5);
   assert.ok(!['req_login', 'req_cart', 'req_profile', 'req_stock'].includes(cloneId));
   assert.deepEqual(await selectedIds(), [cloneId], 'Duplicate selects the clone');
@@ -237,7 +272,8 @@ try {
   assert.deepEqual(await visibleCards(), []);
   assert.equal(await outlineGroup('grp_checkout').getAttribute('aria-current'), 'true');
   await group('grp_checkout').locator('.request-group-name').fill('Payments');
-  assert.ok((await rows())[1].text.includes('Payments'));
+  assert.ok((await outlineGroup('grp_checkout').textContent()).includes('Payments'));
+  assert.equal(await sectionOf('req_cart'), 'grp_checkout');
   assert.equal(await card('req_cart').locator('.request-group-select option:checked').textContent(), 'Payments');
   await group('grp_checkout').locator('.add-group-header').click();
   await group('grp_checkout').locator('.group-headers-list .h-key').fill('X-Group');
@@ -254,7 +290,8 @@ try {
   await card('req_stock').locator('.request-group-select').selectOption(newGroupId);
   await page.keyboard.press('Escape');
   assert.equal(await card('req_stock').locator('.req-more-panel').isVisible(), false, 'Escape closes the panel');
-  assert.ok((await rows())[3].text.includes('Extra'));
+  assert.equal(await sectionOf('req_stock'), newGroupId, 'A changed group moves the request under its head');
+  assert.ok((await outlineGroup(newGroupId).textContent()).includes('Extra'));
   assert.ok(!(await rows())[3].text.includes('Group off'));
   await outlineGroup(newGroupId).click();
   await group(newGroupId).locator('.request-group-remove').click();
@@ -263,11 +300,11 @@ try {
   const grouped = await collect();
   assert.equal(grouped.scenario.requests.find(request => request.id === 'req_stock').groupId, '');
   assert.deepEqual(grouped.scenario.groups.map(item => [item.id, item.name, item.collapsed, item.enabled]), [
-    ['grp_auth', 'Auth', true, true], ['grp_checkout', 'Payments', false, true], ['grp_admin', 'Admin', false, false],
+    ['grp_auth', 'Auth', false, true], ['grp_checkout', 'Payments', false, true], ['grp_admin', 'Admin', false, false],
   ]);
   assert.deepEqual(grouped.scenario.groups[1].headers, [{ key: 'X-Group', value: '' }]);
   assert.deepEqual(grouped.scenario.requests.map(request => request.id), ['req_login', 'req_cart', 'req_profile', 'req_stock']);
-  checks.push('Group select/rename/header/disable/add/membership/remove use existing group DOM; collapsed flags and order round-trip');
+  checks.push('Group select/rename/header/disable/add/membership/remove use existing group DOM; collapsed flags (unfolded from the outline) and order round-trip');
 
   // 6. Project text is rendered as text, never markup.
   await outlineRequest('req_login').click();
@@ -299,15 +336,26 @@ try {
   assert.deepEqual(reopenedSimple, JSON.parse(saved));
   checks.push('collectConfig and generated script identical across switch/selection; Save → Open (Simple) → Advanced round-trip identical, no uiMode');
 
-  // 8. Keyboard: ordered list of buttons; Enter selects and focus stays on the summary.
+  // 8. Keyboard: ordered lists of buttons; Tab reaches each group's fold toggle,
+  // its head, then its requests; Enter folds or selects and focus stays put.
   await outlineRequest('req_login').focus();
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.groupId), 'grp_checkout');
+  assert.equal(await page.evaluate(() => document.activeElement.classList.contains('outline-toggle')), true);
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-expanded')), 'false', 'Enter folds the group');
+  assert.equal(await outlineRequest('req_cart').isVisible(), false);
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-expanded')), 'true', 'Focus stays on the toggle');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.id), 'grp_checkout');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.id), 'req_cart');
   await page.keyboard.press('Enter');
   assert.deepEqual(await selectedIds(), ['req_cart']);
   assert.equal(await page.evaluate(() => document.activeElement.dataset.id), 'req_cart', 'Focus survives the outline refresh');
-  assert.equal(await page.locator('#flow-outline ol.outline-requests > li > button.outline-request').count(), 4);
-  checks.push('Outline is an ordered list of buttons; Tab/Enter select and keep focus');
+  assert.equal(await page.locator('#flow-outline ol.outline-list > li > button.outline-request').count(), 4);
+  checks.push('Outline is ordered lists of buttons; Tab reaches fold toggle, group head and requests; Enter folds/selects and keeps focus');
 
   // 9. Layout in both modes, long URL included.
   await card('req_cart').locator('.url').fill(`https://api.example.test/${'long-path/'.repeat(20)}`);

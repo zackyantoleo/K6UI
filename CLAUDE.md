@@ -117,7 +117,7 @@ public/                 Static frontend (ES modules, no bundler)
         ├── help-tips.js       "?" help buttons (`data-help="<key>"` in markup, `helpButton(key)` in JS): one shared tooltip (hover/focus, click keeps it open, Escape) + the Glossary panel; text only
         ├── menu-button.js     A button with a small action menu (top bar Import): keyboard, focus return, click outside closes
         ├── request-groups.js  One-level request groups with shared header defaults and a "Run only if" row (head badge + editor, `requestGroupProblem()` for validation)
-        ├── flow-outline.js    Advanced: outline in execution order that selects the canonical card/group (a group shows its condition)
+        ├── flow-outline.js    Advanced: outline that selects the canonical card/group. Requests in execution order inside their group (`outlineModel().sections`: each run of one group, "Part n of m" when split; groups without requests last); a group head shows name, Off, count and condition and folds with the group's own `collapsed` flag (it presses the hidden `.request-group-collapse`, so Simple shares it); a folded head marks the selection inside; an action that selects a request in a folded group unfolds it
         ├── advanced-notice.js Simple: "Advanced settings configured" notice (categories + counts only, incl. Conditional groups and Data files)
         ├── rows.js            Header & extraction form rows (`extractionRow(extraction)` / `readExtractionRow(row)`, incl. the optional Default)
         ├── export-rows.js     "Save to CSV" blocks of the "Save values to a CSV file" part (`exportBlock(exp)` / `readExportBlock(block)`)

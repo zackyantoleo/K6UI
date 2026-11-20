@@ -295,7 +295,16 @@ try {
   const generate = (config, target = page) => target.evaluate(async body => (await (await fetch('/api/generate', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })).json()).script, config);
-  const outlineItem = id => page.locator(`#flow-outline .outline-item[data-id="${id}"]`);
+  // A group split by other requests has one head per part; the first selects it too.
+  const outlineItem = id => page.locator(`#flow-outline .outline-item[data-id="${id}"]`).first();
+  // The outline folds a collapsed group (RICH folds Checkout); unfolding it is
+  // an edit of that group's saved flag, so the checks that compare configs fold
+  // it back with the same toggle.
+  const outlineFold = (groupId, target = page) => target.locator(`#flow-outline .outline-toggle[data-group-id="${groupId}"]`).first().click();
+  const revealInOutline = async (id, target = page) => {
+    const toggle = target.locator(`#flow-outline .outline-section:has(.outline-request[data-id="${id}"]) > .outline-section-head > .outline-toggle[aria-expanded="false"]`);
+    if (await toggle.count()) await toggle.first().click();
+  };
   const audit = async (label, target = page) => {
     await settle(target);
     const result = await target.evaluate(auditPage);
@@ -321,7 +330,10 @@ try {
     for (const mode of ['advanced', 'simple', 'advanced']) {
       await radio(mode).check();
       if (mode === 'advanced') {
+        assert.equal(await outlineItem('req_cart').isVisible(), false, 'The outline folds the collapsed group');
+        await revealInOutline('req_cart');
         for (const id of ['req_cart', 'grp_checkout', 'req_stock', 'req_login']) await outlineItem(id).click();
+        await outlineFold('grp_checkout');
       }
       await settle();
       assert.deepEqual(await collect(), baseline, `collectConfig changed after switching to ${mode}`);
@@ -337,6 +349,7 @@ try {
     assert.ok(!baselineScript.includes('stock.Stock/Get') && !baselineScript.includes('/legacy'), 'Skipped requests not generated');
     // Raw unsaved text typed without blur survives switches and reaches the payload.
     await radio('advanced').check();
+    await revealInOutline('req_cart');
     await outlineItem('req_cart').click();
     const cart = page.locator('#reqs-main > .req-card[data-request-id="req_cart"]');
     const body = cart.locator('.req-section-body textarea.body');
@@ -475,6 +488,7 @@ try {
     });
     await radio('advanced').check();
     await openProject(RICH);
+    await revealInOutline('req_cart');
     await outlineItem('req_cart').click();
     await page.locator('#reqs-main > .req-card[data-request-id="req_cart"] .request-more').click();
     await page.locator('#reqs-main > .req-card[data-request-id="req_cart"] .req-more-item.del').focus();
@@ -628,8 +642,9 @@ try {
         }
         await navigate('flow', target);
         if (mode === 'advanced') {
+          await revealInOutline('req_cart', target);
           for (const id of ['req_cart', 'grp_auth', 'req_stock']) {
-            await target.locator(`#flow-outline .outline-item[data-id="${id}"]`).click();
+            await target.locator(`#flow-outline .outline-item[data-id="${id}"]`).first().click();
             await audit(`${label} advanced flow ${id}`, target);
           }
           await target.locator('#flow-outline .outline-item[data-id="req_login"]').click();
