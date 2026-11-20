@@ -12,7 +12,7 @@ import { helpButton } from './components/help-tips.js';
 import { createDataSetId } from './project-store.js';
 import {
   CsvError, MAX_DATA_BYTES, MAX_DATA_SET_BYTES, parseCsv, readDataSet, toColumnName,
-} from './csv-parse.js';
+} from './shared/csv-parse.js';
 import { dataFileProblem } from './variables.js';
 
 const PREVIEW_ROWS = 5;

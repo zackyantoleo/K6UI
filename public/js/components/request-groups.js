@@ -4,7 +4,7 @@
 import { headerRow } from './rows.js';
 import { focusAfterRemoval, notifyFlowChanged } from './counts.js';
 import { createRequestGroupId } from '../project-store.js';
-import { describeRunIf, runIfProblem } from '../run-if.js';
+import { describeRunIf, runIfProblem } from '../shared/run-if.js';
 import { refreshDataSetGroups } from '../data-files.js';
 import { helpButton } from './help-tips.js';
 

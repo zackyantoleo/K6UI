@@ -2,7 +2,7 @@
 // older project or API payload are read as ordinary requests in the same order.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { expandSubRequests } from '../public/js/sub-requests.js';
+import { expandSubRequests } from '../public/js/shared/sub-requests.js';
 import { migrateProject } from '../public/js/project-store.js';
 import { generateScript } from '../server/generator/index.js';
 

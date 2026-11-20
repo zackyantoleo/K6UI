@@ -4,6 +4,7 @@
 // gives is marked "not available here yet". One listbox for the whole page,
 // attached to the field being typed in (aria-activedescendant, no focus move):
 // arrows move, Enter or Tab inserts, Escape closes. Names are DOM text.
+import { el } from '../dom.js';
 import { variableSuggestions } from '../variables.js';
 import { readFlowVariables } from './variables-panel.js';
 
@@ -17,13 +18,6 @@ let live = null;
 let field = null;
 let items = [];
 let active = 0;
-
-function node(tag, className, text) {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
-}
 
 // The request a field belongs to, and whether it is written after the request
 // (Save to CSV). A shared header (global or group) belongs to none.
@@ -49,7 +43,7 @@ const COPIED_STYLES = [
 function caretBox(target) {
   const box = target.getBoundingClientRect();
   const style = getComputedStyle(target);
-  const copy = node('div');
+  const copy = el('div');
   for (const name of COPIED_STYLES) copy.style[name] = style[name];
   const multiline = target.tagName === 'TEXTAREA';
   Object.assign(copy.style, {
@@ -58,7 +52,7 @@ function caretBox(target) {
     width: multiline ? style.width : 'auto',
   });
   copy.textContent = target.value.slice(0, target.selectionStart);
-  const mark = node('span', '', '​');
+  const mark = el('span', '', '​');
   copy.appendChild(mark);
   document.body.appendChild(copy);
   const left = box.left + mark.offsetLeft - target.scrollLeft;
@@ -115,18 +109,18 @@ function render(target, prefix) {
   field.setAttribute('aria-autocomplete', 'list');
   field.setAttribute('aria-controls', LIST_ID);
   if (!items.length) {
-    list.replaceChildren(node('p', 'var-suggest-empty',
+    list.replaceChildren(el('p', 'var-suggest-empty',
       'No variables yet. Add a global variable or a data file, or take a value from a response.'));
     field.removeAttribute('aria-activedescendant');
   } else {
     list.replaceChildren(...items.map((item, index) => {
-      const option = node('div', `var-suggest-item${item.available === false ? ' is-later' : ''}`);
+      const option = el('div', `var-suggest-item${item.available === false ? ' is-later' : ''}`);
       option.id = `${LIST_ID}-${index}`;
       option.setAttribute('role', 'option');
       option.dataset.index = String(index);
       option.title = `{{${item.name}}}`;
       const detail = item.available === false ? `${item.detail}: not available here yet` : item.detail;
-      option.append(node('span', 'var-suggest-name', `{{${item.name}}}`), node('span', 'var-suggest-detail', detail));
+      option.append(el('span', 'var-suggest-name', `{{${item.name}}}`), el('span', 'var-suggest-detail', detail));
       return option;
     }));
   }
@@ -169,12 +163,12 @@ const fieldOf = event => (event.target instanceof Element && event.target.matche
 
 // Called once at startup (app.js).
 export function initVariableSuggest() {
-  list = node('div', 'var-suggest');
+  list = el('div', 'var-suggest');
   list.id = LIST_ID;
   list.setAttribute('role', 'listbox');
   list.setAttribute('aria-label', 'Variables');
   list.hidden = true;
-  live = node('p', 'sr-only');
+  live = el('p', 'sr-only');
   live.setAttribute('role', 'status');
   document.body.append(list, live);
 

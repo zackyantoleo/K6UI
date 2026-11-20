@@ -5,8 +5,8 @@
 // data the page already has: the forms as typed, the k6 summary of `done`, the live
 // `metrics` events and the recorded request records. Nothing is sent to the server.
 import { describeIssue, globalVariableName, requestLabel, skipReason, variableIssues } from './variables.js';
+import { text } from './shared/basics.js';
 
-const text = value => (value == null ? '' : String(value));
 const plural = (count, noun, many = `${noun}s`) => `${count} ${count === 1 ? noun : many}`;
 const number = value => (value == null || value === '' || Number.isNaN(Number(value)) ? null : Number(value));
 const grouped = value => Math.round(value).toLocaleString('en-US');

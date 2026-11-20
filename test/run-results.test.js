@@ -4,10 +4,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { generateScript } from '../server/generator/index.js';
-import { thresholdRequests } from '../public/js/outcome-thresholds.js';
+import { thresholdRequests } from '../public/js/shared/outcome-thresholds.js';
 import { flowFromConfig } from '../public/js/variables.js';
 import { summaryChecks } from '../public/js/run-report.js';
 import { GLOSSARY } from '../public/js/glossary.js';
+import { runnerSource } from './helpers/runner-source.js';
 import {
   checklistHeadline, formatMs, formatRate, goalResults, looksLikeTestHost, metricCards, nextSteps,
   perRequestRows, percentile95, preRunChecks, requestHost, runFigures, verdictText,
@@ -199,7 +200,7 @@ test('markup: Before you run holds the checklist and the recording options; the 
   assert.deepEqual([...positions].sort((a, b) => a - b), positions, 'in reading order');
   assert.match(overview, /data-results-tab="live">Raw k6 output</);
   assert.doesNotMatch(overview, /data-results-tab="metrics"/);
-  const runner = read('../public/js/runner.js');
+  const runner = runnerSource();
   const overviewJs = read('../public/js/result-overview.js');
   const checkJs = read('../public/js/components/run-check.js');
   for (const source of [overviewJs, checkJs]) assert.doesNotMatch(source, /innerHTML/);

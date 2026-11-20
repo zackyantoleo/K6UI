@@ -1,10 +1,10 @@
-// "Label each response" section of a request (see public/js/outcomes.js): rules that give every
+// "Label each response" section of a request (see public/js/shared/outcomes.js): rules that give every
 // response one label, top to bottom, first match wins; a response no rule
 // matches gets the fallback label. One DOM for Simple and Advanced; values are
 // DOM properties, never markup.
 import {
   DEFAULT_OUTCOME_FALLBACK, OUTCOME_OPERATORS, OUTCOME_SOURCES, OUTCOME_VARIABLE, isBlankOutcomeRule, normalizeOutcomeRule,
-} from '../../outcomes.js';
+} from '../../shared/outcomes.js';
 
 const SELECTOR_HINTS = { json: 'JSON path, e.g. code or error.code', header: 'Header name, e.g. X-Error-Code' };
 const VALUE_HINTS = { equals: 'Value, e.g. PROM-422001', contains: 'Text, e.g. quota', matches: 'Regex, e.g. /quota/i' };

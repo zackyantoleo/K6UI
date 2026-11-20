@@ -2,8 +2,8 @@
 // and counts only — never values — so a Simple user knows the flow carries
 // settings that still run. Switching modes never changes what runs.
 import { usableDataFileCount } from '../data-files.js';
-import { hasOutcomeRules } from '../outcomes.js';
-import { hasExpectedStatuses } from '../expected-statuses.js';
+import { hasOutcomeRules } from '../shared/outcomes.js';
+import { hasExpectedStatuses } from '../shared/expected-statuses.js';
 import { readOutcomesPanel } from './request-editor/outcomes.js';
 
 const DEFAULT_PAUSE_SECONDS = 1;

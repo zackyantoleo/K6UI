@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { runnerSource } from './helpers/runner-source.js';
 import {
   REPORT_FORMAT, buildRunReport, escapeHtml, metricKind, reportFileName, reportToHtml,
   summaryChecks, summaryMetrics, summaryThresholds,
@@ -170,7 +171,7 @@ test('report file names use the local start time of the run', () => {
 
 test('Run & Results offers the report download once a run has finished', () => {
   const html = read('../public/index.html');
-  const runner = read('../public/js/runner.js');
+  const runner = runnerSource();
   const app = read('../public/js/app.js');
   assert.match(html, /id="download-report-html"[^>]*data-report-format="html"[^>]*disabled/);
   assert.match(html, /id="download-report-json"[^>]*data-report-format="json"[^>]*disabled/);

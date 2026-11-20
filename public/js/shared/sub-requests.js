@@ -2,7 +2,7 @@
 // order requests. The editor no longer has them: a project file or API payload
 // that still carries them is read as ordinary requests in the same order
 // (before, the request, after), so it keeps running the same calls.
-// Pure (no DOM): shared by project-store.js and server/generator/index.js.
+// Pure (no DOM): shared by project-store.js and server/generator/plan.js.
 
 const isRequest = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const hasUrl = sub => isRequest(sub) && String(sub.url || '').trim() !== '';

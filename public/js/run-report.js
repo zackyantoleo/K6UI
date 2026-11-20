@@ -10,12 +10,13 @@
 // as {{variable}} stood for), the flow's own headers and bodies, data file rows,
 // Save to CSV values, and the raw k6 output.
 import { loadShape } from './components/load-chart.js';
-import { OUTCOME_METRIC, outcomeMetricKey } from './outcomes.js';
-import { THRESHOLD_VARIABLE, requestTitle } from './outcome-thresholds.js';
-import { DEFAULT_EXPECTED_STATUSES, normalizeExpectedStatuses } from './expected-statuses.js';
-import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './race.js';
+import { OUTCOME_METRIC, outcomeMetricKey } from './shared/outcomes.js';
+import { THRESHOLD_VARIABLE, requestTitle } from './shared/outcome-thresholds.js';
+import { DEFAULT_EXPECTED_STATUSES, normalizeExpectedStatuses } from './shared/expected-statuses.js';
+import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './shared/race.js';
 import { raceGantt } from './race-gantt.js';
 import { curlFromRecord } from './curl-export.js';
+import { isObject } from './shared/basics.js';
 
 export const REPORT_FORMAT = 'k6ui-run-report';
 export const REPORT_VERSION = 1;
@@ -27,7 +28,6 @@ const STATUS_LABELS = {
 
 const TREND_KEYS = ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'];
 
-const isObject = value => value != null && typeof value === 'object' && !Array.isArray(value);
 const numberOrNull = value => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 
 // k6 --summary-export metric → its kind, from the keys it carries.

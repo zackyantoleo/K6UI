@@ -68,7 +68,8 @@ server/                 Express backend
 public/                 Frontend (vanilla JS, no build step)
 ├── index.html          Markup for every view
 ├── css/                Styling: style.css lists the files (tokens, base, shell, components, flow, views)
-└── js/                 One module per feature + components/ for DOM builders
+└── js/                 One module per feature, components/ for DOM builders, shared/ for the pure
+                        modules the server imports too (the only frontend code it may import)
 ```
 
 Architecture notes, the configuration schema, and API details are in [CLAUDE.md](CLAUDE.md).

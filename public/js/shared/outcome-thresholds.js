@@ -14,6 +14,7 @@
 import { activeOutcomeRules, outcomeLabels, outcomeMetricKey } from './outcomes.js';
 import { readDataSet } from './csv-parse.js';
 import { expandSubRequests } from './sub-requests.js';
+import { NAME_PATTERN, isObject, oneLine, text } from './basics.js';
 
 export const OUTCOME_THRESHOLD_OPS = [
   { value: '<', label: '< fewer than' },
@@ -29,13 +30,9 @@ const OP_VALUES = new Set(OUTCOME_THRESHOLD_OPS.map(op => op.value));
 export const THRESHOLD_NUMBER = /^\d+(?:\.\d+)?$/;
 // `{{QUOTA}}`: a global variable, written like any other {{variable}}.
 export const THRESHOLD_VARIABLE = /^\{\{([A-Za-z_]\w*)\}\}$/;
-const VALID_NAME = /^[A-Za-z_]\w*$/;
 // `vars.name = ...` (and +=, ++, ...) in a pre/post-processor script, as the generator reads it.
 const ASSIGNED_VAR = /\bvars\.([A-Za-z_]\w*)\s*(?:=(?!=)|[+\-*/%]=|\*\*=|&&=|\|\|=|\?\?=|\+\+|--)/g;
 
-const text = value => (typeof value === 'string' ? value : value == null ? '' : String(value));
-const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const oneLine = value => text(value).replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
 
 // One target in its canonical shape (unknown fields pass through); null for a value
 // that is not one. A number value is read as text.
@@ -149,7 +146,7 @@ export function globalValues(variables) {
   const map = new Map();
   for (const variable of Array.isArray(variables) ? variables : []) {
     const key = text(variable?.key).trim();
-    if (key && VALID_NAME.test(key)) map.set(key, text(variable.value));
+    if (key && NAME_PATTERN.test(key)) map.set(key, text(variable.value));
   }
   return map;
 }

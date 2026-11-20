@@ -59,6 +59,8 @@ export const jsLiteral = (value) =>
 
 // Any text → one line, safe inside a `//` comment of the script. \r, \n, U+2028 and
 // U+2029 all end a JavaScript line, so a URL or a name holding one would otherwise
-// turn the rest of it into code.
-const LINE_BREAKS = new RegExp(`[${String.fromCharCode(10, 13, 0x2028, 0x2029)}]+`, "g");
-export const oneLine = (value) => String(value ?? "").replace(LINE_BREAKS, " ").trim();
+// turn the rest of it into code. Every comment value goes through it.
+export { oneLine } from "../../public/js/shared/basics.js";
+
+// The variable that holds the response of request `index` (from 0) in the script.
+export const responseVar = (index) => `res_main_${index}`;

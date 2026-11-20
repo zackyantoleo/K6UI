@@ -4,7 +4,7 @@
 // "package.Service/Method", body = request message JSON, headers = metadata.
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
-import { oneLine } from "./helpers.js";
+import { oneLine, responseVar } from "./helpers.js";
 
 export function validateGrpcRequest(req, label) {
   const method = String(req.grpcMethod || "").trim();
@@ -24,7 +24,7 @@ export function validateGrpcRequest(req, label) {
   }
 }
 
-export function buildGrpcRequestCode(req, index, prefix, ctx, logRequests) {
+export function buildGrpcRequestCode(req, index, ctx, { logRequests = false } = {}) {
   const clientVar  = `grpc_client_${index}`;
   const addrCode   = interpolate(String(req.url || "").trim(), ctx);
   const methodCode = interpolate(String(req.grpcMethod || "").trim(), ctx);
@@ -43,34 +43,34 @@ export function buildGrpcRequestCode(req, index, prefix, ctx, logRequests) {
   if (req.grpcPlaintext) connectOpts.push("plaintext: true");
 
   const body = String(req.body == null ? "" : req.body).trim();
-  const msgVar = `msg_${prefix}_${index}`;
-  const resVar = `res_${prefix}_${index}`;
+  const msgVar = `msg_main_${index}`;
+  const resVar = responseVar(index);
   const lines = [];
 
   lines.push(`  // Request ${index + 1}: ${oneLine(`gRPC ${req.grpcMethod} @ ${req.url}`)}`);
   lines.push(`  ${clientVar}.connect(${addrCode}, { ${connectOpts.join(", ")} });`);
   lines.push(`  const ${msgVar} = ${body ? `JSON.parse(${interpolate(body, ctx)})` : "{}"};`);
-  if (logRequests) lines.push(`  const t_${prefix}_${index} = Date.now();`);
+  if (logRequests) lines.push(`  const t_main_${index} = Date.now();`);
   lines.push(
     `  const ${resVar} = ${clientVar}.invoke(${methodCode}, ${msgVar}${
       metadataCode ? `, { metadata: { ${metadataCode} } }` : ""
     });`
   );
-  if (logRequests) lines.push(`  const d_${prefix}_${index} = Date.now() - t_${prefix}_${index};`);
+  if (logRequests) lines.push(`  const d_main_${index} = Date.now() - t_main_${index};`);
 
   if (req.checkStatus !== false) {
     const label = `grpc status OK: request ${index + 1}`;
     lines.push(`  check(${resVar}, { ${JSON.stringify(label)}: (r) => r && r.status === grpc.StatusOK });`);
   }
 
-  const extractCode = buildExtractionLines(req.extractions, resVar, null, ctx && ctx.localVars, "grpc", ctx && ctx.hoistedVars);
+  const extractCode = buildExtractionLines(req.extractions, resVar, { mode: "grpc", declared: ctx?.localVars, hoisted: ctx?.hoistedVars });
   if (extractCode) lines.push(extractCode);
 
-  // Same {__r:1,...} JSON line as HTTP requests (logGrpcRequest() in generator/index.js).
+  // Same {__r:1,...} JSON line as HTTP requests (logGrpcRequest() in generator/request-log.js).
   if (logRequests) {
     const metadataObject = metadataCode ? `{ ${metadataCode} }` : "{}";
     lines.push(
-      `  try { logGrpcRequest(${index}, ${addrCode}, ${methodCode}, ${msgVar}, ${metadataObject}, ${resVar}, d_${prefix}_${index}); } catch (e) {}`
+      `  try { logGrpcRequest(${index}, ${addrCode}, ${methodCode}, ${msgVar}, ${metadataObject}, ${resVar}, d_main_${index}); } catch (e) {}`
     );
   }
 

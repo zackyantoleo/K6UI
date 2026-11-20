@@ -10,13 +10,14 @@ import { once } from 'node:events';
 import {
   normalizeOutcomeThreshold, normalizeOutcomeThresholds, outcomeThresholdText, outcomeThresholdsProblem,
   planOutcomeThresholds, readOutcomeThresholdResults, thresholdRequests,
-} from '../public/js/outcome-thresholds.js';
+} from '../public/js/shared/outcome-thresholds.js';
 import { generateScript } from '../server/generator/index.js';
 import { importK6Script } from '../server/importer/index.js';
 import { migrateProject } from '../public/js/project-store.js';
 import { buildRunReport, reportThresholds, reportToHtml } from '../public/js/run-report.js';
 import { createServer } from '../server/index.js';
 import { loadScript } from './helpers/load-script.js';
+import { runnerSource } from './helpers/runner-source.js';
 
 const RULES = {
   rules: [
@@ -327,7 +328,7 @@ test('targets travel with the project: collected, checked before Run, restored a
 test('Run & Results lists each target in Outcomes; a target not met is also an error', () => {
   const html = read('../public/index.html');
   const results = read('../public/js/outcome-results.js');
-  const runner = read('../public/js/runner.js');
+  const runner = runnerSource();
   const section = html.match(/<section id="run-outcomes"[\s\S]*?<\/section>/)?.[0];
   assert.match(section, /<ul id="run-outcome-targets" class="run-outcome-targets" aria-label="Outcome targets" hidden><\/ul>/);
   assert.match(runner, /renderOutcomeResults\(data\.outcomes, data\.outcomeThresholds\);/);

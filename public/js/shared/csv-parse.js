@@ -3,6 +3,7 @@
 // Handles double-quoted fields ("" escapes a quote, newlines allowed inside),
 // a single-character delimiter, CRLF / LF / CR line ends, a leading BOM, and
 // skips empty lines. Pure: no DOM, no Node APIs.
+import { NAME_PATTERN } from './basics.js';
 
 export class CsvError extends Error {}
 
@@ -104,7 +105,7 @@ export function parseCsv(input, { delimiter = ',' } = {}) {
 // Column names are K6UI variable names, so they follow the same rule as
 // global variables. "First Name" → "First_Name"; anything else stays as typed
 // (and is ignored later if it is still not a valid name).
-export const VALID_COLUMN_NAME = /^[A-Za-z_]\w*$/;
+export const VALID_COLUMN_NAME = NAME_PATTERN;
 export const toColumnName = (value) => String(value ?? '').trim().replace(/\s+/g, '_');
 
 // One data file (config.dataSets item) → its rows and the columns that will be

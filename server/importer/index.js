@@ -10,10 +10,10 @@ import { parse } from "acorn";
 import { importOptions } from "./options.js";
 import { importFlow } from "./flow.js";
 import { VALID_VAR_NAME, sourceOf, staticValue, Unresolvable } from "./values.js";
-import { normalizeRequestLog } from "../../public/js/request-log.js";
-import { outcomeLabels } from "../../public/js/outcomes.js";
-import { THRESHOLD_NUMBER, THRESHOLD_VARIABLE } from "../../public/js/outcome-thresholds.js";
-import { RACE_MODE, normalizeRace, raceOffsetEntries } from "../../public/js/race.js";
+import { normalizeRequestLog } from "../../public/js/shared/request-log.js";
+import { outcomeLabels } from "../../public/js/shared/outcomes.js";
+import { THRESHOLD_NUMBER, THRESHOLD_VARIABLE } from "../../public/js/shared/outcome-thresholds.js";
+import { RACE_MODE, normalizeRace, raceOffsetEntries } from "../../public/js/shared/race.js";
 
 export class ScriptImportError extends Error {
   constructor(message, warnings = []) {

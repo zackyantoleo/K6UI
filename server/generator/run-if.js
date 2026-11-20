@@ -1,9 +1,9 @@
 // "Run only if" conditions of request groups → `if (...) {` around the group's
-// requests. The condition is data (see public/js/run-if.js), never free code:
+// requests. The condition is data (see public/js/shared/run-if.js), never free code:
 // the variable is read by the same precedence as {{variable}} (extracted >
 // processor > data column > global, see interpolate.js) when the group starts,
 // and values are compared as strings.
-import { cleanRunIfValues, describeRunIf, runIfProblem } from "../../public/js/run-if.js";
+import { cleanRunIfValues, describeRunIf, runIfProblem } from "../../public/js/shared/run-if.js";
 import { resolveVariable } from "./interpolate.js";
 import { oneLine } from "./helpers.js";
 

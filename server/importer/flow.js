@@ -9,8 +9,8 @@ import { groupNameBefore, readRunIf } from "./run-if.js";
 import {
   Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, safeText, sourceOf, staticValue, tryStatic, unwrap,
 } from "./values.js";
-import { OUTCOME_VARIABLE, normalizeOutcomes } from "../../public/js/outcomes.js";
-import { normalizeExpectedStatuses } from "../../public/js/expected-statuses.js";
+import { OUTCOME_VARIABLE, normalizeOutcomes } from "../../public/js/shared/outcomes.js";
+import { normalizeExpectedStatuses } from "../../public/js/shared/expected-statuses.js";
 
 // ── Where does a value come from? ──────────────────────────────
 // Descriptors: { kind: 'response', req } | { kind: 'json', req, path } |
@@ -555,7 +555,7 @@ function unsupported(stmt, state) {
 }
 
 // try { console.log(...) } catch {} or try { logHttpRequest(...) } catch {} — the
-// request-log line K6UI itself generates (helpers: server/generator/index.js), and the
+// request-log line K6UI itself generates (helpers: server/generator/request-log.js), and the
 // race burst's per-VU record `try { k6uiRaceRecord(...) } catch (e) {}` (generator/race.js).
 const REQUEST_LOG_CALLS = new Set(["logHttpRequest", "logHttpOutcome", "logGrpcRequest", "k6uiRaceRecord"]);
 const isRequestLogCall = (node) =>

@@ -1,5 +1,5 @@
 // Which {{variables}} a request can use, and where (pure, no DOM). The rules
-// follow server/generator/index.js + interpolate.js exactly, so the panel, the
+// follow server/generator/flow.js + interpolate.js exactly, so the panel, the
 // {{ suggestions and the warnings on the request cards never disagree with the
 // script that runs:
 //   - only requests that run count (enabled, group on, a URL), in list order;
@@ -22,18 +22,18 @@
 //                     extractions: [{ varName }], preScript, postScript, hasOutcomes,
 //                     exportValues: [text] }],   every card, in order (number = position + 1)
 // }
-import { OUTCOME_VARIABLE, hasOutcomeRules } from './outcomes.js';
-import { readDataSet } from './csv-parse.js';
+import { OUTCOME_VARIABLE, hasOutcomeRules } from './shared/outcomes.js';
+import { readDataSet } from './shared/csv-parse.js';
+import { NAME_PATTERN, text } from './shared/basics.js';
 
-export const VARIABLE_NAME = /^[A-Za-z_]\w*$/;
+export const VARIABLE_NAME = NAME_PATTERN;
 // What interpolate.js replaces; anything else between braces is sent as text.
 const PLACEHOLDER = /\{\{(\$?\w+)\}\}/g;
 const SPACED_PLACEHOLDER = /\{\{(\s*)(\$?\w+)(\s*)\}\}/g;
-// Same as ASSIGNED_VAR in server/generator/index.js.
+// Same as ASSIGNED_VAR in server/generator/processors.js.
 const ASSIGNED_VAR = /\bvars\.([A-Za-z_]\w*)\s*(?:=(?!=)|[+\-*/%]=|\*\*=|&&=|\|\|=|\?\?=|\+\+|--)/g;
 const BODY_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
-const text = value => (value == null ? '' : String(value));
 const unique = list => [...new Set(list)];
 
 // "{{a}}/{{$outcome}}" → ['a', '$outcome'] (each name once, in order).

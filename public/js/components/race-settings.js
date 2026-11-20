@@ -1,4 +1,4 @@
-// Load Profile → Race burst (config.load.mode "race", see public/js/race.js): the race
+// Load Profile → Race burst (config.load.mode "race", see public/js/shared/race.js): the race
 // request, VUs and timing (spread or offsets) in view; lead time, warm-up, "fail if
 // late" and max duration under "Advanced timing", folded in Simple with a one-line
 // summary of their values, always open in Advanced (css/views.css).
@@ -9,8 +9,8 @@
 // Simple and Advanced; names are DOM text, never markup.
 import { $, $$ } from '../dom.js';
 import { readRequestSettings } from './advanced-notice.js';
-import { requestTitle, thresholdRequests } from '../outcome-thresholds.js';
-import { DEFAULT_RACE, normalizeRace, raceOffsetEntries } from '../race.js';
+import { requestTitle, thresholdRequests } from '../shared/outcome-thresholds.js';
+import { DEFAULT_RACE, normalizeRace, raceOffsetEntries } from '../shared/race.js';
 
 const NOT_RUN = {
   'the request is turned off': 'turned off',

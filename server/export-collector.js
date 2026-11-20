@@ -1,4 +1,4 @@
-// Rows a run saves with "Save to CSV" (see public/js/csv-export.js). The
+// Rows a run saves with "Save to CSV" (see public/js/shared/csv-export.js). The
 // generated script logs each row as {"k6uiExport":"<file>","columns":[...],"row":[...]};
 // k6-runner.js hands those lines here instead of the live log. Rows live in
 // memory only (never on disk) and go to the browser in batches as `export`
@@ -9,7 +9,7 @@
 // tells the browser that rows were left out.
 import {
   EXPORT_MARKER, MAX_EXPORT_BYTES, MAX_EXPORT_FILE_BYTES, MAX_EXPORT_FILE_NAME, MAX_EXPORT_FILES, csvLine,
-} from "../public/js/csv-export.js";
+} from "../public/js/shared/csv-export.js";
 
 export const EXPORT_LINE_PREFIX = `{"${EXPORT_MARKER}":`;
 

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {
   RACE_RECORD_COLUMNS, clockTime, planRace, raceErrors, raceFigures, raceRecordCells, raceResultText, raceResultWarns,
   raceStats, readRaceResult,
-} from '../public/js/race.js';
+} from '../public/js/shared/race.js';
 import { GANTT_SLOTS, outcomeTones, raceGantt, tickStep } from '../public/js/race-gantt.js';
 import { buildRunReport, reportToHtml } from '../public/js/run-report.js';
 import { generateScript } from '../server/generator/index.js';

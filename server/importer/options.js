@@ -2,7 +2,7 @@
 // represent is imported; every other option is reported as ignored.
 import { keyOf, resolveConst, tryStatic, Unresolvable } from "./values.js";
 import { DEFAULT_MAX_DURATION } from "../generator/options.js";
-import { RACE_LATE_METRIC } from "../../public/js/race.js";
+import { RACE_LATE_METRIC } from "../../public/js/shared/race.js";
 
 const P95 = /^p\(\s*95\s*\)\s*<\s*(\d+(?:\.\d+)?)$/;
 const RATE = /^rate\s*<\s*(\d+(?:\.\d+)?)$/;

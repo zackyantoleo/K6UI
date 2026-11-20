@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { runnerSource } from './helpers/runner-source.js';
 
 import {
   DRAFT_KEY, DRAFT_VERSION, clearDraft, draftStatus, leaveLosesWork, readDraft, writeDraft,
@@ -124,7 +125,7 @@ test('wiring: New and the status sit with the project file actions; the draft st
   assert.match(config, /export function readProjectDraft\(\) \{\s*return readConfig\(\{ hydrate: false \}\);/);
 
   // A running test is what the guard protects; New stays off while one runs.
-  const runner = read('public/js/runner.js');
+  const runner = runnerSource();
   assert.match(runner, /export const isTestRunning = \(\) => Boolean\(abortCtrl\);/);
   assert.match(runner, /newProject\.disabled = running;/);
 });

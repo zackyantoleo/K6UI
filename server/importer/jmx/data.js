@@ -10,7 +10,7 @@
 //   recycle / stopThread → onEnd "recycle" / "stop"
 //   inside a controller   → groupId of the request group it sits in: its row is read, and
 //                          "stop" applies, only when that group runs (global otherwise)
-import { normalizeDelimiter } from "../../../public/js/csv-parse.js";
+import { normalizeDelimiter } from "../../../public/js/shared/csv-parse.js";
 import { bool, jmxText, k6Name, prop, resolveVariables, str, titleOf } from "./props.js";
 
 // "${LOGIN_CSV_FILE}" → the file name held by a User Defined Variable.

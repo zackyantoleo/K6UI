@@ -14,9 +14,9 @@
 // Column names are variable names ([A-Za-z_]\w*); other columns are ignored.
 // {{column}} resolves to the row of the current iteration (see interpolate.js).
 //
-// The CSV reader lives in public/js/csv-parse.js: the Data files panel uses
+// The CSV reader lives in public/js/shared/csv-parse.js: the Data files panel uses
 // it for its preview, so the UI and the generator always count the same rows.
-import { CsvError, MAX_DATA_BYTES, MAX_DATA_SET_BYTES, readDataSet } from "../../public/js/csv-parse.js";
+import { CsvError, MAX_DATA_BYTES, MAX_DATA_SET_BYTES, readDataSet } from "../../public/js/shared/csv-parse.js";
 import { oneLine } from "./helpers.js";
 
 export { MAX_DATA_BYTES, MAX_DATA_SET_BYTES };

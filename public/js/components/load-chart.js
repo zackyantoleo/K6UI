@@ -5,7 +5,7 @@
 // is saved, generated, or run. The load mode is read from the form here
 // (readLoadMode): the Race burst goal, else the kind of load.
 import { $, $$ } from '../dom.js';
-import { describeRacePlan, planRaceTiming } from '../race.js';
+import { describeRacePlan, planRaceTiming } from '../shared/race.js';
 
 const UNIT_SECONDS = { ms: 0.001, s: 1, m: 60, h: 3600, d: 86400 };
 const MODE_NAMES = { simple: 'Fixed VUs', stages: 'Staged', iterations: 'Iterations', race: 'Race burst' };

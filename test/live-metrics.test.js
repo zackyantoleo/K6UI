@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { freePort, readLiveMetrics, startMetricsPoller } from '../server/live-metrics.js';
 import { startK6Run } from '../server/k6-runner.js';
 import { createServer } from '../server/index.js';
-import { readLiveOutcomeThresholdResults } from '../public/js/outcome-thresholds.js';
+import { readLiveOutcomeThresholdResults } from '../public/js/shared/outcome-thresholds.js';
 
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 

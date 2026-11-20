@@ -8,6 +8,7 @@
 // shows how many responses got each label. Rules are data, never JavaScript.
 // Pure and DOM-free: shared by the store, the request editor, the results panel,
 // server/generator/outcomes.js and the importer.
+import { isObject, text } from './basics.js';
 
 export const OUTCOME_METRIC = 'k6ui_outcome';
 export const DEFAULT_OUTCOME_FALLBACK = 'other';
@@ -39,8 +40,6 @@ const SOURCE_VALUES = new Set(OUTCOME_SOURCES.map(source => source.value));
 const OPERATOR_VALUES = new Set(OUTCOME_OPERATORS.map(operator => operator.value));
 const REGEX_FLAGS = /^[gimsuy]*$/;
 
-const text = value => (typeof value === 'string' ? value : value == null ? '' : String(value));
-const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 // The canonical shape of one rule (unknown fields pass through). The value is kept
 // as typed: a response value is compared with it exactly.

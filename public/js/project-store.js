@@ -1,12 +1,12 @@
 // Lightweight versioned project state. The store owns a normalized immutable
 // snapshot; DOM adapters in config.js/project-io.js synchronize at UI boundaries.
-import { normalizeRunIf } from './run-if.js';
-import { normalizeExports } from './csv-export.js';
-import { normalizeOutcomes } from './outcomes.js';
-import { normalizeExpectedStatuses } from './expected-statuses.js';
-import { isBlankOutcomeThreshold, normalizeOutcomeThresholds } from './outcome-thresholds.js';
-import { expandSubRequests } from './sub-requests.js';
-import { RACE_MODE, normalizeRace } from './race.js';
+import { normalizeRunIf } from './shared/run-if.js';
+import { normalizeExports } from './shared/csv-export.js';
+import { normalizeOutcomes } from './shared/outcomes.js';
+import { normalizeExpectedStatuses } from './shared/expected-statuses.js';
+import { isBlankOutcomeThreshold, normalizeOutcomeThresholds } from './shared/outcome-thresholds.js';
+import { expandSubRequests } from './shared/sub-requests.js';
+import { RACE_MODE, normalizeRace } from './shared/race.js';
 
 export const CURRENT_SCHEMA_VERSION = 2;
 

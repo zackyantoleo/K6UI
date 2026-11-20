@@ -4,16 +4,9 @@
 // run-summary.js (pure); this module only writes them, with textContent. One DOM for
 // Simple and Advanced. The cards are built once and updated in place, so the live
 // figures (about once a second) never rebuild a focused "?" button.
-import { $ } from './dom.js';
+import { $, el } from './dom.js';
 import { helpButton } from './components/help-tips.js';
 import { formatMs } from './run-summary.js';
-
-const node = (tag, className, text) => {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text != null) element.textContent = String(text);
-  return element;
-};
 
 const setText = (element, value) => {
   const next = String(value ?? '');
@@ -31,12 +24,12 @@ export function renderResultCards(cards) {
   for (const card of cards) {
     let element = box.querySelector(`.result-card[data-key="${card.key}"]`);
     if (!element) {
-      element = node('article', 'result-card');
+      element = el('article', 'result-card');
       element.dataset.key = card.key;
-      const label = node('div', 'result-card-label');
-      label.append(node('span', 'result-card-name'), helpButton(card.help));
-      element.append(label, node('div', 'result-card-value'), node('div', 'result-card-note'),
-        node('div', 'result-card-goal'), node('code', 'result-card-tech'));
+      const label = el('div', 'result-card-label');
+      label.append(el('span', 'result-card-name'), helpButton(card.help));
+      element.append(label, el('div', 'result-card-value'), el('div', 'result-card-note'),
+        el('div', 'result-card-goal'), el('code', 'result-card-tech'));
       box.appendChild(element);
     }
     setText(element.querySelector('.result-card-name'), card.label);
@@ -64,21 +57,21 @@ export function renderPerRequest(model, hint = '') {
   body.replaceChildren();
   const longest = model?.slowest?.p95 || Math.max(0, ...rows.map(row => row.p95 || 0));
   for (const row of rows) {
-    const tr = node('tr', row.slowest ? 'slowest' : '');
-    tr.append(node('td', 'num', row.rq));
-    const name = node('td', 'run-per-request-name');
-    name.append(node('span', 'run-per-request-title', row.name));
-    if (row.slowest) name.append(node('span', 'badge-slowest', 'Slowest'));
+    const tr = el('tr', row.slowest ? 'slowest' : '');
+    tr.append(el('td', 'num', row.rq));
+    const name = el('td', 'run-per-request-name');
+    name.append(el('span', 'run-per-request-title', row.name));
+    if (row.slowest) name.append(el('span', 'badge-slowest', 'Slowest'));
     tr.append(name);
-    tr.append(node('td', 'num', row.sent == null ? '—' : row.sent.toLocaleString('en-US')));
+    tr.append(el('td', 'num', row.sent == null ? '—' : row.sent.toLocaleString('en-US')));
     const failedText = row.failed == null ? '—'
       : row.failed === 0 ? '0' : `${row.failed.toLocaleString('en-US')} (${row.sent ? Number((row.failed / row.sent * 100).toFixed(1)) : 0}%)`;
-    tr.append(node('td', `num${row.failed ? ' failed' : ''}`, failedText));
-    tr.append(node('td', 'num', row.p95 == null ? '—' : formatMs(row.p95)));
-    const barCell = node('td', 'run-per-request-bar');
+    tr.append(el('td', `num${row.failed ? ' failed' : ''}`, failedText));
+    tr.append(el('td', 'num', row.p95 == null ? '—' : formatMs(row.p95)));
+    const barCell = el('td', 'run-per-request-bar');
     if (row.p95 != null && longest > 0) {
-      const bar = node('span', 'time-bar');
-      const fill = node('span', `time-bar-fill${row.slowest ? ' slow' : ''}`);
+      const bar = el('span', 'time-bar');
+      const fill = el('span', `time-bar-fill${row.slowest ? ' slow' : ''}`);
       fill.style.width = `${Math.max(2, Math.round(row.p95 / longest * 100))}%`;
       bar.append(fill);
       barCell.append(bar);
@@ -96,10 +89,10 @@ export function renderNextSteps(steps, act) {
   const list = $('#run-next-list');
   list.replaceChildren();
   for (const step of steps) {
-    const item = node('li', '', null);
-    item.append(node('span', '', step.text));
+    const item = el('li', '', null);
+    item.append(el('span', '', step.text));
     if (step.action) {
-      const button = node('button', 'btn ghost sm', step.action.label);
+      const button = el('button', 'btn ghost sm', step.action.label);
       button.type = 'button';
       button.addEventListener('click', () => act(step.action));
       item.append(button);

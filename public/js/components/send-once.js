@@ -5,18 +5,12 @@
 // from the response" with its path filled in (req-card.js takeExtraction()).
 // Everything that came back is written with textContent / DOM properties, never
 // parsed as markup. Nothing here is saved in the project.
+import { el } from '../dom.js';
 import { collectConfig } from '../config.js';
 import { takeExtraction } from './req-card.js';
 import {
   MAX_VALUE_BUTTONS, bodyNote, resultSummary, responseJson, selectorFor, unresolvedText, variableNameFor,
 } from '../send-once.js';
-
-const el = (tag, className, text) => {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-};
 
 // The path of each value button (object keys and array positions).
 const valuePaths = new WeakMap();

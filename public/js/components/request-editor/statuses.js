@@ -1,7 +1,7 @@
 // "Success statuses" section of a request: expected statuses (see
-// public/js/expected-statuses.js) and the automatic status check. One DOM for
+// public/js/shared/expected-statuses.js) and the automatic status check. One DOM for
 // Simple and Advanced; values are DOM properties, never markup.
-import { DEFAULT_EXPECTED_STATUSES, statusesFromOutcomeRules } from '../../expected-statuses.js';
+import { DEFAULT_EXPECTED_STATUSES, statusesFromOutcomeRules } from '../../shared/expected-statuses.js';
 
 // readOutcomes() → the request's outcome rules as they stand (an unopened "Label
 // each response" section gives the saved ones), for "Use statuses from outcome rules".

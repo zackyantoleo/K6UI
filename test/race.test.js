@@ -1,4 +1,4 @@
-// Race burst load mode (public/js/race.js, server/generator/race.js): normalization,
+// Race burst load mode (public/js/shared/race.js, server/generator/race.js): normalization,
 // planning and validation, the generated k6 code, `done.race`, the importer, the
 // load chart and the Simple notice. Real k6 timing is in race-k6.test.js.
 import test from 'node:test';
@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_RACE, RACE_SPIN_MS, describeRacePlan, normalizeRace, normalizeRaceOffsets, planRace, planRaceTiming,
   raceOffsetEntries, raceResultText, readRaceResult, spreadOffsets,
-} from '../public/js/race.js';
+} from '../public/js/shared/race.js';
 import { migrateProject } from '../public/js/project-store.js';
 import { generateScript } from '../server/generator/index.js';
 import { importK6Script } from '../server/importer/index.js';

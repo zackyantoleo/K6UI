@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 import { summarizeAdvancedSettings } from '../public/js/components/advanced-notice.js';
 import { readStyles } from './helpers/styles.js';
+import { runnerSource } from './helpers/runner-source.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
@@ -13,7 +14,7 @@ const exportsPanel = read('../public/js/components/request-editor/exports.js');
 const reqCard = read('../public/js/components/req-card.js');
 const config = read('../public/js/config.js');
 const results = read('../public/js/export-results.js');
-const runner = read('../public/js/runner.js');
+const runner = runnerSource();
 const dataFiles = read('../public/js/data-files.js');
 const store = read('../public/js/project-store.js');
 

@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { readStyles } from './helpers/styles.js';
+import { runnerSource } from './helpers/runner-source.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
 const app = read('../public/js/app.js');
-const runner = read('../public/js/runner.js');
+const runner = runnerSource();
 const k6Runner = read('../server/k6-runner.js');
-const generator = read('../server/generator/index.js');
+const requestLogHelpers = read('../server/generator/request-log.js');
 const requestGenerator = read('../server/generator/request.js');
 const grpcGenerator = read('../server/generator/grpc-request.js');
 const css = readStyles();
@@ -44,7 +45,8 @@ test('results provide clear and filter controls with bounded request and live-lo
   assert.match(html, /id="clear-live-log"/);
   assert.match(html, /id="filter-errors-only"/);
   assert.match(html, /id="filter-url"/);
-  assert.match(runner, /MAX_REQ_LOGS\s*=\s*500/);
+  assert.match(runner, /MAX_REQ_LOGS = MAX_REQUEST_RECORDS/);
+  assert.match(read('../public/js/shared/request-log.js'), /MAX_REQUEST_RECORDS = 500/);
   assert.match(runner, /MAX_LOG_LINES\s*=\s*1500/);
   assert.match(runner, /reqLogs\.shift\(\)/);
 });
@@ -63,9 +65,9 @@ test('request logging is opt-in and warns that response samples may contain sens
   assert.match(html, /response samples may contain sensitive data/i);
   assert.match(requestGenerator, /logHttpRequest\(/);
   assert.match(grpcGenerator, /logGrpcRequest\(/);
-  assert.match(generator, /rq: redactResponseSample\(request\.body/);
-  assert.match(generator, /rb: redactResponseSample\(res\.body/);
-  assert.match(generator, /authorization|token|password/i);
+  assert.match(requestLogHelpers, /rq: redactResponseSample\(request\.body/);
+  assert.match(requestLogHelpers, /rb: redactResponseSample\(res\.body/);
+  assert.match(requestLogHelpers, /authorization|token|password/i);
 });
 
 test('run lifecycle distinguishes failed, threshold-failed, and aborted states', () => {
@@ -89,8 +91,8 @@ test('live-log memory retention never exceeds the advertised cap', () => {
 });
 
 test('request logging redacts sensitive values from URLs as well as response samples', () => {
-  assert.equal(generator.match(/url: redactRequestUrl\(/g)?.length, 2, 'HTTP and gRPC request logs');
-  assert.match(generator, /decodeURIComponent/);
+  assert.equal(requestLogHelpers.match(/url: redactRequestUrl\(/g)?.length, 2, 'HTTP and gRPC request logs');
+  assert.match(requestLogHelpers, /decodeURIComponent/);
 });
 
 test('expanded request editor gives the endpoint a full-width row', () => {

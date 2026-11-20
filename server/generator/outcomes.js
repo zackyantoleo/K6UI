@@ -1,4 +1,4 @@
-// Outcome rules (see public/js/outcomes.js) → k6 code. Every response of a request
+// Outcome rules (see public/js/shared/outcomes.js) → k6 code. Every response of a request
 // with rules gets one label (the first rule that matches, else the fallback) and is
 // counted in the counter `k6ui_outcome`, tagged `rq` (request number, from 1) and
 // `outcome` (the label).
@@ -11,8 +11,8 @@
 import {
   activeOutcomeRules, hasOutcomeRules, normalizeOutcomes, outcomeLabels, outcomeMetricKey,
   outcomeRegexParts, outcomesProblem, parseOutcomeStatus, OUTCOME_METRIC, OUTCOME_VARIABLE,
-} from "../../public/js/outcomes.js";
-import { planOutcomeThresholds } from "../../public/js/outcome-thresholds.js";
+} from "../../public/js/shared/outcomes.js";
+import { planOutcomeThresholds } from "../../public/js/shared/outcome-thresholds.js";
 import { buildGjsonPath, jsLiteral, oneLine } from "./helpers.js";
 
 // Written once, above the default function, when a request that runs has rules.
@@ -89,7 +89,7 @@ export function outcomeTargets(requests) {
 
 // k6 only reports a submetric (in --summary-export and its REST API) that has a
 // threshold, so every label gets one that always passes. Outcome targets
-// (public/js/outcome-thresholds.js planOutcomeThresholds: checked, resolved) add
+// (public/js/shared/outcome-thresholds.js planOutcomeThresholds: checked, resolved) add
 // their own expression to the same list; one that is already there is not repeated
 // (k6 keys a threshold's result by its expression).
 export function addOutcomeThresholds(options, targets, outcomeThresholds = []) {

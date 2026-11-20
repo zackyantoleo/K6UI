@@ -4,13 +4,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { runnerSource } from './helpers/runner-source.js';
 
 import {
   SORT_COLUMNS, ariaSortOf, compareRecords, insertIndex, nextSort,
 } from '../public/js/request-sort.js';
 
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-const runner = readFileSync(new URL('../public/js/runner.js', import.meta.url), 'utf8');
+const runner = runnerSource();
 const app = readFileSync(new URL('../public/js/app.js', import.meta.url), 'utf8');
 
 let seq = 0;

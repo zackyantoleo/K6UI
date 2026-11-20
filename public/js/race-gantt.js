@@ -8,7 +8,7 @@
 // never cycled), the fallback label and any label past the eighth take the neutral
 // tone-other. Without outcome rules every bar is tone-1 and there is no legend. The
 // label is also in every row's tooltip and in the table, so colour never carries it alone.
-import { raceRecordCells } from './race.js';
+import { raceRecordCells } from './shared/race.js';
 
 export const GANTT_WIDTH = 720;
 export const GANTT_MAX_ROWS = 100;

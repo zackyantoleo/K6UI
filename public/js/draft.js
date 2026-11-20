@@ -10,6 +10,7 @@
 // blocked). "New" (top bar) drops the draft and starts from a fresh page.
 //
 // Pure helpers first (tested in Node), then the DOM adapter (initDraft).
+import { isObject } from './shared/basics.js';
 export const DRAFT_KEY = 'k6ui.draft';
 export const DRAFT_VERSION = 1;
 const SAVE_DELAY_MS = 700;
@@ -22,7 +23,6 @@ function storageOf(storage) {
   }
 }
 
-const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 // → true when the browser kept it.
 export function writeDraft({ project, ui = {}, savedAt = Date.now() }, storage) {

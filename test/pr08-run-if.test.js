@@ -4,7 +4,7 @@ import fs from 'node:fs';
 
 import { summarizeAdvancedSettings } from '../public/js/components/advanced-notice.js';
 import { outlineModel } from '../public/js/components/flow-outline.js';
-import { describeRunIf, normalizeRunIf, runIfProblem } from '../public/js/run-if.js';
+import { describeRunIf, normalizeRunIf, runIfProblem } from '../public/js/shared/run-if.js';
 import { readStyles } from './helpers/styles.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');

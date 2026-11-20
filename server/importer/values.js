@@ -2,11 +2,12 @@
 // never executed: staticValue() folds literals and constants into plain JS
 // values (options, headers, JSON bodies), and textOf() renders an expression as
 // K6UI text, turning variable references into {{name}} placeholders.
-import { OUTCOME_VARIABLE } from "../../public/js/outcomes.js";
+import { OUTCOME_VARIABLE } from "../../public/js/shared/outcomes.js";
+import { NAME_PATTERN } from "../../public/js/shared/basics.js";
 
 export class Unresolvable extends Error {}
 
-export const VALID_VAR_NAME = /^[A-Za-z_]\w*$/;
+export const VALID_VAR_NAME = NAME_PATTERN;
 const MAX_DEPTH = 24;
 
 export function unwrap(node) {
@@ -158,7 +159,7 @@ export function resolveConst(rawNode, ctx) {
 
 function identifierText(node, ctx, depth) {
   const name = node.name;
-  // K6UI's own `$outcome` (the latest outcome label, generator/index.js) → {{$outcome}}.
+  // K6UI's own `$outcome` (the latest outcome label, generator/flow.js) → {{$outcome}}.
   if (name === OUTCOME_VARIABLE && ctx.outcomeHelper) return `{{${name}}}`;
   if (ctx.bindings.has(name)) return ctx.materialize(name);
 

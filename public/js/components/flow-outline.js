@@ -4,6 +4,7 @@
 // Requests sit inside their group in a tree that folds per group; folding
 // presses the group's own collapse button (hidden in Advanced), so the saved
 // `collapsed` flag is the one Simple folds its cards with.
+import { el } from '../dom.js';
 import { setRequestExpanded } from './req-card.js';
 
 // Pure summary of the flow in global execution order. Group labels annotate
@@ -116,20 +117,13 @@ function readGroups() {
   }));
 }
 
-function node(tag, className, text) {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
-}
-
 // Each summary is a <button> whose parts are created once and updated in
 // place. Keeping the same elements means a refresh triggered between mousedown
 // and mouseup (e.g. a blur `change`) never swallows the click.
 function outlineButton(kind, partClasses) {
-  const button = node('button', `outline-item outline-${kind}`);
+  const button = el('button', `outline-item outline-${kind}`);
   button.type = 'button';
-  const parts = partClasses.map(className => node('span', className));
+  const parts = partClasses.map(className => el('span', className));
   parts.forEach((part, index) => {
     if (index) button.append(' ');
     button.append(part);
@@ -139,7 +133,7 @@ function outlineButton(kind, partClasses) {
 
 function createRequestEntry() {
   const { button, parts } = outlineButton('request', ['outline-num', 'method-badge', 'outline-name', 'outline-meta', 'outline-url']);
-  const entry = node('li');
+  const entry = el('li');
   entry.appendChild(button);
   return { entry, button, parts };
 }
@@ -149,14 +143,14 @@ function createRequestEntry() {
 let runSerial = 0;
 function createSectionEntry() {
   const { button, parts } = outlineButton('group', ['outline-name', 'outline-part', 'outline-off', 'outline-count', 'outline-cond']);
-  const toggle = node('button', 'outline-toggle');
+  const toggle = el('button', 'outline-toggle');
   toggle.type = 'button';
-  const list = node('ol', 'outline-list outline-run');
+  const list = el('ol', 'outline-list outline-run');
   list.id = `outline-run-${++runSerial}`;
   toggle.setAttribute('aria-controls', list.id);
-  const head = node('div', 'outline-section-head');
+  const head = el('div', 'outline-section-head');
   head.append(toggle, button);
-  const entry = node('li', 'outline-section');
+  const entry = el('li', 'outline-section');
   entry.append(head, list);
   return { entry, button, parts, toggle, list };
 }
@@ -255,15 +249,15 @@ function prune(cache, live) {
 }
 
 export function createFlowOutline({ view, onAddRequest, onAddGroup }) {
-  const outline = node('aside', 'flow-outline');
+  const outline = el('aside', 'flow-outline');
   outline.id = 'flow-outline';
   outline.setAttribute('aria-label', 'Request flow outline');
-  const head = node('div', 'outline-head');
-  const title = node('div');
-  title.append(node('strong', '', 'Requests'), node('small', '', 'Execution order, inside their groups'));
-  const actions = node('div', 'outline-actions');
+  const head = el('div', 'outline-head');
+  const title = el('div');
+  title.append(el('strong', '', 'Requests'), el('small', '', 'Execution order, inside their groups'));
+  const actions = el('div', 'outline-actions');
   const addButton = (id, text, label) => {
-    const add = node('button', 'btn ghost sm outline-add', text);
+    const add = el('button', 'btn ghost sm outline-add', text);
     add.type = 'button';
     add.id = id;
     add.setAttribute('aria-label', label);
@@ -273,9 +267,9 @@ export function createFlowOutline({ view, onAddRequest, onAddGroup }) {
   const addRequest = addButton('outline-add-request', '+ Request', 'Add request');
   const addGroup = addButton('outline-add-group', '+ Group', 'Add group');
   head.append(title, actions);
-  const tree = node('ol', 'outline-list outline-tree');
-  const empty = node('p', 'outline-empty', 'No requests yet.');
-  const note = node('p', 'outline-note', 'Requests run in number order; a group split by other requests shows once per part.');
+  const tree = el('ol', 'outline-list outline-tree');
+  const empty = el('p', 'outline-empty', 'No requests yet.');
+  const note = el('p', 'outline-note', 'Requests run in number order; a group split by other requests shows once per part.');
   outline.append(head, tree, empty, note);
 
   let selection = null;

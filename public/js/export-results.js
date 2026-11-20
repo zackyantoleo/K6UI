@@ -4,7 +4,7 @@
 // used as a data file. One DOM for Simple and Advanced; file names and values
 // are rendered as text only. The pure model at the top needs no DOM.
 import { $ } from './dom.js';
-import { MAX_EXPORT_FILES, downloadName, toCsv } from './csv-export.js';
+import { MAX_EXPORT_FILES, downloadName, toCsv } from './shared/csv-export.js';
 import { useAsDataFile } from './data-files.js';
 
 // ── Model (pure) ───────────────────────────────────────────────

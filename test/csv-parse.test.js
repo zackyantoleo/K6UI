@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   CsvError, normalizeDelimiter, parseCsv, readDataSet, toColumnName,
-} from '../public/js/csv-parse.js';
+} from '../public/js/shared/csv-parse.js';
 
 test('parses plain rows with LF, CRLF, and CR line ends and skips empty lines', () => {
   const expected = [['a', 'b'], ['1', '2'], ['3', '4']];
