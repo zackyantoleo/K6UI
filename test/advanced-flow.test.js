@@ -75,7 +75,7 @@ test('outline is a text-only sibling that never reparents cards; handlers notify
     const source = await read(`public/js/components/${file}`);
     assert.doesNotMatch(source, /innerHTML|insertAdjacentHTML|cloneNode|collectConfig|applyConfig|projectStore|ensureRequestPanel/, file);
   }
-  assert.match(config, /collectReqList\('reqs-main'\)/, 'collector still reads every card in #reqs-main');
+  assert.match(config, /collectReqList\('reqs-main'[,)]/, 'collector still reads every card in #reqs-main');
   assert.equal(requestCard.match(/notifyFlowChanged\(/g)?.length, 3, 'move up/down (one shared afterMove), duplicate, remove');
   assert.match(requestCard, /function afterMove\([^)]*\) \{[^}]*notifyFlowChanged\(\)/s);
   const arrange = await read('public/js/components/flow-arrange.js');

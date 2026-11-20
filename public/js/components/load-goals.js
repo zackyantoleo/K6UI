@@ -77,6 +77,15 @@ export function restoreLoadMode(mode) {
   custom = true;
 }
 
+// A reopened browser draft (draft.js): its preset goal again, after restoreLoadMode()
+// showed it as Custom. A preset is only kept while it was not edited (an edit makes
+// it Custom), so the stages are still the preset's.
+export function restoreLoadGoal(goal) {
+  if (!LOAD_PRESETS[goal] || readLoadMode() !== 'stages') return;
+  chooseGoal(goal);
+  custom = false;
+}
+
 // Called once at startup.
 export function initLoadGoals() {
   for (const card of $$('.load-goal[data-goal]')) {

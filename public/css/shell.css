@@ -27,6 +27,16 @@
 }
 .topbar-end { display: flex; align-items: center; gap: var(--space-3); margin-left: auto; }
 
+/* Browser draft (draft.js): whether this browser keeps the project as typed. */
+.draft-status {
+  display: inline-flex; align-items: center; gap: 6px; margin-left: var(--space-2);
+  font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap;
+}
+.draft-status[hidden] { display: none; }
+.draft-status::before { width: 14px; height: 14px; }
+.draft-status[data-tone="kept"]::before { color: var(--ok); }
+.draft-status[data-tone="refused"] { color: var(--warn); }
+
 /* Simple / Advanced: each option keeps a 44px target; the track and the
    selected pill are drawn smaller inside it. */
 .ui-mode-switch {
@@ -159,6 +169,16 @@
   font-size: 13px; color: var(--text-muted);
 }
 .toolbar-label { margin-right: auto; }
+
+/* ── Medium widths: the top bar keeps Run in view ───────────────
+   The draft status keeps its icon (its text stays for assistive tech and in the
+   tooltip), then the project actions become icon-only as below 960px. */
+@media (max-width: 1365px) {
+  .draft-status { font-size: 0; gap: 0; margin-left: var(--space-1); }
+}
+@media (max-width: 1099px) {
+  .project-actions .btn { gap: 0; padding: 0; width: 36px; min-height: 36px; font-size: 0; }
+}
 
 /* ── Narrow screens: the sidebar becomes a strip above the view ── */
 @media (max-width: 960px) {

@@ -78,7 +78,9 @@ export function saveProject() {
   URL.revokeObjectURL(a.href);
 }
 
-export function applyConfig(cfg) {
+// `focusHeading: false` when the page opens a project on its own (the browser
+// draft at startup), so focus stays where a fresh page leaves it.
+export function applyConfig(cfg, { focusHeading = true } = {}) {
   cfg = projectStore.replace(migrateProject(cfg));
   const mode = cfg.load?.mode || 'simple';
   // Shown as the Custom goal (Race burst for a race load); its values count as custom.
@@ -135,5 +137,5 @@ export function applyConfig(cfg) {
   // Race burst settings: those of the project, else the defaults (the request list follows the cards).
   restoreRaceSettings(mode === 'race' ? cfg.load : {});
   window.dispatchEvent(new CustomEvent('k6ui:project-applied'));
-  navigate('flow');
+  navigate('flow', { focusHeading });
 }

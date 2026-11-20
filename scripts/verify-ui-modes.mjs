@@ -723,18 +723,25 @@ try {
     }
   }
 
-  // 8. Storage hygiene (A7): only the UI-mode enum is stored by the browser.
+  // 8. Storage hygiene (A7): the UI-mode enum and the project draft (draft.js), nothing else.
   if (sections.has('storage')) {
     const stored = await page.evaluate(() => ({
       local: Object.fromEntries(Object.keys(localStorage).map(key => [key, localStorage.getItem(key)])),
       session: Object.keys(sessionStorage),
       cookies: document.cookie,
     }));
-    assert.deepEqual(Object.keys(stored.local), ['k6ui.uiMode']);
+    assert.deepEqual(Object.keys(stored.local).filter(key => key !== 'k6ui.draft'), ['k6ui.uiMode']);
     assert.match(stored.local['k6ui.uiMode'], /^(simple|advanced)$/);
+    if (stored.local['k6ui.draft']) {
+      const draft = JSON.parse(stored.local['k6ui.draft']);
+      assert.deepEqual(Object.keys(draft).sort(), ['project', 'savedAt', 'ui', 'version']);
+      assert.equal(draft.version, 1);
+      assert.deepEqual(Object.keys(draft.ui).sort(), ['goal', 'view']);
+      assert.equal('uiMode' in draft.project, false, 'The mode is never part of the draft project');
+    }
     assert.deepEqual(stored.session, []);
     assert.equal(stored.cookies, '');
-    checks.push('A7 storage after the whole session: localStorage holds only k6ui.uiMode (enum); no sessionStorage or cookies');
+    checks.push('A7 storage after the whole session: localStorage holds k6ui.uiMode (enum) and the k6ui.draft project only; no sessionStorage or cookies');
   }
 
   // 9. Measurements (A11): recorded, not enforced — host timing is noisy.

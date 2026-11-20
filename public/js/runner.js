@@ -97,11 +97,17 @@ function stopElapsedTimer() {
   tickElapsed();
 }
 
+// A run is in progress (its stream is open): leaving the page now would stop it.
+export const isTestRunning = () => Boolean(abortCtrl);
+
 export function setRunning(running) {
   $('#run-btn').classList.toggle('hidden', running);
   $('#stop-btn').classList.toggle('hidden', !running);
   $('#results-run-btn').disabled = running;
   $('#prerun-run-btn').disabled = running;
+  // "New" reloads the page, which would stop the run.
+  const newProject = $('#new-project-btn');
+  if (newProject) newProject.disabled = running;
   syncReportButtons(running);
   const dot = $('#nav-run-dot');
   if (running) {

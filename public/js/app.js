@@ -2,16 +2,17 @@
 // render. Per-feature logic lives in each module (see the header comment
 // of every file).
 import { $, $$ } from './dom.js';
-import { navigate } from './nav.js';
+import { getCurrentView, navigate } from './nav.js';
 import { initUiMode } from './ui-mode.js';
 import { variableRow, headerRow } from './components/rows.js';
 import { addRequest, buildFlowView, defaultStageRows } from './components/flow-view.js';
-import { collectConfig, validate } from './config.js';
+import { collectConfig, readProjectDraft, validate } from './config.js';
 import {
   runTest, stopTest, applyReqFilter, checkK6, activateResultsTab,
   clearResults, clearLiveLog, clearErrors, syncRequestLogFields, sortRequestLog,
-  downloadRunReport,
+  downloadRunReport, isTestRunning,
 } from './runner.js';
+import { initDraft } from './draft.js';
 import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';
 import { initScriptImport } from './script-import.js';
@@ -27,7 +28,8 @@ import { initVariablesPanel } from './components/variables-panel.js';
 import { initVariableSuggest } from './components/var-suggest.js';
 import { initViewBlocks } from './components/view-blocks.js';
 import { initStepSummaries } from './components/step-summary.js';
-import { initLoadGoals } from './components/load-goals.js';
+import { initLoadGoals, restoreLoadGoal } from './components/load-goals.js';
+import { chosenGoal } from './components/load-chart.js';
 import { initPassFailGoals } from './components/pass-fail-goals.js';
 import { initRunCheck } from './components/run-check.js';
 import { initSendOnce } from './components/send-once.js';
@@ -172,4 +174,27 @@ initRunCheck();
 initSendOnce();
 initUiMode();
 navigate('flow', { focusHeading: false });
+
+// ── Browser draft: reopen the last visit, keep every change (draft.js) ──
+// After every form exists, so the fresh page is the empty project.
+const draft = initDraft({
+  read: readProjectDraft,
+  readUi: () => ({ view: getCurrentView(), goal: chosenGoal() }),
+  apply(project, ui) {
+    applyConfig(project, { focusHeading: false });
+    restoreLoadGoal(ui.goal);
+    // The k6 Script view shows a script only once it is generated, so it opens on Build Flow.
+    const known = $$('.nav-link[data-view]').some(link => link.dataset.view === ui.view);
+    if (known && ui.view !== 'script') navigate(ui.view, { focusHeading: false });
+  },
+  isRunning: isTestRunning,
+});
+
+$('#new-project-btn').addEventListener('click', () => {
+  if (isTestRunning()) return;
+  if (draft.hasWork() && !confirm('Start a new, empty project?\n\nThe current project is removed from this browser. Use Save first if you want to keep it as a file.')) return;
+  draft.discard();
+  window.location.reload();
+});
+
 checkK6();

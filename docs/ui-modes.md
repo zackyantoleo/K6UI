@@ -34,7 +34,10 @@ when changing either mode.
    `/api/generate` or `/api/run` payloads, or `schemaVersion`. The only stored
    value is the enum in `localStorage['k6ui.uiMode']` (`simple` or
    `advanced`). An invalid value or a storage error falls back to Advanced, and
-   the switch still works for the session. This is a preference, not autosave.
+   the switch still works for the session. This is a preference, not autosave:
+   the project itself is kept apart, as the browser draft
+   (`localStorage['k6ui.draft']`, `public/js/draft.js`), which never holds the
+   mode either.
 5. **One run.** Run/Stop, the SSE stream, and the results panel have one owner
    (`runner.js`). Switching mid-run does not start, stop, or clear anything.
    The selected results tab, filter, rows, elapsed time, and verdict persist.
@@ -133,7 +136,7 @@ page error, console error, or unexpected dialog. It covers:
   controls, the URL field width, unstyled buttons, and WCAG AA text contrast,
   plus empty and 100-request projects
 - every Tab stop visible with a focus indicator
-- only `k6ui.uiMode` in browser storage
+- only `k6ui.uiMode` and the project draft `k6ui.draft` in browser storage
 - 100-request restore and switch timings (recorded, not enforced)
 
 It then runs the older stage checks (`verify-ui-mode-shell.mjs`,
