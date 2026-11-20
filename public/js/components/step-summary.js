@@ -4,7 +4,8 @@
 // Load & goals pages. Presentation only: it reads the forms as typed (never a
 // lazy request panel, the store, or the mode) and writes text with textContent.
 import { $, $$ } from '../dom.js';
-import { formatDuration, loadShape, readLoadForm, readVariables } from './load-chart.js';
+import { chosenGoal, formatDuration, loadShape, readLoadForm, readVariables } from './load-chart.js';
+import { readThresholdFields } from './pass-fail-goals.js';
 
 const plural = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 const PRESET_NAMES = { smoke: 'Smoke', load: 'Load', stress: 'Stress' };
@@ -18,6 +19,7 @@ const RUN_TEXT = {
 };
 
 // The load part of the Load & goals summary; '' when the form cannot run yet.
+// `preset` = the chosen goal; only Smoke, Load and Stress are named.
 export function loadSummary(form, shape, preset = '') {
   if (!shape || shape.problem) return '';
   let text;
@@ -75,8 +77,9 @@ function readState() {
     variables: filled('#global-vars-list .var-key'),
     headers: filled('#global-headers-list .h-key'),
     dataFiles: $$('#data-files-list .data-file-card').length,
-    load: loadSummary(form, shape, $('.preset-btn[aria-pressed="true"]')?.dataset.preset),
-    goals: filled('#p95') + filled('#errorRate') + $$('#outcome-targets-list .outcome-target-row').length,
+    load: loadSummary(form, shape, chosenGoal()),
+    goals: Object.values(readThresholdFields()).filter(value => String(value).trim()).length
+      + $$('#outcome-targets-list .outcome-target-row').length,
     run: runClass || 'idle',
   };
 }
@@ -109,7 +112,7 @@ export function initStepSummaries() {
   for (const type of ['k6ui:flow-changed', 'k6ui:project-applied', 'k6ui:request-group-changed', 'k6ui:data-sets-changed']) {
     window.addEventListener(type, schedule);
   }
-  // Values set from code: presets, an opened project, a run that ends.
+  // Values set from code: goals, an opened project, a run that ends.
   const observer = new MutationObserver(schedule);
   for (const selector of ['#reqs-main', '#stages', '#outcome-targets-list', '#data-files-list', '#global-vars-list', '#global-headers-list']) {
     const element = $(selector);
@@ -117,6 +120,6 @@ export function initStepSummaries() {
   }
   const runState = $('#run-state');
   if (runState) observer.observe(runState, { attributes: true, attributeFilter: ['class'] });
-  for (const button of $$('.preset-btn[data-preset]')) observer.observe(button, { attributes: true, attributeFilter: ['aria-pressed'] });
+  for (const button of $$('.load-goal[data-goal]')) observer.observe(button, { attributes: true, attributeFilter: ['aria-pressed'] });
   render();
 }

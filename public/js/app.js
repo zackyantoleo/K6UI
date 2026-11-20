@@ -5,7 +5,7 @@ import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { initUiMode } from './ui-mode.js';
 import { variableRow, headerRow } from './components/rows.js';
-import { addRequest, buildFlowView, defaultStageRows, stageRow } from './components/flow-view.js';
+import { addRequest, buildFlowView, defaultStageRows } from './components/flow-view.js';
 import { collectConfig, validate } from './config.js';
 import {
   runTest, stopTest, applyReqFilter, checkK6, activateResultsTab,
@@ -27,6 +27,8 @@ import { initVariablesPanel } from './components/variables-panel.js';
 import { initVariableSuggest } from './components/var-suggest.js';
 import { initViewBlocks } from './components/view-blocks.js';
 import { initStepSummaries } from './components/step-summary.js';
+import { initLoadGoals } from './components/load-goals.js';
+import { initPassFailGoals } from './components/pass-fail-goals.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -35,83 +37,6 @@ $$('.nav-link[data-view]').forEach(link => {
     else navigate(link.dataset.view);
   });
 });
-
-// ── Load presets and custom editor ─────────────────────────────
-const LOAD_PRESETS = {
-  smoke:  { stages: [{ duration: '30s', target: '1' }] },
-  load:   { stages: [{ duration: '1m', target: '10' }, { duration: '3m', target: '10' }, { duration: '1m', target: '0' }] },
-  stress: { stages: [{ duration: '2m', target: '10' }, { duration: '2m', target: '50' }, { duration: '1m', target: '50' }, { duration: '1m', target: '0' }] },
-};
-
-let loadPresetDirty = false;
-let applyingLoadPreset = false;
-
-function setLoadMode(mode) {
-  const radio = $(`input[name="load-mode"][value="${mode}"]`);
-  if (radio) radio.checked = true;
-  $('#load-simple').classList.toggle('hidden', mode !== 'simple');
-  $('#load-stages').classList.toggle('hidden', mode !== 'stages');
-  $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
-  $('#load-race').classList.toggle('hidden', mode !== 'race');
-}
-
-function setLoadEditorExpanded(expanded) {
-  $('#load-custom-editor').classList.toggle('hidden', !expanded);
-  $('#customize-load').setAttribute('aria-expanded', String(expanded));
-  $('#customize-load').textContent = expanded ? 'Hide custom values' : 'Customize';
-}
-
-function selectPresetButton(selected) {
-  $$('.preset-btn[data-preset]').forEach(item => {
-    const active = item === selected;
-    item.classList.toggle('selected', active);
-    item.setAttribute('aria-pressed', String(active));
-  });
-}
-
-function markLoadCustom() {
-  if (applyingLoadPreset) return;
-  loadPresetDirty = true;
-  selectPresetButton(null);
-}
-
-$$('input[name="load-mode"]').forEach(r => r.addEventListener('change', () => {
-  setLoadMode($('input[name="load-mode"]:checked').value);
-  markLoadCustom();
-}));
-
-$('#add-stage').addEventListener('click', () => {
-  $('#stages').appendChild(stageRow());
-  markLoadCustom();
-});
-
-$('#load-custom-editor').addEventListener('input', markLoadCustom);
-$('#stages').addEventListener('click', event => {
-  if (event.target.closest('.btn-remove-sm')) markLoadCustom();
-});
-$('#customize-load').addEventListener('click', () =>
-  setLoadEditorExpanded($('#customize-load').getAttribute('aria-expanded') !== 'true'));
-
-$$('.preset-btn[data-preset]').forEach(button => {
-  button.addEventListener('click', () => {
-    if (loadPresetDirty && !confirm('Replace your custom load values with this preset? Cancel to keep your custom load values.')) return;
-    const preset = LOAD_PRESETS[button.dataset.preset];
-    applyingLoadPreset = true;
-    setLoadMode('stages');
-    $('#stages').replaceChildren(...preset.stages.map(stage => stageRow(stage.duration, stage.target)));
-    applyingLoadPreset = false;
-    loadPresetDirty = false;
-    selectPresetButton(button);
-    setLoadEditorExpanded(false);
-  });
-});
-
-function protectLoadedLoadValues() {
-  loadPresetDirty = true;
-  selectPresetButton(null);
-}
-
-window.addEventListener('k6ui:project-applied', protectLoadedLoadValues);
 
 // ── Global variables & headers ─────────────────────────────────
 $('#add-global-var').addEventListener('click', () =>
@@ -226,6 +151,8 @@ $('#global-headers-list').appendChild(headerRow());
 $('#stages').replaceChildren(...defaultStageRows());
 
 initDataFiles();
+initLoadGoals();
+initPassFailGoals();
 initLoadChart();
 initCurlImport();
 initScriptImport();

@@ -15,6 +15,8 @@ import { normalizeRequestLog } from './request-log.js';
 import { syncRequestLogFields } from './runner.js';
 import { restoreOutcomeTargetRows } from './components/outcome-target-rows.js';
 import { restoreRaceSettings } from './components/race-settings.js';
+import { restoreLoadMode } from './components/load-goals.js';
+import { restoreThresholdFields } from './components/pass-fail-goals.js';
 
 // ── Internal helpers ───────────────────────────────────────────
 export function hydrateRequestCard(card, req) {
@@ -79,12 +81,8 @@ export function saveProject() {
 export function applyConfig(cfg) {
   cfg = projectStore.replace(migrateProject(cfg));
   const mode = cfg.load?.mode || 'simple';
-  const modeRadio = $(`input[name="load-mode"][value="${mode}"]`);
-  if (modeRadio) modeRadio.checked = true;
-  $('#load-simple').classList.toggle('hidden', mode !== 'simple');
-  $('#load-stages').classList.toggle('hidden', mode !== 'stages');
-  $('#load-iterations').classList.toggle('hidden', mode !== 'iterations');
-  $('#load-race').classList.toggle('hidden', mode !== 'race');
+  // Shown as the Custom goal (Race burst for a race load); its values count as custom.
+  restoreLoadMode(mode);
 
   // A project saves only the fields of its own load mode, so every other mode goes
   // back to what a fresh page shows instead of keeping the project opened before.
@@ -117,8 +115,8 @@ export function applyConfig(cfg) {
     if (h && h.key) gHeadersList.appendChild(headerRow(h.key, h.value ?? ''));
   }
 
-  $('#p95').value       = cfg.thresholds?.p95       ?? '';
-  $('#errorRate').value = cfg.thresholds?.errorRate ?? '';
+  // A goal with a value is switched on; an empty one stays off ("" = not used).
+  restoreThresholdFields(cfg.thresholds);
   const requestLog = normalizeRequestLog(cfg.options);
   const logReqEl = $('#log-requests');
   if (logReqEl) logReqEl.checked = requestLog.logRequests;

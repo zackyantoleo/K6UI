@@ -294,16 +294,18 @@ test('the store keeps one target shape, drops blank rows and follows request ids
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const stripComments = source => source.replace(/^\s*\/\/.*$/gm, '');
 
-test('the Thresholds / SLA view has one Outcome Targets card, filled in JS for both modes', () => {
+test('the Thresholds / SLA view has one list of outcome targets, added from "Add goal", for both modes', () => {
   const html = read('../public/index.html');
   const rows = read('../public/js/components/outcome-target-rows.js');
-  const card = html.match(/<div class="form-card outcome-targets" id="outcome-targets">[\s\S]*?<\/div>\s*<\/div>/)?.[0];
-  assert.ok(card, 'card in the view');
+  const card = html.match(/<div class="outcome-targets" id="outcome-targets">[\s\S]*?<\/div>\s*<\/div>/)?.[0];
+  assert.ok(card, 'list in the view');
   const goals = html.indexOf('id="load-block-goals" data-block="sla"');
   assert.ok(goals > 0 && goals < html.indexOf('id="outcome-targets"'), 'in the Load & goals page, the Thresholds / SLA block');
   assert.doesNotMatch(card, /data-ui-only/, 'shown in both modes');
   assert.match(card, /id="outcome-targets-list"/);
-  assert.match(card, /id="add-outcome-target"/);
+  const menu = html.match(/<div class="menu add-goal-menu" id="add-goal-menu"[\s\S]*?<\/div>/)?.[0];
+  assert.match(menu, /role="menuitem" id="add-outcome-target"/, 'the "Add goal" menu adds a target');
+  assert.doesNotMatch(menu, /data-ui-only/, 'shown in both modes');
   for (const cls of ['outcome-target-row', 'outcome-target-request', 'outcome-target-label', 'outcome-target-op', 'outcome-target-value']) {
     assert.match(rows, new RegExp(`'${cls}'`), cls);
   }

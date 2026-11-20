@@ -215,50 +215,32 @@
           </section>
         </section>
 
-        <!-- VIEW: Load Profile -->
+        <!-- VIEW: Load & goals (Load Profile and Thresholds / SLA in Advanced) -->
         <section id="view-load" class="view hidden">
           <div class="view-block" id="load-block-load" data-block="load">
-          <p class="view-hint" data-ui-only="simple">Choose a safe starter pattern, then customize it only when you need finer control.</p>
-          <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, stages, or iterations directly. Presets are optional starting points and ask before replacing custom values.</p>
-          <div class="preset-strip" aria-label="Starter load presets">
-            <span>Quick start:</span>
-            <span class="preset-item"><button type="button" class="preset-btn" data-preset="smoke" aria-pressed="false">Smoke <small>1 VU · 30s</small></button><button data-help="smoke"></button></span>
-            <span class="preset-item"><button type="button" class="preset-btn" data-preset="load" aria-pressed="false">Load <small>up to 10 VUs · 5m</small></button><button data-help="loadTest"></button></span>
-            <span class="preset-item"><button type="button" class="preset-btn" data-preset="stress" aria-pressed="false">Stress <small>up to 50 VUs · 6m</small></button><button data-help="stress"></button></span>
-            <button type="button" id="customize-load" class="btn ghost sm" aria-expanded="false" aria-controls="load-custom-editor">Customize</button>
+          <p class="view-hint" data-ui-only="simple">Pick what you want to find out. The settings below start with values that fit it.</p>
+          <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, stages, or iterations directly. The goals are optional starting points and ask before replacing custom values.</p>
+          <div class="load-goals" role="group" aria-labelledby="load-goal-title">
+            <h3 class="load-goals-title" id="load-goal-title">What do you want to find out?</h3>
+            <div class="load-goal-list" id="load-goal-list">
+              <span class="load-goal-item"><button type="button" class="load-goal" data-goal="smoke" aria-pressed="false" aria-describedby="load-goal-smoke-detail"><span class="load-goal-name">Smoke <span class="load-goal-badge">Start here</span></span><span class="load-goal-question">Does my flow work at all?</span><span class="load-goal-detail" id="load-goal-smoke-detail">1 user · 30s</span></button><button data-help="smoke"></button></span>
+              <span class="load-goal-item"><button type="button" class="load-goal" data-goal="load" aria-pressed="false" aria-describedby="load-goal-load-detail"><span class="load-goal-name">Load</span><span class="load-goal-question">Is it fast enough on a normal day?</span><span class="load-goal-detail" id="load-goal-load-detail">up to 10 users · 5m</span></button><button data-help="loadTest"></button></span>
+              <span class="load-goal-item"><button type="button" class="load-goal" data-goal="stress" aria-pressed="false" aria-describedby="load-goal-stress-detail"><span class="load-goal-name">Stress</span><span class="load-goal-question">Where does it start to break?</span><span class="load-goal-detail" id="load-goal-stress-detail">up to 50 users · 6m</span></button><button data-help="stress"></button></span>
+              <span class="load-goal-item"><button type="button" class="load-goal" data-goal="race" aria-pressed="false" aria-describedby="load-goal-race-detail"><span class="load-goal-name">Race burst</span><span class="load-goal-question">What if many users hit the same thing at the same moment?</span><span class="load-goal-detail" id="load-goal-race-detail">e.g. one voucher, two redeems</span></button><button data-help="race"></button></span>
+              <span class="load-goal-item"><button type="button" class="load-goal" data-goal="custom" aria-pressed="true" aria-describedby="load-goal-custom-detail"><span class="load-goal-name">Custom</span><span class="load-goal-question">I know the numbers I want</span><span class="load-goal-detail" id="load-goal-custom-detail">fixed users, steps or runs</span></button><button data-help="customLoad"></button></span>
+            </div>
           </div>
           <div class="page-cols">
-            <div id="load-custom-editor" class="form-card hidden">
-              <h3>Load Mode</h3>
-              <div class="radio-group">
-                <label class="radio-card">
-                  <input type="radio" name="load-mode" value="simple" checked aria-labelledby="load-mode-simple-name" aria-describedby="load-mode-simple-note" />
-                  <div>
-                    <span class="radio-card-title"><strong id="load-mode-simple-name">Fixed VUs</strong><button data-help="vu"></button></span>
-                    <span id="load-mode-simple-note">Constant number of VUs for the whole duration.</span>
-                  </div>
-                </label>
-                <label class="radio-card">
-                  <input type="radio" name="load-mode" value="stages" aria-labelledby="load-mode-stages-name" aria-describedby="load-mode-stages-note" />
-                  <div>
-                    <span class="radio-card-title"><strong id="load-mode-stages-name">Staged</strong><button data-help="stages"></button></span>
-                    <span id="load-mode-stages-note">Ramp up/down across stages.</span>
-                  </div>
-                </label>
-                <label class="radio-card">
-                  <input type="radio" name="load-mode" value="iterations" aria-labelledby="load-mode-iterations-name" aria-describedby="load-mode-iterations-note" />
-                  <div>
-                    <span class="radio-card-title"><strong id="load-mode-iterations-name">Iterations</strong><button data-help="iterationsMode"></button></span>
-                    <span id="load-mode-iterations-note">Each VU runs the flow a set number of times, then stops.</span>
-                  </div>
-                </label>
-                <label class="radio-card">
-                  <input type="radio" name="load-mode" value="race" aria-labelledby="load-mode-race-name" aria-describedby="load-mode-race-note" />
-                  <div>
-                    <span class="radio-card-title"><strong id="load-mode-race-name">Race burst</strong><button data-help="race"></button></span>
-                    <span id="load-mode-race-note">Every VU runs the flow once and sends one request at a planned moment.</span>
-                  </div>
-                </label>
+            <div id="load-settings" class="form-card load-settings" data-goal="custom">
+              <h3 id="load-settings-title">Custom settings</h3>
+              <p class="field-note load-goal-note" id="load-goal-note"></p>
+              <div class="field load-kind-field" id="load-kind-field">
+                <div class="label-row"><label for="load-kind">Kind of load</label></div>
+                <select id="load-kind">
+                  <option value="simple">Same number of users the whole time (fixed VUs)</option>
+                  <option value="stages">Users go up and down in steps (stages)</option>
+                  <option value="iterations">Each user runs the flow a set number of times (iterations)</option>
+                </select>
               </div>
 
               <div id="load-simple">
@@ -273,7 +255,8 @@
               </div>
 
               <div id="load-stages" class="hidden">
-                <div id="stages"></div>
+                <div class="label-row load-stages-label"><span class="field-label" id="load-stages-title">Steps</span><button data-help="stages"></button></div>
+                <div id="stages" role="group" aria-labelledby="load-stages-title"></div>
                 <button type="button" id="add-stage" class="btn ghost sm" data-icon="plus">Add Stage</button>
               </div>
 
@@ -296,22 +279,22 @@
               </div>
               <div id="load-race" class="load-race hidden">
                 <div class="field">
-                  <div class="label-row"><label for="race-request">Race request</label><button data-help="race"></button></div>
+                  <div class="label-row"><label for="race-request">Which request races</label><button data-help="race"></button></div>
                   <select id="race-request"></select>
-                  <span class="field-note">Requests before it run first, such as logging in. Then every VU waits and sends this one at its planned time, right before its pre-processor.</span>
-                </div>
-                <div class="field">
-                  <label for="race-timing">Timing</label>
-                  <select id="race-timing">
-                    <option value="together">Together: every VU at T0</option>
-                    <option value="spread">Spread: evenly over a window</option>
-                    <option value="offsets">Offsets: one time per VU</option>
-                  </select>
+                  <span class="field-note">The requests before it (logging in, for example) run first for every user. Then every user sends this one at its planned time.</span>
                 </div>
                 <div class="field" id="race-vus-field">
-                  <label for="race-vus">Virtual Users (VUs)</label>
+                  <div class="label-row"><label for="race-vus">Virtual Users (VUs)</label><button data-help="vu"></button></div>
                   <input type="text" id="race-vus" value="10" inputmode="numeric" autocomplete="off" spellcheck="false" />
                   <span class="field-note" id="race-vus-note">Each VU runs the flow once. A number, or a global variable like <code>{{RACERS}}</code>.</span>
+                </div>
+                <div class="field">
+                  <label for="race-timing">When they send</label>
+                  <select id="race-timing">
+                    <option value="together">All at the same moment</option>
+                    <option value="spread">Spread evenly over a few milliseconds</option>
+                    <option value="offsets">At times I set, one per VU</option>
+                  </select>
                 </div>
                 <div class="field hidden" id="race-spread-field">
                   <label for="race-spread">Spread <span class="muted-label">ms from the first VU to the last</span></label>
@@ -322,105 +305,88 @@
                   <input type="text" id="race-offsets" placeholder="0,1000,1000,1030" autocomplete="off" spellcheck="false" />
                   <span class="field-note">Separated by commas: VU 1 sends at T0 + the first offset, and so on. A global variable like <code>{{T2_MS}}</code> works too.</span>
                 </div>
-                <div class="field">
-                  <div class="label-row"><label for="race-lead">Lead time <span class="muted-label">ms</span></label><button data-help="raceLead"></button></div>
-                  <input type="text" id="race-lead" value="2000" inputmode="numeric" autocomplete="off" spellcheck="false" />
-                  <span class="field-note">T0 = when setup ends + this. It must cover starting the VUs and the requests before the race request; a VU that gets there later is reported as late.</span>
+                <div class="race-advanced">
+                  <div class="race-advanced-head">
+                    <button type="button" class="race-advanced-toggle" id="race-advanced-toggle" aria-expanded="false" aria-controls="race-advanced-body" data-ui-only="simple">Advanced timing</button>
+                    <h4 class="race-advanced-title" data-ui-only="advanced">Advanced timing</h4>
+                    <span class="race-advanced-sum" id="race-advanced-sum"></span>
+                  </div>
+                  <div class="race-advanced-body" id="race-advanced-body" hidden>
+                    <div class="field">
+                      <div class="label-row"><label for="race-lead">Lead time <span class="muted-label">ms</span></label><button data-help="raceLead"></button></div>
+                      <input type="text" id="race-lead" value="2000" inputmode="numeric" autocomplete="off" spellcheck="false" />
+                      <span class="field-note">T0 = when setup ends + this. It must cover starting the VUs and the requests before the race request; a VU that gets there later is reported as late.</span>
+                    </div>
+                    <div class="field">
+                      <label class="toggle-label"><input type="checkbox" id="race-warmup" checked /> Open the connection first (recommended)</label>
+                      <span class="field-note">Each VU sends a GET to the warm-up path on the race request's host before it waits, so the race request reuses an open connection. Any status is fine, and it still counts in the request total and the response times.</span>
+                    </div>
+                    <div class="field" id="race-warmup-path-field">
+                      <label for="race-warmup-path">Warm-up path</label>
+                      <input type="text" id="race-warmup-path" value="/" autocomplete="off" spellcheck="false" />
+                    </div>
+                    <div class="field">
+                      <label class="toggle-label"><input type="checkbox" id="race-fail-late" /> Fail the run when a VU is late</label>
+                      <span class="field-note">Off: a late VU is a warning in Run &amp; Results.</span>
+                    </div>
+                    <div class="field">
+                      <div class="label-row"><label for="race-max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label><button data-help="maxDuration"></button></div>
+                      <input type="text" id="race-max-duration" value="1h" />
+                      <span class="field-note">Safety limit: k6 stops the test if it is still running after this long.</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="field">
-                  <label class="toggle-label"><input type="checkbox" id="race-warmup" checked /> Open the connection first</label>
-                  <span class="field-note">Each VU sends a GET to the warm-up path on the race request's host before it waits, so the race request reuses an open connection. Any status is fine, and it still counts in the request total and the response times.</span>
-                </div>
-                <div class="field" id="race-warmup-path-field">
-                  <label for="race-warmup-path">Warm-up path</label>
-                  <input type="text" id="race-warmup-path" value="/" autocomplete="off" spellcheck="false" />
-                </div>
-                <div class="field">
-                  <label class="toggle-label"><input type="checkbox" id="race-fail-late" /> Fail the run when a VU is late</label>
-                  <span class="field-note">Off: a late VU is a warning in Run &amp; Results.</span>
-                </div>
-                <div class="field">
-                  <div class="label-row"><label for="race-max-duration">Max duration <span class="muted-label">e.g. 10m, 1h</span></label><button data-help="maxDuration"></button></div>
-                  <input type="text" id="race-max-duration" value="1h" />
-                  <span class="field-note">Safety limit: k6 stops the test if it is still running after this long.</span>
-                </div>
-              </div>
-              <div class="load-guidance" aria-label="Load terminology guide">
-                <p><strong>VUs</strong> simulate concurrent users running your request flow.</p>
-                <p><strong>Duration</strong> is how long each fixed period or ramp stage runs.</p>
               </div>
             </div>
 
-            <div class="page-col-stack">
             <section class="form-card load-shape" aria-labelledby="load-shape-title">
-              <h3 id="load-shape-title">Load shape</h3>
-              <p id="load-shape-summary" class="load-shape-summary"></p>
+              <h3 id="load-shape-title">What will happen</h3>
+              <p id="load-shape-summary" class="load-shape-summary" aria-live="polite"></p>
               <svg id="load-chart" class="load-chart" viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true"></svg>
               <div class="load-axis" aria-hidden="true"><span id="load-axis-start">0s</span><span id="load-axis-end"></span></div>
               <dl class="load-stats">
-                <div><dt>Peak</dt><dd id="load-peak">—</dd></div>
-                <div><dt>Total time</dt><dd id="load-total">—</dd></div>
-                <div><dt>Mode</dt><dd id="load-mode-name">—</dd></div>
+                <div><dt>Most users at once</dt><dd id="load-peak">—</dd></div>
+                <div><dt>Length</dt><dd id="load-total">—</dd></div>
+                <div><dt>Kind</dt><dd id="load-mode-name">—</dd></div>
               </dl>
             </section>
-            <div class="form-card info-card">
-              <h3>What these terms mean</h3>
-              <p class="note"><strong>VUs simulate concurrent users.</strong> One VU repeatedly runs the complete request flow.</p>
-              <p class="note"><strong>Duration is how long</strong> the load remains fixed or ramps toward its target.</p>
-              <h4>Duration examples</h4>
-              <table class="ref-table">
-                <tr><td><code>30s</code></td><td>30 seconds</td></tr>
-                <tr><td><code>5m</code></td><td>5 minutes</td></tr>
-                <tr><td><code>1h</code></td><td>1 hour</td></tr>
-                <tr><td><code>1h30m</code></td><td>1 hour 30 minutes</td></tr>
-              </table>
-              <p class="note">Staged mode: each stage defines a transition from the current VU count to the target VU count over the given time range.</p>
-              <p class="note">Iterations mode: every VU starts at once and runs the whole flow a fixed number of times, then the test ends. Total runs = VUs × iterations.</p>
-              <p class="note">Race burst: every VU runs the flow once and sends the race request at T0 + its offset, to test what happens when requests arrive at the same moment. The send times are k6's, not when the server received them.</p>
-            </div>
-            </div>
           </div>
           </div>
 
           <section class="view-block" id="load-block-goals" data-block="sla" aria-labelledby="load-goals-title">
             <div class="view-block-head">
-              <h3 class="view-block-title" id="load-goals-title">Pass/fail goals</h3>
+              <h3 class="view-block-title" id="load-goals-title">Pass or fail</h3>
               <button data-help="threshold"></button>
               <span class="view-block-sum" id="load-goals-sum"></span>
             </div>
-            <p class="view-hint">If a goal is missed the test is marked Failed and k6 exits with code 99, so a CI pipeline can stop a release. Every goal is optional.</p>
-          <div class="page-cols">
-            <div class="page-col-stack">
-              <div class="form-card">
-                <h3>Performance Targets</h3>
-                <div class="field">
-                  <div class="label-row"><label for="p95">Max p95 response time <span class="muted-label">(ms)</span></label><button data-help="p95"></button></div>
-                  <input type="number" id="p95" min="0" placeholder="e.g. 500" />
-                  <span class="field-note">p95 means 95% of requests must finish below this response time.</span>
-                </div>
-                <div class="field">
-                  <div class="label-row"><label for="errorRate">Max error rate <span class="muted-label">(%)</span></label><button data-help="errorRate"></button></div>
-                  <input type="number" id="errorRate" min="0" max="100" step="0.1" placeholder="e.g. 1" />
-                  <span class="field-note">Error rate is the percentage of HTTP requests allowed to fail.</span>
-                </div>
+            <p class="view-hint">The test is marked Failed when a goal you switched on is missed (k6 exits with code 99, so a CI pipeline can stop a release). 500 ms and 1% are common starting points for an API; ask your team for the real numbers.</p>
+            <div class="pass-goals" id="pass-goals">
+              <div class="pass-goal" id="goal-p95-row">
+                <input type="checkbox" class="switch-input" id="goal-p95-on" aria-label="Use the response time goal" />
+                <span class="pass-goal-text" id="goal-p95-text"><span>95% of requests finish within</span> <input type="number" id="p95" min="0" value="500" aria-label="Response time in milliseconds" disabled /> <span>ms</span></span>
+                <button data-help="p95"></button>
+                <code class="pass-goal-tech" id="goal-p95-tech" data-ui-only="advanced"></code>
+              </div>
+              <div class="pass-goal" id="goal-error-row">
+                <input type="checkbox" class="switch-input" id="goal-error-on" aria-label="Use the failed requests goal" />
+                <span class="pass-goal-text" id="goal-error-text"><span>Less than</span> <input type="number" id="errorRate" min="0" max="100" step="0.1" value="1" aria-label="Failed requests in percent" disabled /> <span>% of requests fail</span></span>
+                <button data-help="errorRate"></button>
+                <code class="pass-goal-tech" id="goal-error-tech" data-ui-only="advanced"></code>
               </div>
 
-              <div class="form-card outcome-targets" id="outcome-targets">
-                <div class="label-row"><h3 id="outcome-targets-title">Outcome Targets</h3><button data-help="outcomeTarget"></button></div>
-                <p class="field-note">How many responses of a request may get one label of its outcome rules (a request's "Label each response" part). The count is a number or a global variable such as <code>{{QUOTA}}</code>.</p>
-                <p class="outcome-targets-empty note" id="outcome-targets-empty">No request has outcome rules yet. Add them to a request with "+ Add to this request" → Label each response, then set targets on their labels here.</p>
+              <div class="outcome-targets" id="outcome-targets">
+                <div class="label-row outcome-targets-head"><h4 id="outcome-targets-title">Response label counts</h4><span class="tag-advanced">Advanced</span><button data-help="outcomeTarget"></button></div>
+                <p class="field-note">How many responses of a request may get one label of its outcome rules (a request's "Label each response" part). The count is a number or a global variable such as <code>{{QUOTA}}</code>. A target on a request that does not run is not checked, and the results say so.</p>
                 <div id="outcome-targets-list" class="outcome-targets-list" role="list" aria-labelledby="outcome-targets-title"></div>
-                <button type="button" class="add-row-btn" id="add-outcome-target">+ Add outcome target</button>
+              </div>
+
+              <div class="menu-wrap add-goal">
+                <button type="button" class="btn ghost sm menu-btn" data-icon="plus" id="add-goal-btn" aria-controls="add-goal-menu">Add goal</button>
+                <div class="menu add-goal-menu" id="add-goal-menu" role="menu" aria-label="Add goal" hidden>
+                  <button type="button" class="menu-item" role="menuitem" id="add-outcome-target"><strong>Count of a response label <span class="tag-advanced">Advanced</span></strong><span>For example "success at most 100" in a race test.</span><span class="outcome-targets-empty" id="outcome-targets-empty">No request labels its responses yet: add "Label each response" to a request first.</span></button>
+                </div>
               </div>
             </div>
-
-            <div class="form-card info-card">
-              <h3>What are Thresholds?</h3>
-              <p class="note">Thresholds are the pass criteria for the test. If they are not met, k6 exits with <strong>exit code 99</strong>.</p>
-              <p class="note">Example: if you set p95 = 500ms and 5% of requests exceed it, the test is marked <strong class="text-danger">FAILED</strong>.</p>
-              <p class="note">Outcome targets check the labels of a request's outcome rules, for example <strong>success at most {{QUOTA}}</strong> in a race test: no more redeems than the quota allows. A target on a request that does not run (turned off, or in a turned-off group) is not checked, and the results say so.</p>
-            </div>
-          </div>
           </section>
         </section>
 

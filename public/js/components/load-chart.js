@@ -1,12 +1,15 @@
-// "Load shape" on the Load view: virtual users over time for the load form as
-// typed; for a race burst, the planned send time of every VU after T0. Presentation
-// only: it reads the load inputs (and the global variables a race time may name),
-// never the project store, and changes nothing that is saved, generated, or run.
+// "What will happen" on the Load view: a sentence, virtual users over time for the
+// load form as typed and three figures; for a race burst, the planned send time of
+// every VU after T0. Presentation only: it reads the load inputs (and the global
+// variables a race time may name), never the project store, and changes nothing that
+// is saved, generated, or run. The load mode is read from the form here
+// (readLoadMode): the Race burst goal, else the kind of load.
 import { $, $$ } from '../dom.js';
 import { describeRacePlan, planRaceTiming } from '../race.js';
 
 const UNIT_SECONDS = { ms: 0.001, s: 1, m: 60, h: 3600, d: 86400 };
 const MODE_NAMES = { simple: 'Fixed VUs', stages: 'Staged', iterations: 'Iterations', race: 'Race burst' };
+const GOAL_NAMES = { smoke: 'Smoke', load: 'Load', stress: 'Stress', race: 'Race burst' };
 
 // "30s", "5m", "1h30m" → seconds; null for anything k6 would not read as a duration.
 export function parseDuration(text) {
@@ -86,7 +89,59 @@ export function loadShape(load, variables = []) {
   };
 }
 
+const RACE_WHEN = {
+  together: () => 'at the same moment',
+  spread: shape => (shape.last ? `spread over ${shape.last} ms` : 'at the same moment'),
+  offsets: () => 'at the times you set',
+};
+
+// The plain sentence of "What will happen" for a shape from loadShape(); '' when
+// there is nothing to say yet. `goal` = the chosen goal (smoke, load, stress, race,
+// custom), `requests` = how many requests are on, `raceRequest` = the race request's name.
+export function loadSentence(form, shape, { goal = 'custom', requests = 0, raceRequest = '' } = {}) {
+  if (!shape || shape.problem) return '';
+  const flow = requests ? `your ${plural(requests, 'request')}` : 'the flow';
+  let text;
+  if (shape.mode === 'race') {
+    const when = (RACE_WHEN[form.race?.timing] || RACE_WHEN.offsets)(shape);
+    const request = raceRequest ? `"${raceRequest}"` : 'the race request';
+    text = `${plural(shape.peak, 'user')} each run the requests before ${request} once, then send it ${when}.`;
+  } else if (shape.mode === 'iterations') {
+    const times = Math.max(1, Math.floor(Number(form.iterations)) || 1);
+    text = shape.peak === 1
+      ? `1 user runs ${flow} ${plural(times, 'time')}, then stops.`
+      : `${plural(shape.peak, 'user')} each run ${flow} ${plural(times, 'time')} (${plural(shape.peak * times, 'run')} in total), then stop.`;
+  } else if (shape.mode === 'stages' && !shape.points.every(([, users]) => users === shape.peak)) {
+    const end = shape.points.at(-1)[1];
+    const parts = [`Starts with ${plural(shape.points[0][1], 'user')}`];
+    if (shape.peak > shape.points[0][1]) parts.push(`climbs to ${plural(shape.peak, 'user')}`);
+    if (end < shape.peak) parts.push(`then comes back down to ${end}`);
+    text = `${parts.join(', ')}. The whole test takes ${formatDuration(shape.total)}.`;
+  } else {
+    text = `${plural(shape.peak, 'user')} ${shape.peak === 1 ? 'runs' : 'run'} ${flow} over and over for ${formatDuration(shape.total)}`
+      + `${shape.mode === 'simple' && shape.peak > 1 ? ', all starting at once' : ''}.`;
+  }
+  return goal === 'smoke' ? `${text} If anything fails here, fix it before adding load.` : text;
+}
+
 // ── DOM adapter ──────────────────────────────────────────────────
+
+// The goal chosen under "What do you want to find out?" (presentation only).
+export function chosenGoal() {
+  return $('.load-goal[aria-pressed="true"]')?.dataset.goal || 'custom';
+}
+
+// The load mode of the form: race when the Race burst goal is chosen, else the kind of load.
+export function readLoadMode() {
+  return chosenGoal() === 'race' ? 'race' : ($('#load-kind')?.value || 'simple');
+}
+
+// "Request 2 · Redeem" for the race request, or the first request that runs.
+function raceRequestName() {
+  const select = $('#race-request');
+  const text = select?.selectedOptions[0]?.textContent || '';
+  return select?.value ? text : (/\((.*)\)$/.exec(text)?.[1] || '');
+}
 const WIDTH = 600, HEIGHT = 150, HEADROOM = 12;
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -101,7 +156,7 @@ const VUS_INPUT = { iterations: '#iter-vus', race: '#race-vus' };
 const MAX_DURATION_INPUT = { race: '#race-max-duration' };
 
 export function readLoadForm() {
-  const mode = $('input[name="load-mode"]:checked')?.value || 'simple';
+  const mode = readLoadMode();
   return {
     mode,
     vus: $(VUS_INPUT[mode] || '#vus').value,
@@ -174,17 +229,21 @@ export function initLoadChart() {
     const shaped = loadShape(form, form.mode === 'race' ? readVariables() : []);
     const model = shaped?.problem ? null : shaped;
     draw(chart, model);
-    $('#load-shape-summary').textContent = model ? model.summary
-      : shaped?.problem || 'Enter a duration such as 30s or 5m to see the shape.';
-    $('#load-peak').textContent = model ? plural(model.peak, 'VU') : '—';
-    $('#load-total').textContent = !model ? '—' : model.open ? `Up to ${formatDuration(model.total)}` : formatDuration(model.total);
-    $('#load-mode-name').textContent = MODE_NAMES[form.mode] || '—';
+    const goal = chosenGoal();
+    const requests = $$('#reqs-main .req-card .request-enabled').filter(input => input.checked).length;
+    $('#load-shape-summary').textContent = model
+      ? loadSentence(form, model, { goal, requests, raceRequest: form.mode === 'race' ? raceRequestName() : '' })
+      : shaped?.problem || 'Enter a duration such as 30s or 5m to see what will happen.';
+    $('#load-peak').textContent = model ? plural(model.peak, 'user') : '—';
+    $('#load-total').textContent = !model ? '—' : model.sends ? 'One round'
+      : model.open ? `Up to ${formatDuration(model.total)}` : formatDuration(model.total);
+    $('#load-mode-name').textContent = GOAL_NAMES[goal] || MODE_NAMES[form.mode] || '—';
     $('#load-axis-start').textContent = form.mode === 'race' ? 'T0' : '0s';
     $('#load-axis-end').textContent = !model ? ''
       : model.sends ? (model.last ? `T0 + ${model.last} ms` : 'every VU at T0')
         : model.open ? 'until every iteration is done' : formatDuration(model.total);
   }
-  // Presets and opened projects set values from code, which fires no input event.
+  // Goals and opened projects set values from code, which fires no input event.
   function schedule() {
     if (pending) return;
     pending = true;
@@ -196,6 +255,9 @@ export function initLoadChart() {
   view.addEventListener('click', schedule);
   new MutationObserver(schedule).observe($('#stages'), { childList: true });
   window.addEventListener('k6ui:project-applied', schedule);
+  // The sentence counts the requests that are on and names the race request.
+  window.addEventListener('k6ui:flow-changed', schedule);
+  $('#reqs-main')?.addEventListener('change', schedule);
   // A race time may name a global variable.
   $('#global-vars-list')?.addEventListener('input', schedule);
   render();

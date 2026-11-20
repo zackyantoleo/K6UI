@@ -1,4 +1,5 @@
-// Thresholds / SLA → Outcome Targets (config.thresholds.outcomes, see
+// Pass or fail → Add goal → Count of a response label (Thresholds / SLA in
+// Advanced; config.thresholds.outcomes, see
 // public/js/outcome-thresholds.js): one row per target: request, label, comparison
 // and count. The request and label lists come from the request cards as they are
 // now, read without opening lazy editor panels (readRequestSettings), and are
@@ -130,7 +131,7 @@ export function outcomeTargetRow(rawTarget = {}) {
     row.remove();
     renumber();
     refreshEmptyState(flowRequests());
-    (next?.querySelector('.outcome-target-request') || $('#add-outcome-target'))?.focus();
+    (next?.querySelector('.outcome-target-request') || $('#add-goal-btn'))?.focus();
   });
   row.append(request, label, op, value, remove);
   return row;
@@ -188,8 +189,9 @@ export function initOutcomeTargets() {
     refreshEmptyState(requests);
     row.querySelector(withRules.length === 1 ? '.outcome-target-label' : '.outcome-target-request').focus();
   });
-  // The lists follow the flow: refreshed when the goals are shown (Load & goals in
-  // Simple, Thresholds / SLA in Advanced) and after structural edits.
+  // Added from the "Add goal" menu. The lists follow the flow: refreshed when the
+  // goals are shown (Load & goals in Simple, Thresholds / SLA in Advanced) and after
+  // structural edits.
   window.addEventListener('k6ui:view-shown', event => {
     if (event.detail?.page === 'load') refreshOutcomeTargetRows();
   });

@@ -50,10 +50,11 @@ test('first-use flow offers accessible blank and cURL starts', async () => {
   assert.match(html, /id="empty-import-curl"[^>]*type="button"/);
 });
 
-test('load step offers lightweight starter presets and results has a pre-run state', async () => {
+test('load step starts from a question with five goals and results has a pre-run state', async () => {
   const html = await read('public/index.html');
-  const presets = matches(html, /data-preset="([^"]+)"/g).map(([, preset]) => preset);
-  assert.deepEqual(presets, ['smoke', 'load', 'stress']);
+  const goals = matches(html, /class="load-goal" data-goal="([^"]+)"/g).map(([, goal]) => goal);
+  assert.deepEqual(goals, ['smoke', 'load', 'stress', 'race', 'custom']);
+  assert.match(html, /What do you want to find out\?/);
   assert.match(html, /id="results-empty-state"[^>]*role="status"/);
 });
 

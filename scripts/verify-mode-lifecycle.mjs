@@ -166,61 +166,55 @@ try {
   assert.equal((await noticeState()).visible, false, 'A plain project shows no notice');
   checks.push('Simple notice: lazy/imported settings counted without hydrating; live edits (incl. whitespace script, removals) beat the snapshot; disabled request/group reported as skipped; no values; no collectConfig per keystroke; hidden in Advanced');
 
-  // 2. Load: Advanced shows the custom editor as presentation only; Simple keeps its own disclosure.
+  // 2. Load: Advanced shows the custom editor (the kind of load) as presentation only.
   await page.reload();
   await page.waitForFunction(() => document.querySelector('#reqs-main'));
   const loadState = () => page.evaluate(() => ({
-    mode: document.querySelector('input[name="load-mode"]:checked')?.value,
+    kind: document.querySelector('#load-kind').value,
     vus: document.querySelector('#vus').value,
     duration: document.querySelector('#duration').value,
     stages: [...document.querySelectorAll('#stages .stage-row')].map(row =>
       [row.querySelector('.stage-dur').value, row.querySelector('.stage-target').value]),
-    pressed: [...document.querySelectorAll('.preset-btn[aria-pressed="true"]')].map(button => button.dataset.preset),
-    customizeExpanded: document.querySelector('#customize-load').getAttribute('aria-expanded'),
+    goal: document.querySelector('.load-goal[aria-pressed="true"]')?.dataset.goal,
   }));
-  const editorVisible = () => page.locator('#load-custom-editor').isVisible();
+  const kindVisible = () => page.locator('#load-kind').isVisible();
   await radio('simple').check();
   await page.locator('#simple-nav [data-view="load"]').click();
-  assert.equal(await editorVisible(), false, 'Simple keeps the editor behind Customize');
-  assert.equal(await page.locator('#customize-load').isVisible(), true);
+  assert.equal(await page.locator('#load-settings').isVisible(), true, 'Simple shows the settings of the chosen goal');
   const initialLoad = await loadState();
+  assert.equal(initialLoad.goal, 'custom', 'a fresh page keeps its fixed VUs, shown as Custom');
   await radio('advanced').check();
   assert.equal(await page.locator('#page-title').textContent(), 'Load Profile');
-  assert.equal(await editorVisible(), true, 'Advanced opens the custom editor without a click');
-  assert.equal(await page.locator('#customize-load').isVisible(), false);
+  assert.equal(await kindVisible(), true);
   assert.equal(await page.locator('[data-ui-only="advanced"].view-hint').isVisible(), true);
-  assert.deepEqual(await loadState(), initialLoad, 'Opening the editor changes no load value, preset, or Simple disclosure');
-  await page.locator('input[name="load-mode"][value="stages"]').check();
+  assert.deepEqual(await loadState(), initialLoad, 'Switching changes no load value or goal');
+  await page.locator('#load-kind').selectOption('stages');
   await page.locator('#stages .stage-row').first().locator('.stage-target').fill('3');
   const editedLoad = await loadState();
   assert.deepEqual(editedLoad.stages[0], ['30s', '3']);
   const editedConfig = (await collect()).load;
   await radio('simple').check();
-  assert.equal(await editorVisible(), false, 'Back in Simple the editor is collapsed again');
   assert.deepEqual(await loadState(), editedLoad, 'Returning to Simple does not overwrite the load');
   assert.deepEqual((await collect()).load, editedConfig);
-  await page.locator('#customize-load').click();
-  await radio('advanced').check();
-  await radio('simple').check();
-  assert.equal(await editorVisible(), true, 'Simple remembers its own expanded state');
   await radio('advanced').check();
   const dialogs = [];
   onDialog = dialog => { dialogs.push(dialog.message()); return dialog.dismiss(); };
-  await page.locator('.preset-btn[data-preset="smoke"]').click();
+  await page.locator('.load-goal[data-goal="smoke"]').click();
   assert.equal(dialogs.length, 1, 'Custom values still need confirmation before a preset replaces them');
   assert.match(dialogs[0], /keep your custom load values/i);
-  assert.deepEqual(await loadState(), { ...editedLoad, customizeExpanded: 'true' }, 'Cancel keeps custom values');
+  assert.deepEqual(await loadState(), editedLoad, 'Cancel keeps custom values');
   onDialog = dialog => { dialogs.push(dialog.message()); return dialog.accept(); };
-  await page.locator('.preset-btn[data-preset="smoke"]').click();
+  await page.locator('.load-goal[data-goal="smoke"]').click();
   onDialog = dialog => { errors.push(`Unexpected dialog: ${dialog.message()}`); return dialog.dismiss(); };
   assert.equal(dialogs.length, 2);
   const smoke = await loadState();
-  assert.deepEqual([smoke.mode, smoke.stages, smoke.pressed], ['stages', [['30s', '1']], ['smoke']]);
-  assert.equal(await editorVisible(), true, 'Advanced keeps the editor open after a preset');
+  assert.deepEqual([smoke.kind, smoke.stages, smoke.goal], ['stages', [['30s', '1']], 'smoke']);
+  assert.equal(await kindVisible(), true, 'Advanced shows the kind of load under a preset too');
   await page.screenshot({ path: resolve(output, 'advanced-load-1440.png'), fullPage: true });
   await radio('simple').check();
   assert.deepEqual(await loadState(), smoke, 'Preset chosen in Advanced survives the switch');
-  checks.push('Load: Advanced shows the custom editor without changing VUs/stages/preset; Simple keeps its own Customize state and values; overwrite confirmation kept in Advanced');
+  assert.equal(await kindVisible(), false, 'Simple hides the kind of load under a preset');
+  checks.push('Load: Advanced shows the kind of load (the custom editor) without changing values or the goal; a preset asks before replacing custom values in Advanced too; the goal chosen in Advanced survives the switch');
 
   // 3. gRPC: config + generated code parity across switches (generation only; never executed).
   await openProject({
@@ -403,7 +397,7 @@ try {
         assert.equal(layout.overflow, false, `${mode} ${view} ${width}: page overflow`);
         assert.equal(layout.duplicateIds, false, `${mode} ${view} ${width}: duplicate IDs`);
         if (view === 'flow') assert.equal(await notice().isVisible(), mode === 'simple');
-        if (view === 'load') assert.equal(await page.locator('#load-custom-editor').isVisible(), mode === 'advanced' || await page.locator('#customize-load').getAttribute('aria-expanded') === 'true');
+        if (view === 'load') assert.equal(await page.locator('#load-settings').isVisible(), true);
         if (view === 'results') assert.equal(await page.locator('#tab-overview .result-shortcuts').isVisible(), mode === 'advanced');
         layouts.push({ mode, view, width, height, ...layout });
         if (width === 375 && ((mode === 'simple' && view === 'flow') || mode === 'advanced' && view !== 'flow')) {
