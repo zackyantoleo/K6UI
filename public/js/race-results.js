@@ -3,6 +3,7 @@
 // sent), the concurrency figures, the Gantt chart (race-gantt.js: one row per VU, from
 // its send time to its response, a tick at its planned time) and a table with every
 // VU. Shown in both modes; every text goes in with textContent.
+import { el } from './dom.js';
 import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './shared/race.js';
 import { GANTT_MAX_ROWS, raceGantt } from './race-gantt.js';
 
@@ -13,13 +14,6 @@ export const RACE_TABLE_MAX_ROWS = 500;
 function svg(tag, attributes = {}) {
   const node = document.createElementNS(SVG, tag);
   for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, String(value));
-  return node;
-}
-
-function text(tag, className, value) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  node.textContent = value;
   return node;
 }
 
@@ -67,9 +61,9 @@ function caption(result, layout) {
 function renderLegend(list, legend) {
   list.replaceChildren(...legend.map(item => {
     const entry = document.createElement('li');
-    const key = text('span', `run-race-key ${item.tone}`, '');
+    const key = el('span', `run-race-key ${item.tone}`, '');
     key.setAttribute('aria-hidden', 'true');
-    entry.append(key, text('span', 'run-race-legend-label', item.label), text('span', 'run-race-legend-count', String(item.count)));
+    entry.append(key, el('span', 'run-race-legend-label', item.label), el('span', 'run-race-legend-count', String(item.count)));
     return entry;
   }));
   list.hidden = legend.length === 0;
@@ -80,14 +74,14 @@ function renderTable(result) {
   const body = document.querySelector('#run-race-rows');
   if (!head || !body) return;
   head.replaceChildren(...RACE_RECORD_COLUMNS.map(column => {
-    const cell = text('th', '', column);
+    const cell = el('th', '', column);
     cell.scope = 'col';
     return cell;
   }));
   body.replaceChildren(...result.records.slice(0, RACE_TABLE_MAX_ROWS).map(entry => {
     const row = document.createElement('tr');
     if (entry.late) row.className = 'late';
-    raceRecordCells(entry).forEach((value, index) => row.append(text('td', RACE_RECORD_COLUMNS[index] === 'Outcome' ? 'outcome' : '', value)));
+    raceRecordCells(entry).forEach((value, index) => row.append(el('td', RACE_RECORD_COLUMNS[index] === 'Outcome' ? 'outcome' : '', value)));
     return row;
   }));
   const count = document.querySelector('#run-race-record-count');
@@ -110,7 +104,7 @@ export function renderRaceResult(race) {
   figures.replaceChildren(...raceFigures(race).map(figure => {
     const item = document.createElement('div');
     item.title = figure.hint;
-    item.append(text('dt', '', figure.label), text('dd', '', figure.value));
+    item.append(el('dt', '', figure.label), el('dd', '', figure.value));
     return item;
   }));
 

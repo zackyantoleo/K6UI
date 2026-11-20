@@ -5,6 +5,7 @@
 // the generated script does. One DOM for Simple and Advanced: the panel sits
 // beside the request list (Simple, wide screens), above it (narrow screens) or
 // above the selected editor (Advanced); flow.css places it. Names are DOM text.
+import { el } from '../dom.js';
 import { readRequestSettings } from './advanced-notice.js';
 import { collectRequestGroups } from './request-groups.js';
 import { helpButton } from './help-tips.js';
@@ -14,13 +15,6 @@ import { navigate } from '../nav.js';
 import {
   VARIABLE_NAME, describeIssue, globalVariableName, variableCatalog, variableIssues, variableUsage,
 } from '../variables.js';
-
-function node(tag, className, text) {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
-}
 
 // ── Reading the page ───────────────────────────────────────────
 const panelReady = (card, panelId) =>
@@ -95,40 +89,40 @@ function renderUsage(flow) {
 
 // ── Panel ──────────────────────────────────────────────────────
 function viewLink(text, view) {
-  const link = node('button', 'flow-vars-link', text);
+  const link = el('button', 'flow-vars-link', text);
   link.type = 'button';
   link.addEventListener('click', () => navigate(view));
   return link;
 }
 
 export function createVariablesPanel() {
-  const panel = node('aside', 'flow-vars');
+  const panel = el('aside', 'flow-vars');
   panel.id = 'flow-vars';
   panel.setAttribute('aria-labelledby', 'flow-vars-label');
-  const head = node('div', 'flow-vars-head');
-  const title = node('h3', 'flow-vars-title');
-  const toggle = node('button', 'flow-vars-toggle');
+  const head = el('div', 'flow-vars-head');
+  const title = el('h3', 'flow-vars-title');
+  const toggle = el('button', 'flow-vars-toggle');
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'true');
   toggle.setAttribute('aria-controls', 'flow-vars-body');
-  const label = node('span', 'flow-vars-label', 'Variables you can use');
+  const label = el('span', 'flow-vars-label', 'Variables you can use');
   label.id = 'flow-vars-label';
-  const count = node('span', 'flow-vars-count');
+  const count = el('span', 'flow-vars-count');
   toggle.append(label, count);
   title.appendChild(toggle);
   head.append(title);
 
-  const body = node('div', 'flow-vars-body');
+  const body = el('div', 'flow-vars-body');
   body.id = 'flow-vars-body';
-  const hint = node('p', 'flow-vars-hint');
-  hint.append('Type ', node('code', '', '{{'), ' in a URL, header or body to pick one, drag one into a field, or click one to copy it.');
-  const groups = node('div', 'flow-vars-groups');
-  const empty = node('p', 'flow-vars-empty',
+  const hint = el('p', 'flow-vars-hint');
+  hint.append('Type ', el('code', '', '{{'), ' in a URL, header or body to pick one, drag one into a field, or click one to copy it.');
+  const groups = el('div', 'flow-vars-groups');
+  const empty = el('p', 'flow-vars-empty',
     'None yet. Add a global variable or a data file, or keep a value from a response with "+ Add to this request" → Take a value from the response.');
   empty.hidden = true;
-  const status = node('p', 'flow-vars-status');
+  const status = el('p', 'flow-vars-status');
   status.setAttribute('role', 'status');
-  const foot = node('p', 'flow-vars-foot');
+  const foot = el('p', 'flow-vars-foot');
   foot.append('Edit: ', viewLink('Variables', 'vars'), ' · ', viewLink('CSV data files', 'datafiles'));
   body.append(hint, groups, empty, status, foot);
   panel.append(head, body);
@@ -169,7 +163,7 @@ async function copyText(text, returnFocus) {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    const area = node('textarea', 'sr-only');
+    const area = el('textarea', 'sr-only');
     area.value = text;
     area.setAttribute('aria-hidden', 'true');
     document.body.appendChild(area);
@@ -210,24 +204,24 @@ function moveChipFocus(groups, event) {
 }
 
 function chip(name, kind, detail = '') {
-  const button = node('button', `var-chip var-chip-${kind}`);
+  const button = el('button', `var-chip var-chip-${kind}`);
   button.type = 'button';
   button.draggable = true;
   button.dataset.var = name;
   button.title = 'Click to copy, or drag into a field';
-  button.append(node('span', 'var-chip-name', `{{${name}}}`));
-  if (detail) button.append(' ', node('small', 'var-chip-detail', detail));
+  button.append(el('span', 'var-chip-name', `{{${name}}}`));
+  if (detail) button.append(' ', el('small', 'var-chip-detail', detail));
   return button;
 }
 
 function chipGroup(title, chips, { note = '', help = null } = {}) {
-  const section = node('section', 'flow-vars-group');
-  const heading = node('h4', 'flow-vars-group-title');
-  heading.append(node('span', '', title));
+  const section = el('section', 'flow-vars-group');
+  const heading = el('h4', 'flow-vars-group-title');
+  heading.append(el('span', '', title));
   if (help) heading.append(help);
   section.append(heading);
-  if (note) section.append(node('p', 'flow-vars-note', note));
-  const list = node('div', 'var-chips');
+  if (note) section.append(el('p', 'flow-vars-note', note));
+  const list = el('div', 'var-chips');
   list.append(...chips);
   section.append(list);
   return section;
@@ -281,11 +275,11 @@ function renderWarnings(issues) {
     if (list.dataset.key === key) continue;
     list.dataset.key = key;
     list.replaceChildren(...items.map(item => {
-      const entry = node('li', `var-warning var-warning-${item.kind}`);
+      const entry = el('li', `var-warning var-warning-${item.kind}`);
       entry.title = item.detail;
-      const short = node('span', 'var-warning-text', item.text);
+      const short = el('span', 'var-warning-text', item.text);
       short.dataset.icon = 'alert';
-      entry.append(short, ' ', node('span', 'var-warning-detail', item.detail));
+      entry.append(short, ' ', el('span', 'var-warning-detail', item.detail));
       return entry;
     }));
     list.hidden = !items.length;

@@ -1,7 +1,7 @@
 // Focused run/results workspace: streams /api/run SSE into bounded, text-safe
 // overview (verdict sentence, key figures compared with the goals, each request,
 // what to do next, all k6 metrics), request, error, and raw k6 output panels.
-import { $, $$ } from './dom.js';
+import { $, $$, el } from './dom.js';
 import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
 import { addExportRows, exportSummary, resetExports } from './export-results.js';
@@ -49,8 +49,8 @@ let lastRun = null;
 let verdictState = { status: 'idle', title: '', detail: '' };
 
 function setText(selector, value) {
-  const el = $(selector);
-  if (el) el.textContent = String(value);
+  const target = $(selector);
+  if (target) target.textContent = String(value);
 }
 
 function appendCell(row, value, className = '') {
@@ -159,15 +159,8 @@ function prettyBody(text) {
   }
 }
 
-function makeElement(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text != null) node.textContent = String(text);
-  return node;
-}
-
 function copyButton(label, text, caption = 'Copy') {
-  const button = makeElement('button', 'btn ghost sm', caption);
+  const button = el('button', 'btn ghost sm', caption);
   button.type = 'button';
   button.setAttribute('aria-label', `Copy ${label}`);
   if (!navigator.clipboard) button.hidden = true;
@@ -186,44 +179,44 @@ function copyButton(label, text, caption = 'Copy') {
 // One side of a record: "Request" (headers + payload) or "Response" (headers + body).
 // `curl` (Request side of an HTTP record): a "Copy as cURL" button and its notes.
 function detailSection(title, summary, headers, body, curl = null) {
-  const section = makeElement('section', 'req-detail-section');
+  const section = el('section', 'req-detail-section');
   section.setAttribute('aria-label', title);
-  const head = makeElement('div', 'req-detail-head');
-  head.append(makeElement('h4', '', title), makeElement('span', 'req-detail-summary', summary));
+  const head = el('div', 'req-detail-head');
+  head.append(el('h4', '', title), el('span', 'req-detail-summary', summary));
   if (curl) {
     const button = copyButton('this request as a cURL command', curl.command, 'Copy as cURL');
     button.classList.add('req-detail-curl');
     head.appendChild(button);
   }
   section.appendChild(head);
-  if (curl?.notes.length) section.appendChild(makeElement('p', 'req-detail-note', curl.notes.join(' ')));
+  if (curl?.notes.length) section.appendChild(el('p', 'req-detail-note', curl.notes.join(' ')));
 
   const recorded = headers && typeof headers === 'object';
   const names = recorded ? Object.keys(headers) : [];
-  section.appendChild(makeElement('h5', '', `Headers (${names.length})`));
+  section.appendChild(el('h5', '', `Headers (${names.length})`));
   if (names.length) {
-    const list = makeElement('dl', 'req-detail-headers');
-    for (const name of names) list.append(makeElement('dt', '', name), makeElement('dd', '', headers[name]));
+    const list = el('dl', 'req-detail-headers');
+    for (const name of names) list.append(el('dt', '', name), el('dd', '', headers[name]));
     section.appendChild(list);
   } else {
-    section.appendChild(makeElement('p', 'req-detail-empty', recorded ? 'No headers.' : 'Not recorded.'));
+    section.appendChild(el('p', 'req-detail-empty', recorded ? 'No headers.' : 'Not recorded.'));
   }
 
-  const bodyHead = makeElement('div', 'req-detail-body-head');
+  const bodyHead = el('div', 'req-detail-body-head');
   const bodyText = String(body ?? '');
-  bodyHead.appendChild(makeElement('h5', '', 'Body'));
+  bodyHead.appendChild(el('h5', '', 'Body'));
   if (bodyText) bodyHead.appendChild(copyButton(`${title.toLowerCase()} body`, bodyText));
   section.appendChild(bodyHead);
-  const pre = makeElement('pre', 'req-detail-body', bodyText ? prettyBody(bodyText) : '(empty)');
+  const pre = el('pre', 'req-detail-body', bodyText ? prettyBody(bodyText) : '(empty)');
   pre.tabIndex = 0;
   section.appendChild(pre);
   return section;
 }
 
 function renderRequestDetail(entry) {
-  const detail = makeElement('div', 'req-detail');
-  if (entry.er) detail.appendChild(makeElement('p', 'req-detail-error', entry.er));
-  const grid = makeElement('div', 'req-detail-grid');
+  const detail = el('div', 'req-detail');
+  if (entry.er) detail.appendChild(el('p', 'req-detail-error', entry.er));
+  const grid = el('div', 'req-detail-grid');
   grid.append(
     detailSection('Request', `${entry.m || 'request'} ${entry.url || ''}`, entry.rqh, entry.rq, curlFromRecord(entry)),
     detailSection('Response', `Status ${entry.s ?? 'unknown'} · ${entry.d ?? 0} ms`, entry.rh, entry.rb),

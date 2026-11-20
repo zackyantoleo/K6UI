@@ -10,6 +10,7 @@
 // and `done` replaces them with the final values. Both go through one DOM: rows are
 // kept by request, label and target number and only their text and bar width
 // change, so the bars glide from one second to the next.
+import { el } from './dom.js';
 import { DEFAULT_OUTCOME_FALLBACK } from './shared/outcomes.js';
 import { outcomeThresholdText, requestTitle as targetRequestTitle } from './shared/outcome-thresholds.js';
 
@@ -31,12 +32,6 @@ function requestTitle(result) {
   return `Request ${result.rq}${name ? ` · ${name}` : ''}`;
 }
 
-function element(tag, className) {
-  const node = document.createElement(tag);
-  node.className = className;
-  return node;
-}
-
 // Makes `list` hold one child per item, in order: the child with the same key is
 // reused (update() refreshes it), a new key gets make(). Children that stay in place
 // are not moved, so a CSS transition on them keeps running.
@@ -56,10 +51,10 @@ function syncChildren(list, items, keyOf, make, update) {
 
 function makeLabelRow() {
   const row = document.createElement('li');
-  const bar = element('div', 'run-outcome-bar');
+  const bar = el('div', 'run-outcome-bar');
   bar.setAttribute('aria-hidden', 'true');
-  bar.appendChild(element('div', 'run-outcome-fill'));
-  row.append(element('span', 'run-outcome-label-name'), bar, element('span', 'run-outcome-count'));
+  bar.appendChild(el('div', 'run-outcome-fill'));
+  row.append(el('span', 'run-outcome-label-name'), bar, el('span', 'run-outcome-count'));
   return row;
 }
 
@@ -72,10 +67,10 @@ function updateLabelRow(row, item, isFallback) {
 }
 
 function makeEntry() {
-  const entry = element('li', 'run-outcome');
-  const head = element('div', 'run-outcome-head');
-  head.append(element('span', 'run-outcome-name'), element('span', 'run-outcome-total'));
-  entry.append(head, element('ul', 'run-outcome-labels'));
+  const entry = el('li', 'run-outcome');
+  const head = el('div', 'run-outcome-head');
+  head.append(el('span', 'run-outcome-name'), el('span', 'run-outcome-total'));
+  entry.append(head, el('ul', 'run-outcome-labels'));
   return entry;
 }
 
@@ -93,9 +88,9 @@ function updateEntry(entry, result) {
 // One outcome target: its status, the target as typed, its request, the count.
 function makeTargetRow() {
   const row = document.createElement('li');
-  const body = element('span', 'run-outcome-target-text');
-  body.append(element('span', 'run-outcome-target-rule'), element('span', 'run-outcome-target-request'));
-  row.append(element('span', 'run-outcome-target-status'), body, element('span', 'run-outcome-target-count'));
+  const body = el('span', 'run-outcome-target-text');
+  body.append(el('span', 'run-outcome-target-rule'), el('span', 'run-outcome-target-request'));
+  row.append(el('span', 'run-outcome-target-status'), body, el('span', 'run-outcome-target-count'));
   return row;
 }
 
