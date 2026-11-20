@@ -18,24 +18,30 @@ const notice = read('../public/js/components/advanced-notice.js');
 
 const stripComments = source => source.replace(/^\s*\/\/.*$/gm, '');
 
-test('Data files is one view reached from Simple step 2 and from an Advanced category', () => {
-  assert.match(html, /<section id="view-datafiles" class="view hidden">/);
-  const simple = html.match(/<section id="view-data"[\s\S]*?<\/section>/)[0];
-  assert.match(simple, /class="data-rule-card" data-view="datafiles"/);
+const dataFilesBlock = () =>
+  html.match(/<section class="view-block" id="data-block-datafiles"[\s\S]*?\n {10}<\/section>/)[0];
+
+test('Data files is one block of the Test data page: Simple step 2, and its own Advanced category', () => {
+  const page = html.match(/<section id="view-data" class="view hidden">[\s\S]*?\n {8}<\/section>/)[0];
+  assert.match(page, /id="data-block-datafiles" data-block="datafiles"/);
+  assert.doesNotMatch(html, /id="view-datafiles"/, 'no separate view');
   const advanced = html.match(/<nav[^>]*id="advanced-nav"[^>]*>([\s\S]*?)<\/nav>/)[1];
   assert.match(advanced, /data-view="datafiles">Data files</);
-  assert.equal(html.match(/id="view-datafiles"/g).length, 1, 'one DOM for both modes');
-  assert.match(nav, /datafiles:\s*'data'/, 'Simple shows it under step 2');
+  assert.equal(html.match(/id="data-files-list"/g).length, 1, 'one DOM for both modes');
+  assert.match(nav, /datafiles:\s*'data'/, 'Simple shows it on the Test data page');
   assert.match(nav, /datafiles:\s*'Data files'/);
 });
 
-test('the panel warns that the rows are saved in the project and in the script', () => {
-  const view = html.match(/<section id="view-datafiles"[\s\S]*?<\/section>/)[0];
-  assert.match(view, /class="data-files-warning" role="note"/);
-  assert.match(view, /saved inside the project file and written into the generated script/);
-  assert.match(view, /passwords or tokens/);
-  assert.match(view, /id="add-data-file"/);
-  assert.match(view, /id="data-files-list"/);
+test('the block warns that the rows are saved in the project and in the script, and takes dropped files', () => {
+  const block = dataFilesBlock();
+  assert.match(block, /class="data-files-warning" role="note"/);
+  assert.match(block, /saved inside the project file and written into the generated script/);
+  assert.match(block, /passwords or tokens/);
+  assert.match(block, /id="data-files-list"/);
+  assert.match(block, /class="df-drop" id="data-files-drop"/);
+  assert.match(block, /id="choose-data-file"/);
+  assert.match(block, /id="add-data-file">Paste CSV text</);
+  assert.match(block, /type="file" id="data-file-input"[^>]*multiple/);
 });
 
 test('each data file card offers file or pasted text, delimiter, header, columns, share mode, end of file, and a preview', () => {

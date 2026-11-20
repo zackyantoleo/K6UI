@@ -1,10 +1,14 @@
-// "Data files" panel (Data & Rules): CSV files whose rows feed {{column}}
-// placeholders, one row per iteration. Each card keeps its data in
+// "CSV data files" block of the Test data page: CSV files whose rows feed
+// {{column}} placeholders, one row per iteration. Each card keeps its data in
 // `card.dataSet` (one config.dataSets item); the DOM only shows and edits it.
 // Rows are read with csv-parse.js, the same reader the generator uses, so the
 // preview and the generated script always agree. File contents are shown with
-// textContent only. The pure helpers at the top need no DOM.
+// textContent only. A file comes from the drop zone (drag, "Choose a file…",
+// several at once: one card each), a drop on a card (replaces its rows, after a
+// confirm when it has some), the card's own picker, or pasted text. The pure
+// helpers at the top need no DOM.
 import { $, $$ } from './dom.js';
+import { helpButton } from './components/help-tips.js';
 import { createDataSetId } from './project-store.js';
 import {
   CsvError, MAX_DATA_BYTES, MAX_DATA_SET_BYTES, parseCsv, readDataSet, toColumnName,
@@ -49,6 +53,18 @@ export function describeDataSet(set, parsed) {
     if (!(e instanceof CsvError)) throw e;
     return { header: [], rows: [], columns: [], ignored: [], error: e.message };
   }
+}
+
+// Why a chosen or dropped file cannot be a data file, or '' when it can.
+// By name first: Excel on Windows labels a .csv as application/vnd.ms-excel.
+export function dataFileRejection(file) {
+  const name = String(file?.name ?? '');
+  const textLike = /\.(csv|tsv|txt)$/i.test(name) || /^text\//.test(String(file?.type ?? ''));
+  if (!textLike) return `"${name}" is not a CSV file. Choose a .csv, .tsv, or .txt file.`;
+  if (file.size > MAX_DATA_SET_BYTES) {
+    return `"${name}" is ${megabytes(file.size)}; the limit is ${megabytes(MAX_DATA_SET_BYTES)} per data file.`;
+  }
+  return '';
 }
 
 // The first problem that stops a run or script preview, or null. Data files
@@ -189,6 +205,9 @@ function renderCard(card) {
   const set = card.dataSet;
   const info = describeCard(card);
   card.usable = !info.error && info.rows.length > 0 && info.columns.length > 0;
+  card.querySelector('.df-pick').textContent = set.content ? 'Replace file…' : 'Choose a file…';
+  // Rows but no usable column: the fix (column names, header row, separator) is in File options.
+  if (info.rows.length && !info.columns.length) card.querySelector('.df-options').open = true;
   card.querySelector('.df-file-name').textContent = set.content
     ? set.fileName || 'Pasted text'
     : set.fileName ? `${set.fileName} (no data yet)` : 'No file chosen';
@@ -225,6 +244,62 @@ function loadContent(card, text, fileName) {
   setDelimiterControl(card);
   syncColumns(card);
   changed(card);
+}
+
+const readText = file => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = event => resolve(String(event.target.result));
+  reader.onerror = () => reject(reader.error);
+  reader.readAsText(file);
+});
+
+// A chosen or dropped file → this card's rows. Resolves to an error message or ''.
+async function loadFile(card, file) {
+  const problem = dataFileRejection(file);
+  if (problem) {
+    card.notice = problem;
+    renderCard(card);
+    return problem;
+  }
+  try {
+    loadContent(card, await readText(file), file.name);
+    return card.notice;
+  } catch {
+    card.notice = `"${file.name}" could not be read.`;
+    renderCard(card);
+    return card.notice;
+  }
+}
+
+const hasFiles = event => [...(event.dataTransfer?.types || [])].includes('Files');
+
+// Highlight while files are dragged over `zone`; `onDrop(files)` gets them.
+function acceptFileDrops(zone, onDrop) {
+  let depth = 0;
+  zone.addEventListener('dragenter', event => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    depth += 1;
+    zone.classList.add('drop-over');
+  });
+  zone.addEventListener('dragover', event => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'copy';
+  });
+  zone.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1);
+    if (!depth) zone.classList.remove('drop-over');
+  });
+  zone.addEventListener('drop', event => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    depth = 0;
+    zone.classList.remove('drop-over');
+    onDrop([...event.dataTransfer.files]);
+  });
 }
 
 function setDelimiterControl(card) {
@@ -272,23 +347,20 @@ function bindCard(card) {
     card.remove();
     syncEmpty();
     notify();
-    $('#add-data-file').focus();
+    $('#choose-data-file').focus();
   });
 
   const fileInput = field('.df-file');
   field('.df-pick').addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
   fileInput.addEventListener('change', () => {
-    const file = fileInput.files[0];
+    if (fileInput.files[0]) loadFile(card, fileInput.files[0]);
+  });
+  acceptFileDrops(card, files => {
+    const [file] = files;
     if (!file) return;
-    if (file.size > MAX_DATA_SET_BYTES) {
-      card.notice = `"${file.name}" is ${megabytes(file.size)}; the limit is ${megabytes(MAX_DATA_SET_BYTES)} per data file.`;
-      renderCard(card);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = event => loadContent(card, String(event.target.result), file.name);
-    reader.onerror = () => { card.notice = 'The file could not be read.'; renderCard(card); };
-    reader.readAsText(file);
+    const label = set.name || set.fileName || 'this data file';
+    if (set.content && !confirm(`Replace the rows of "${label}" with "${file.name}"?`)) return;
+    loadFile(card, file);
   });
 
   const pasted = field('.df-paste-text');
@@ -328,6 +400,8 @@ function bindCard(card) {
 
 function createCard(dataSet) {
   const card = $('#data-file-template').content.firstElementChild.cloneNode(true);
+  // Help buttons of a cloned template are not decorated by initHelpTips().
+  for (const placeholder of card.querySelectorAll('[data-help]')) placeholder.replaceWith(helpButton(placeholder.dataset.help));
   card.dataSet = { ...blankDataSet(), ...dataSet, columns: [...(dataSet.columns || [])] };
   card.contentVersion = 0;
   card.autoColumns = null;
@@ -350,7 +424,7 @@ function createCard(dataSet) {
 }
 
 function syncEmpty() {
-  $('#data-files-empty').classList.toggle('hidden', cards().length > 0);
+  $('#data-files-drop-title').textContent = cards().length ? 'Drag another .csv file here' : 'Drag a .csv file here';
 }
 
 // ── Public API ─────────────────────────────────────────────────
@@ -411,13 +485,56 @@ export function dataFileColumns() {
   });
 }
 
+function addCard(dataSet = blankDataSet()) {
+  const card = createCard(dataSet);
+  list().append(card);
+  syncEmpty();
+  notify();
+  return card;
+}
+
+// Files from the drop zone or its picker: one new data file each. A file that
+// cannot be one creates nothing; the zone says why.
+async function addFiles(files) {
+  const status = $('#data-files-drop-status');
+  const added = [];
+  const problems = [];
+  let first = null;
+  for (const file of files) {
+    const problem = dataFileRejection(file);
+    if (problem) { problems.push(problem); continue; }
+    const card = addCard();
+    first ||= card;
+    const error = await loadFile(card, file);
+    if (error) problems.push(error);
+    else added.push(`"${file.name}"`);
+  }
+  status.textContent = [added.length ? `Added ${added.join(', ')}.` : '', ...problems].filter(Boolean).join(' ');
+  status.classList.toggle('df-error', problems.length > 0);
+  return first;
+}
+
 export function initDataFiles() {
-  $('#add-data-file').addEventListener('click', () => {
-    const card = createCard(blankDataSet());
-    list().append(card);
-    syncEmpty();
-    card.querySelector('.df-name').focus();
-    notify();
+  const input = $('#data-file-input');
+  $('#choose-data-file').addEventListener('click', () => { input.value = ''; input.click(); });
+  input.addEventListener('change', async () => {
+    const card = await addFiles([...input.files]);
+    card?.querySelector('.df-name').focus();
   });
+  // No file: an empty data file with its paste box open.
+  $('#add-data-file').addEventListener('click', () => {
+    const card = addCard();
+    card.querySelector('.df-paste').open = true;
+    card.querySelector('.df-paste-text').focus();
+  });
+  acceptFileDrops($('#data-files-drop'), addFiles);
+  // A file dropped anywhere else would make the browser open it and leave the page.
+  for (const type of ['dragover', 'drop']) {
+    window.addEventListener(type, event => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      if (type === 'dragover') event.dataTransfer.dropEffect = 'none';
+    });
+  }
   syncEmpty();
 }

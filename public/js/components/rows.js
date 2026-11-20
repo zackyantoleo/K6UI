@@ -7,6 +7,7 @@ export function variableRow(key = '', val = '') {
   row.innerHTML = `
     <input class="var-key" placeholder="variable_name (e.g. base_url)" />
     <input class="var-val" placeholder="Value (e.g. https://api.example.com)" />
+    <span class="var-used"></span>
     <button class="row-remove" title="Remove">&times;</button>`;
   row.querySelector('.var-key').value = key;
   row.querySelector('.var-val').value = val;

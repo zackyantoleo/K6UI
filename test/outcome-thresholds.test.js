@@ -299,7 +299,8 @@ test('the Thresholds / SLA view has one Outcome Targets card, filled in JS for b
   const rows = read('../public/js/components/outcome-target-rows.js');
   const card = html.match(/<div class="form-card outcome-targets" id="outcome-targets">[\s\S]*?<\/div>\s*<\/div>/)?.[0];
   assert.ok(card, 'card in the view');
-  assert.ok(html.indexOf('id="view-sla"') < html.indexOf('id="outcome-targets"'));
+  const goals = html.indexOf('id="load-block-goals" data-block="sla"');
+  assert.ok(goals > 0 && goals < html.indexOf('id="outcome-targets"'), 'in the Load & goals page, the Thresholds / SLA block');
   assert.doesNotMatch(card, /data-ui-only/, 'shown in both modes');
   assert.match(card, /id="outcome-targets-list"/);
   assert.match(card, /id="add-outcome-target"/);

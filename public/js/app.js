@@ -25,6 +25,8 @@ import { initMenuButton } from './components/menu-button.js';
 import { initRequestMorePanels } from './components/req-card.js';
 import { initVariablesPanel } from './components/variables-panel.js';
 import { initVariableSuggest } from './components/var-suggest.js';
+import { initViewBlocks } from './components/view-blocks.js';
+import { initStepSummaries } from './components/step-summary.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -33,9 +35,6 @@ $$('.nav-link[data-view]').forEach(link => {
     else navigate(link.dataset.view);
   });
 });
-
-$$('.data-rule-card[data-view]').forEach(card =>
-  card.addEventListener('click', () => navigate(card.dataset.view)));
 
 // ── Load presets and custom editor ─────────────────────────────
 const LOAD_PRESETS = {
@@ -238,6 +237,8 @@ initRequestMorePanels();
 initVariablesPanel();
 initVariableSuggest();
 initGlossary();
+initViewBlocks();
+initStepSummaries();
 initUiMode();
 navigate('flow', { focusHeading: false });
 checkK6();

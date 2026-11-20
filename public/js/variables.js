@@ -108,8 +108,11 @@ function provides(request) {
   };
 }
 
+// A global variable row's key as the generator reads it ("base url" → "base_url").
+export const globalVariableName = key => text(key).trim().replace(/\s+/g, '_');
+
 const globalNames = flow => unique((flow.variables || [])
-  .map(item => text(item?.key).trim().replace(/\s+/g, '_'))
+  .map(item => globalVariableName(item?.key))
   .filter(name => VARIABLE_NAME.test(name)));
 
 // Data files the script reads: rows, a column, and not tied to a group that is off.
@@ -173,6 +176,20 @@ export function variableCatalog(flow) {
   const count = globals.length + files.reduce((sum, file) => sum + file.columns.length, 0)
     + extracted.length + scripts.length + builtIn.length;
   return { globals, files, extracted, scripts, builtIn, count };
+}
+
+// Global variable name → how many requests that run send {{name}} (URL, headers
+// with the shared and group ones, body, Save to CSV columns), for "Used in" on
+// the Test data page. A request counts once however often it uses the name.
+export function variableUsage(flow) {
+  const { steps } = analyse(flow);
+  const counts = new Map(globalNames(flow).map(name => [name, 0]));
+  for (const step of steps) {
+    if (step.reason) continue;
+    const names = new Set(requestTexts(flow, step.request, step.group).flatMap(({ value }) => placeholderNames(value)));
+    for (const name of names) if (counts.has(name)) counts.set(name, counts.get(name) + 1);
+  }
+  return counts;
 }
 
 // ── Warnings ───────────────────────────────────────────────────

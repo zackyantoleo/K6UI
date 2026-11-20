@@ -100,7 +100,7 @@ function shape(tag, className, attributes) {
 const VUS_INPUT = { iterations: '#iter-vus', race: '#race-vus' };
 const MAX_DURATION_INPUT = { race: '#race-max-duration' };
 
-function readLoadForm() {
+export function readLoadForm() {
   const mode = $('input[name="load-mode"]:checked')?.value || 'simple';
   return {
     mode,
@@ -121,7 +121,7 @@ function readLoadForm() {
   };
 }
 
-function readVariables() {
+export function readVariables() {
   return $$('#global-vars-list .var-row').map(row => ({
     key: (row.querySelector('.var-key')?.value || '').trim().replace(/\s+/g, '_'),
     value: row.querySelector('.var-val')?.value ?? '',

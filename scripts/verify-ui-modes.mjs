@@ -612,8 +612,8 @@ try {
   // 6. Layout, contrast and clipping at every viewport and zoom 200% (A10).
   if (sections.has('layout')) {
     const viewsFor = mode => mode === 'simple'
-      ? ['flow', 'data', 'vars', 'headers', 'sla', 'load', 'script', 'results']
-      : ['flow', 'vars', 'headers', 'load', 'sla', 'script', 'results'];
+      ? ['flow', 'data', 'load', 'script', 'results']
+      : ['flow', 'vars', 'headers', 'datafiles', 'load', 'sla', 'script', 'results'];
     const sweep = async (target, label) => {
       await openProject(RICH, target);
       for (const mode of ['simple', 'advanced']) {
