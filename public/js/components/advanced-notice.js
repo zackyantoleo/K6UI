@@ -22,7 +22,7 @@ const REQUEST_CATEGORIES = [
   { id: 'checks', label: 'Custom checks', test: request => (request.assertions || []).length > 0 },
   { id: 'outcomes', label: 'Outcome rules', test: request => hasOutcomeRules(request.outcomes) },
   { id: 'scripts', label: 'Pre/post scripts', test: request => hasText(request.preScript) || hasText(request.postScript) },
-  { id: 'pacing', label: 'Custom pause after request', test: request => pauseSeconds(request.sleepAfter) !== DEFAULT_PAUSE_SECONDS },
+  { id: 'pacing', label: 'Custom wait after request', test: request => pauseSeconds(request.sleepAfter) !== DEFAULT_PAUSE_SECONDS },
   { id: 'statusCheck', label: 'Automatic 2xx check turned off', test: request => request.checkStatus === false },
   { id: 'expectedStatuses', label: 'Expected statuses', test: request => hasExpectedStatuses(request.expectedStatuses) },
 ];
@@ -77,13 +77,15 @@ export function summarizeAdvancedSettings(requests, groups, dataFiles = 0, race 
 // the request it was loaded from (`card.requestState`). Reading never hydrates
 // panels and never calls collectConfig(), so it is cheap enough per keystroke.
 const panelReady = (card, panelId) =>
-  card.querySelector(`.req-tab-panel[data-panel="${panelId}"]`)?.dataset.panelReady === 'true';
+  card.querySelector(`.req-panel[data-panel="${panelId}"]`)?.dataset.panelReady === 'true';
 
 export function readRequestSettings(card) {
   const saved = card.requestState || {};
   const field = selector => card.querySelector(selector);
   const scriptsReady = panelReady(card, 'scripts');
-  const optionsReady = panelReady(card, 'options');
+  const statusesReady = panelReady(card, 'statuses');
+  // "Wait after" exists once the editor was built (it is not a lazy part).
+  const sleep = field('.sleep');
   return {
     enabled: field('.request-enabled')?.checked !== false,
     groupId: field('.request-group-select')?.value || '',
@@ -91,7 +93,7 @@ export function readRequestSettings(card) {
     extractions: panelReady(card, 'extractions')
       ? [...card.querySelectorAll('.req-card-body .extractions-list .ext-name')].map(input => ({ varName: input.value }))
       : saved.extractions || [],
-    exports: panelReady(card, 'extractions')
+    exports: panelReady(card, 'exports')
       ? [...card.querySelectorAll('.req-card-body .exports-list .export-file')].map(input => ({ file: input.value }))
       : saved.exports || [],
     assertions: panelReady(card, 'assertions')
@@ -102,9 +104,9 @@ export function readRequestSettings(card) {
       : saved.outcomes,
     preScript: scriptsReady ? field('.pre-script').value : saved.preScript,
     postScript: scriptsReady ? field('.post-script').value : saved.postScript,
-    sleepAfter: optionsReady ? field('.sleep').value : saved.sleepAfter,
-    checkStatus: optionsReady ? field('.check-status').checked : saved.checkStatus !== false,
-    expectedStatuses: optionsReady ? field('.expected-statuses').value : saved.expectedStatuses,
+    sleepAfter: sleep ? sleep.value : saved.sleepAfter,
+    checkStatus: statusesReady ? field('.check-status').checked : saved.checkStatus !== false,
+    expectedStatuses: statusesReady ? field('.expected-statuses').value : saved.expectedStatuses,
   };
 }
 

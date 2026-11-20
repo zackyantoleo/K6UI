@@ -1,4 +1,4 @@
-// Shared helpers for request cards: extraction/assertion count badges on tabs
+// Shared helpers for request cards: extraction/assertion count badges in the editor section heads
 // and card renumbering. Kept in a separate module so req-card.js and rows.js
 // don't need to import each other (avoids a circular import).
 import { $$ } from '../dom.js';
@@ -6,7 +6,7 @@ import { $$ } from '../dom.js';
 export function updateExtCount(card) {
   const list  = card.querySelector('.req-card-body .extractions-list');
   const n     = $$('.ext-name', list || card).filter(i => i.value.trim()).length;
-  const badge = card.querySelector('.tab-count-ext');
+  const badge = card.querySelector('.section-count-ext');
   if (!badge) return;
   badge.textContent = n || '';
   badge.classList.toggle('visible', n > 0);
@@ -15,7 +15,7 @@ export function updateExtCount(card) {
 export function updateAssertCount(card) {
   const list  = card.querySelector('.assertions-list');
   const n     = list ? $$('.assertion-row', list).length : 0;
-  const badge = card.querySelector('.tab-count-assert');
+  const badge = card.querySelector('.section-count-assert');
   if (!badge) return;
   badge.textContent = n || '';
   badge.classList.toggle('visible', n > 0);
@@ -25,7 +25,7 @@ export function updateScriptCount(card) {
   const pre  = card.querySelector('.pre-script');
   const post = card.querySelector('.post-script');
   const n = (pre?.value.trim() ? 1 : 0) + (post?.value.trim() ? 1 : 0);
-  const badge = card.querySelector('.tab-count-script');
+  const badge = card.querySelector('.section-count-script');
   if (!badge) return;
   badge.textContent = n || '';
   badge.classList.toggle('visible', n > 0);
@@ -35,7 +35,7 @@ export function updateScriptCount(card) {
 export function updateOutcomeCount(card) {
   const list  = card.querySelector('.req-card-body .outcome-rules-list');
   const n     = list ? $$('.outcome-label', list).filter(i => i.value.trim()).length : 0;
-  const badge = card.querySelector('.tab-count-outcome');
+  const badge = card.querySelector('.section-count-outcome');
   if (!badge) return;
   badge.textContent = n || '';
   badge.classList.toggle('visible', n > 0);

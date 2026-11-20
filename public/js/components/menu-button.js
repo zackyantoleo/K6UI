@@ -1,8 +1,10 @@
 // A button that opens a small menu of actions (the top bar's Import menu).
 // Keyboard: Enter, Space or Arrow Down opens it on the first item, Arrow Up on
 // the last; arrows, Home and End move; Escape closes it and returns focus to the
-// button; Tab or a click outside closes it.
-export function initMenuButton(button, menu) {
+// button; Tab or a click outside closes it. Menus made per request card pass
+// `closeOnOutsideClick: false` and close through one shared listener instead
+// (a listener per card would outlive the card).
+export function initMenuButton(button, menu, { closeOnOutsideClick = true } = {}) {
   const items = () => [...menu.querySelectorAll('[role="menuitem"]')];
 
   function open(index = 0) {
@@ -45,7 +47,7 @@ export function initMenuButton(button, menu) {
   menu.addEventListener('click', event => {
     if (event.target instanceof Element && event.target.closest('[role="menuitem"]')) close({ focusButton: true });
   }, true);
-  document.addEventListener('click', event => {
+  if (closeOnOutsideClick) document.addEventListener('click', event => {
     if (!menu.hidden && !menu.contains(event.target) && !button.contains(event.target)) close();
   });
   return { open, close };

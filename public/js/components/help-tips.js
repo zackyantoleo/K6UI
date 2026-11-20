@@ -10,7 +10,7 @@ let tip = null;
 let anchor = null;
 let pinned = false;
 
-// A help button for markup built in JS (request editor tabs, groups).
+// A help button for markup built in JS (request editor sections, groups).
 export function helpButton(key) {
   const button = document.createElement('button');
   button.dataset.help = key;

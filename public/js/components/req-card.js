@@ -1,4 +1,8 @@
-// Compact request card with one-at-a-time expansion and lazy feature panels.
+// Compact request card with one-at-a-time expansion. Its editor is built the
+// first time it is needed: Headers and Body are always shown, every other part
+// (checks, extraction, Save to CSV, success statuses, outcome rules, scripts)
+// only when the request uses it or "+ Add to this request" adds it; "Wait after"
+// sits under them. Each part fills itself lazily. One DOM for Simple and Advanced.
 import { headerRow, extractionRow } from './rows.js';
 import { exportBlock, readExportBlock } from './export-rows.js';
 import {
@@ -17,15 +21,21 @@ import { createHeadersPanel } from './request-editor/headers.js';
 import { createBodyPanel } from './request-editor/body.js';
 import { assertionRow, createChecksPanel } from './request-editor/checks.js';
 import { createExtractPanel } from './request-editor/extract.js';
+import { createExportsPanel } from './request-editor/exports.js';
 import { createScriptsPanel } from './request-editor/scripts.js';
 import {
   createOutcomesPanel, fillOutcomesPanel, outcomeRuleRow, readOutcomeRuleRow, readOutcomesPanel,
 } from './request-editor/outcomes.js';
-import { createAdvancedPanel } from './request-editor/advanced.js';
+import { createStatusesPanel } from './request-editor/statuses.js';
+import { helpButton } from './help-tips.js';
+import { initMenuButton } from './menu-button.js';
+import { DEFAULT_OUTCOME_FALLBACK } from '../outcomes.js';
 import { createRequestId } from '../project-store.js';
 
 export { assertionRow };
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+// Methods whose body is sent (server/generator/request.js); a gRPC request sends its message.
+const BODY_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
 // Following cards first, then earlier ones, nearest first.
 function siblingsByDistance(card) {
@@ -50,7 +60,7 @@ function updateExpandedState(card, expanded) {
   card.classList.toggle('expanded', expanded);
   const toggle = card.querySelector('.request-expand');
   toggle?.setAttribute('aria-expanded', String(expanded));
-  if (expanded) ensureRequestPanel(card, card.dataset.activePanel || 'headers');
+  if (expanded) syncSections(card);
 }
 
 export function setRequestExpanded(card, expanded, { exclusive = true } = {}) {
@@ -68,40 +78,12 @@ export function refreshRequestSummary(card) {
   card.querySelector('.request-name')?.dispatchEvent(new Event('input'));
 }
 
-function activateTab(card, panelId, { focus = false } = {}) {
-  card.dataset.activePanel = panelId;
-  let activeTab = null;
-  card.querySelectorAll('.req-tab').forEach(tab => {
-    const active = tab.dataset.tab === panelId;
-    tab.classList.toggle('active', active);
-    tab.setAttribute('aria-selected', String(active));
-    tab.tabIndex = active ? 0 : -1;
-    if (active) activeTab = tab;
-  });
-  card.querySelectorAll('.req-tab-panel').forEach(panel => {
-    panel.classList.toggle('hidden', panel.dataset.panel !== panelId);
-  });
-  ensureRequestPanel(card, panelId);
-  if (focus) activeTab?.focus();
-}
+const panelOf = (card, panelId) => card.querySelector(`.req-panel[data-panel="${panelId}"]`);
+const sectionOf = (card, panelId) => panelOf(card, panelId)?.closest('.req-section');
 
-function handleTabKeydown(card, event) {
-  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
-  const tabs = [...card.querySelectorAll('.req-tab')];
-  const current = tabs.indexOf(event.currentTarget);
-  if (current === -1) return;
-  event.preventDefault();
-  let next = current;
-  if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
-  if (event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
-  if (event.key === 'Home') next = 0;
-  if (event.key === 'End') next = tabs.length - 1;
-  activateTab(card, tabs[next].dataset.tab, { focus: true });
-}
-
-// The outcome rules as they stand: the Outcomes tab once it was opened, else the saved ones.
+// The outcome rules as they stand: the live section once it was filled, else the saved ones.
 function outcomesOf(card) {
-  const panel = card.querySelector('.req-tab-panel[data-panel="outcomes"]');
+  const panel = panelOf(card, 'outcomes');
   return panel?.dataset.panelReady === 'true'
     ? readOutcomesPanel(panel.querySelector('.outcomes-panel'))
     : card.requestState?.outcomes;
@@ -120,15 +102,301 @@ function panelContent(factory, card) {
 const lazyPanelFactories = {
   headers: () => createHeadersPanel(),
   body: () => createBodyPanel(),
-  extractions: ({ onExtCount }) => createExtractPanel(onExtCount),
   assertions: ({ onAssertCount }) => createChecksPanel(onAssertCount),
+  extractions: ({ onExtCount }) => createExtractPanel(onExtCount),
+  exports: () => createExportsPanel(),
+  statuses: ({ readOutcomes }) => createStatusesPanel(readOutcomes),
   outcomes: ({ onOutcomeCount }) => createOutcomesPanel(onOutcomeCount),
   scripts: ({ onScriptCount }) => createScriptsPanel(onScriptCount),
-  options: ({ readOutcomes }) => createAdvancedPanel(readOutcomes),
 };
 
+// Any text typed in a list (checkboxes left out), e.g. a half-filled extraction row.
+const typedIn = (panel, selector) => [...panel.querySelectorAll(`${selector} :is(input:not([type="checkbox"]), textarea)`)]
+  .some(field => field.value.trim() !== '');
+
+// The parts "+ Add to this request" offers, in the order they appear. `inUse`
+// reads a filled section (`panel`) or, before that, the saved request; `filled`
+// (default: `inUse`) says whether removing it deletes something the user typed,
+// so it asks first; `start` runs when the user adds the part; `focus` is where
+// the cursor goes; `clear` empties it when the user removes it.
+const EXTRA_SECTIONS = [
+  {
+    id: 'assertions', title: 'Check the response', help: () => helpButton('check'),
+    about: 'Mark it failed when the status, the body or the speed is wrong.',
+    inUse: (panel, saved) => (panel ? !!panel.querySelector('.assertion-row') : (saved.assertions || []).length > 0),
+    focus: '.check-template-btn',
+    clear: (panel, card) => { panel.querySelector('.assertions-list').replaceChildren(); updateAssertCount(card); },
+  },
+  {
+    id: 'extractions', title: 'Take a value from the response', help: () => helpButton('extraction'),
+    about: 'Keep a token or an id, then use it as {{name}} in later requests.',
+    inUse: (panel, saved) => (panel ? !!panel.querySelector('.extraction-row') : (saved.extractions || []).some(item => item?.varName)),
+    filled: panel => typedIn(panel, '.extractions-list'),
+    start: panel => { if (!panel.querySelector('.extraction-row')) panel.querySelector('.add-row-btn').click(); },
+    focus: '.extraction-row:last-child .ext-name',
+    clear: (panel, card) => { panel.querySelector('.extractions-list').replaceChildren(); updateExtCount(card); },
+  },
+  {
+    id: 'exports', title: 'Save values to a CSV file', help: () => helpButton('saveCsv'),
+    about: 'Download them after the run, or use them as test data in a later run.',
+    inUse: (panel, saved) => (panel ? !!panel.querySelector('.export-block') : (saved.exports || []).some(item => item && typeof item === 'object')),
+    filled: panel => typedIn(panel, '.exports-list'),
+    start: panel => { if (!panel.querySelector('.export-block')) panel.querySelector('.add-export').click(); },
+    focus: '.export-block:last-child .export-file',
+    clear: panel => panel.querySelector('.exports-list').replaceChildren(),
+  },
+  {
+    id: 'statuses', title: 'Success statuses', help: () => helpButton('expectedStatuses'),
+    about: 'Count another status, such as 400 "sold out", as a success.',
+    inUse: (panel, saved) => (panel
+      ? !panel.querySelector('.check-status').checked || panel.querySelector('.expected-statuses').value !== ''
+      : saved.checkStatus === false || !!saved.expectedStatuses),
+    focus: '.expected-statuses',
+    clear: panel => {
+      panel.querySelector('.check-status').checked = true;
+      panel.querySelector('.expected-statuses').value = '';
+      panel.querySelector('.expected-statuses-status').textContent = '';
+    },
+  },
+  {
+    id: 'outcomes', title: 'Label each response', advanced: true, help: () => helpButton('outcomes'),
+    about: 'Count success, rejected and other answers separately.',
+    inUse: (panel, saved) => (panel ? !!panel.querySelector('.outcome-rule-row') : (saved.outcomes?.rules || []).length > 0),
+    filled: panel => typedIn(panel, '.outcome-rules-list'),
+    focus: '.outcome-template-btn',
+    clear: (panel, card) => {
+      panel.querySelector('.outcome-rules-list').replaceChildren();
+      panel.querySelector('.outcome-fallback').value = DEFAULT_OUTCOME_FALLBACK;
+      updateOutcomeCount(card);
+    },
+  },
+  {
+    id: 'scripts', title: 'Run custom code', advanced: true, help: () => helpButton('scripts'),
+    about: 'JavaScript before or after the request, for what nothing else covers.',
+    inUse: (panel, saved) => (panel
+      ? !!(panel.querySelector('.pre-script').value || panel.querySelector('.post-script').value)
+      : !!(saved.preScript || saved.postScript)),
+    focus: '.pre-script',
+    clear: (panel, card) => {
+      panel.querySelector('.pre-script').value = '';
+      panel.querySelector('.post-script').value = '';
+      updateScriptCount(card);
+    },
+  },
+];
+
+function sectionInUse(card, definition) {
+  const panel = panelOf(card, definition.id);
+  return definition.inUse(panel?.dataset.panelReady === 'true' ? panel : null, card.requestState || {});
+}
+
+function sectionShell(panelId, title, help, { advanced = false, removable = false } = {}) {
+  const section = document.createElement('section');
+  section.className = `req-section req-section-${panelId}`;
+  const head = document.createElement('div');
+  head.className = 'req-section-head';
+  const heading = document.createElement('h3');
+  heading.className = 'req-section-title';
+  heading.tabIndex = -1;
+  heading.textContent = title;
+  head.append(heading, help);
+  if (advanced) {
+    const tag = document.createElement('span');
+    tag.className = 'tag-advanced';
+    tag.textContent = 'Advanced';
+    head.appendChild(tag);
+  }
+  const count = { assertions: 'assert', extractions: 'ext', outcomes: 'outcome', scripts: 'script' }[panelId];
+  if (count) {
+    const badge = document.createElement('span');
+    badge.className = `section-count section-count-${count}`;
+    head.appendChild(badge);
+  }
+  if (removable) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'row-remove req-section-remove';
+    remove.setAttribute('aria-label', `Remove "${title}" from this request`);
+    remove.title = 'Remove from this request';
+    head.appendChild(remove);
+  }
+  const panel = document.createElement('div');
+  panel.className = 'req-panel';
+  panel.dataset.panel = panelId;
+  section.append(head, panel);
+  return section;
+}
+
+// "+ Add to this request": one item per extra part; an item already shown says
+// "Added" and takes the cursor to it.
+function addMenu(card) {
+  const wrap = document.createElement('div');
+  wrap.className = 'menu-wrap req-add';
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'btn ghost sm menu-btn req-add-btn';
+  toggle.textContent = '+ Add to this request';
+  const menu = document.createElement('div');
+  menu.className = 'menu req-add-menu';
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', 'Add to this request');
+  menu.id = `${card.dataset.requestId}-add-menu`;
+  menu.hidden = true;
+  toggle.setAttribute('aria-controls', menu.id);
+  for (const definition of EXTRA_SECTIONS) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'menu-item req-add-item';
+    item.setAttribute('role', 'menuitem');
+    item.dataset.panel = definition.id;
+    const title = document.createElement('strong');
+    title.className = 'req-add-title';
+    title.textContent = definition.title;
+    if (definition.advanced) {
+      const tag = document.createElement('span');
+      tag.className = 'tag-advanced';
+      tag.textContent = 'Advanced';
+      title.append(' ', tag);
+    }
+    const added = document.createElement('span');
+    added.className = 'req-add-added';
+    added.textContent = 'Added';
+    added.hidden = true;
+    title.append(' ', added);
+    const about = document.createElement('span');
+    about.className = 'req-add-about';
+    about.textContent = definition.about;
+    item.append(title, about);
+    item.addEventListener('click', () => addSection(card, definition.id));
+    menu.appendChild(item);
+  }
+  wrap.append(toggle, menu);
+  // Outside clicks are handled once for every card (initRequestMorePanels).
+  card.addMenuControl = initMenuButton(toggle, menu, { closeOnOutsideClick: false });
+  return wrap;
+}
+
+function syncAddMenu(card) {
+  card.querySelectorAll('.req-add-item').forEach(item => {
+    item.querySelector('.req-add-added').hidden = sectionOf(card, item.dataset.panel)?.hidden !== false;
+  });
+}
+
+// Body: shown for a method that sends one (and gRPC, whose body is the message),
+// or while it holds text, so nothing typed is ever out of sight. A body a GET
+// request would not send says so. Hiding happens only on a method change or when
+// the editor opens, never while the user types.
+function syncBodySection(card, { allowHide = true } = {}) {
+  const section = sectionOf(card, 'body');
+  if (!section) return;
+  const grpc = card.querySelector('.protocol').value === 'grpc';
+  const method = card.querySelector('.method').value;
+  const sends = grpc || BODY_METHODS.includes(method);
+  const field = card.querySelector('.req-card-body .body');
+  const text = field ? field.value : card.requestState?.body || '';
+  if (sends || text) section.hidden = false;
+  else if (allowHide) section.hidden = true;
+  section.querySelector('.req-section-title').textContent = grpc ? 'Message (JSON)' : 'Body';
+  const note = section.querySelector('.req-body-note');
+  note.hidden = sends || !text;
+  note.textContent = `A ${method} request sends no body: this text is kept but not sent.`;
+}
+
+function buildEditor(card) {
+  const body = card.querySelector('.req-card-body');
+  const main = document.createElement('div');
+  main.className = 'req-main-sections';
+  const headers = sectionShell('headers', 'Headers', helpButton('requestHeaders'));
+  const bodySection = sectionShell('body', 'Body', helpButton('requestBody'));
+  const note = document.createElement('p');
+  note.className = 'ext-hint req-body-note';
+  note.hidden = true;
+  bodySection.appendChild(note);
+  bodySection.addEventListener('input', () => syncBodySection(card, { allowHide: false }));
+  main.append(headers, bodySection);
+
+  const extras = document.createElement('div');
+  extras.className = 'req-extra-sections';
+  for (const definition of EXTRA_SECTIONS) {
+    const section = sectionShell(definition.id, definition.title, definition.help(), {
+      advanced: definition.advanced, removable: true,
+    });
+    section.hidden = true;
+    section.querySelector('.req-section-remove').addEventListener('click', () => removeSection(card, definition.id));
+    extras.appendChild(section);
+  }
+
+  const foot = document.createElement('div');
+  foot.className = 'req-editor-foot';
+  const wait = document.createElement('div');
+  wait.className = 'req-wait';
+  const waitLabel = document.createElement('label');
+  waitLabel.className = 'opt-label';
+  const sleep = document.createElement('input');
+  sleep.type = 'number';
+  sleep.className = 'sleep';
+  sleep.min = '0';
+  sleep.step = '0.5';
+  sleep.value = card.requestState ? card.requestState.sleepAfter ?? 1 : '1';
+  sleep.setAttribute('aria-label', 'Wait after this request, in seconds');
+  const unit = document.createElement('span');
+  unit.textContent = 's';
+  unit.setAttribute('aria-hidden', 'true');
+  waitLabel.append('Wait after ', sleep, unit);
+  wait.append(waitLabel, helpButton('pause'));
+  foot.append(addMenu(card), wait);
+
+  body.append(main, extras, foot);
+  body.dataset.editorReady = 'true';
+}
+
+function ensureEditor(card) {
+  if (card.querySelector('.req-card-body')?.dataset.editorReady !== 'true') buildEditor(card);
+}
+
+// Headers and Body, then every part the request uses (a part, once shown, stays
+// until the user removes it).
+function syncSections(card) {
+  ensureRequestPanel(card, 'headers');
+  ensureRequestPanel(card, 'body');
+  for (const definition of EXTRA_SECTIONS) {
+    const section = sectionOf(card, definition.id);
+    if (section.hidden && sectionInUse(card, definition)) {
+      ensureRequestPanel(card, definition.id);
+      section.hidden = false;
+    }
+  }
+  syncBodySection(card);
+  syncAddMenu(card);
+}
+
+function addSection(card, panelId) {
+  const definition = EXTRA_SECTIONS.find(item => item.id === panelId);
+  const section = sectionOf(card, panelId);
+  const panel = ensureRequestPanel(card, panelId);
+  if (section.hidden) {
+    section.hidden = false;
+    definition.start?.(panel);
+    syncAddMenu(card);
+  }
+  (section.querySelector(definition.focus) || section.querySelector('.req-section-title')).focus();
+}
+
+function removeSection(card, panelId) {
+  const definition = EXTRA_SECTIONS.find(item => item.id === panelId);
+  const panel = panelOf(card, panelId);
+  if ((definition.filled || definition.inUse)(panel, {})
+    && !window.confirm(`Remove "${definition.title}" from this request? What it holds is deleted.`)) return;
+  definition.clear(panel, card);
+  sectionOf(card, panelId).hidden = true;
+  syncAddMenu(card);
+  panel.dispatchEvent(new Event('change', { bubbles: true }));
+  card.querySelector('.req-add-btn').focus();
+}
+
 export function ensureRequestPanel(card, panelId) {
-  const panel = card.querySelector(`.req-tab-panel[data-panel="${panelId}"]`);
+  ensureEditor(card);
+  const panel = panelOf(card, panelId);
   if (!panel || panel.dataset.panelReady === 'true') return panel;
   const factory = lazyPanelFactories[panelId];
   if (!factory) return panel;
@@ -148,11 +416,12 @@ export function ensureRequestPanel(card, panelId) {
       for (const extraction of request.extractions || []) {
         if (extraction?.varName) list.appendChild(extractionRow(extraction));
       }
+      updateExtCount(card);
+    } else if (panelId === 'exports') {
       const exportsList = panel.querySelector('.exports-list');
       for (const exp of request.exports || []) {
         if (exp && typeof exp === 'object') exportsList.appendChild(exportBlock(exp));
       }
-      updateExtCount(card);
     } else if (panelId === 'assertions') {
       const list = panel.querySelector('.assertions-list');
       for (const check of request.assertions || []) {
@@ -166,10 +435,9 @@ export function ensureRequestPanel(card, panelId) {
       panel.querySelector('.pre-script').value = request.preScript || '';
       panel.querySelector('.post-script').value = request.postScript || '';
       updateScriptCount(card);
-    } else if (panelId === 'options') {
+    } else if (panelId === 'statuses') {
       panel.querySelector('.check-status').checked = request.checkStatus !== false;
       panel.querySelector('.expected-statuses').value = request.expectedStatuses || '';
-      panel.querySelector('.sleep').value = request.sleepAfter ?? 1;
     }
   }
   return panel;
@@ -211,11 +479,11 @@ function requestSnapshot(card) {
 }
 
 function applySnapshot(card, snapshot) {
+  ensureEditor(card);
   const requiredPanels = {
     '.body': 'body',
-    '.check-status': 'options',
-    '.expected-statuses': 'options',
-    '.sleep': 'options',
+    '.check-status': 'statuses',
+    '.expected-statuses': 'statuses',
     '.pre-script': 'scripts',
     '.post-script': 'scripts',
     '.outcome-fallback': 'outcomes',
@@ -237,7 +505,7 @@ function applySnapshot(card, snapshot) {
     ensureRequestPanel(card, 'extractions').querySelector('.extractions-list').appendChild(extractionRow(extraction));
   }
   for (const exp of snapshot.exports) {
-    ensureRequestPanel(card, 'extractions').querySelector('.exports-list').appendChild(exportBlock(exp));
+    ensureRequestPanel(card, 'exports').querySelector('.exports-list').appendChild(exportBlock(exp));
   }
   for (const [type, value, value2] of snapshot.assertions) {
     ensureRequestPanel(card, 'assertions').querySelector('.assertions-list')
@@ -286,7 +554,9 @@ function handleMoreKeydown(card, event) {
   items[(current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
 }
 
-// Called once at startup (app.js).
+// Called once at startup (app.js). Also closes an open "+ Add to this request"
+// menu on a click outside it: one listener for every card, so cards that are
+// replaced (opening a project) leave nothing behind.
 export function initRequestMorePanels() {
   const closeOthers = event => {
     document.querySelectorAll('.req-more-panel:not([hidden])').forEach(panel => {
@@ -295,6 +565,11 @@ export function initRequestMorePanels() {
   };
   document.addEventListener('click', closeOthers);
   document.addEventListener('focusin', closeOthers);
+  document.addEventListener('click', event => {
+    document.querySelectorAll('.req-add-menu:not([hidden])').forEach(menu => {
+      if (!menu.closest('.req-add').contains(event.target)) menu.closest('.req-card')?.addMenuControl?.close();
+    });
+  });
 }
 
 export function requestLabel(card) {
@@ -312,7 +587,6 @@ export function reqCard(index, context, requestId = '') {
   card.className = 'req-card collapsed';
   card.dataset.context = context;
   card.dataset.requestId = requestId || createRequestId();
-  card.dataset.activePanel = 'headers';
 
   const head = document.createElement('div');
   head.className = 'req-card-head';
@@ -444,40 +718,6 @@ export function reqCard(index, context, requestId = '') {
 
   const body = document.createElement('div');
   body.className = 'req-card-body';
-  const tabs = document.createElement('div');
-  tabs.className = 'req-tabs';
-  tabs.setAttribute('role', 'tablist');
-  const definitions = [
-    ['headers', 'Headers'], ['body', 'Body'], ['extractions', 'Extract'],
-    ['assertions', 'Checks'], ['outcomes', 'Outcomes'], ['scripts', 'Scripts'], ['options', 'Advanced'],
-  ];
-  for (const [panelId, label] of definitions) {
-    const tab = button(`${label} settings`, `req-tab${panelId === 'headers' ? ' active' : ''}`, label);
-    const idBase = `${card.dataset.requestId}-${panelId}`;
-    tab.dataset.tab = panelId;
-    tab.id = `${idBase}-tab`;
-    tab.setAttribute('role', 'tab');
-    tab.setAttribute('aria-selected', String(panelId === 'headers'));
-    tab.setAttribute('aria-controls', `${idBase}-panel`);
-    tab.tabIndex = panelId === 'headers' ? 0 : -1;
-    const countName = { extractions: 'ext', assertions: 'assert', outcomes: 'outcome', scripts: 'script' }[panelId];
-    if (countName) {
-      const count = document.createElement('span');
-      count.className = `tab-count tab-count-${countName}`;
-      tab.append(' ', count);
-    }
-    tab.addEventListener('click', () => activateTab(card, panelId));
-    tab.addEventListener('keydown', event => handleTabKeydown(card, event));
-    tabs.appendChild(tab);
-    const panel = document.createElement('div');
-    panel.className = `req-tab-panel${panelId === 'headers' ? '' : ' hidden'}`;
-    panel.dataset.panel = panelId;
-    panel.id = `${idBase}-panel`;
-    panel.setAttribute('role', 'tabpanel');
-    panel.setAttribute('aria-labelledby', tab.id);
-    body.appendChild(panel);
-  }
-  body.prepend(tabs);
   card.append(head, grpcRow, body);
   card.ensureRequestPanel = panelId => ensureRequestPanel(card, panelId);
 
@@ -507,6 +747,7 @@ export function reqCard(index, context, requestId = '') {
   protocol.addEventListener('change', syncProtocol);
   protocol.addEventListener('change', syncPreview);
   method.addEventListener('change', syncPreview);
+  for (const field of [protocol, method]) field.addEventListener('change', () => syncBodySection(card));
   nameInput.addEventListener('input', syncPreview);
   url.addEventListener('input', syncPreview);
   enabled.addEventListener('change', syncEnabled);

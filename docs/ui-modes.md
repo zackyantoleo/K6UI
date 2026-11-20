@@ -8,7 +8,7 @@ never changes what a test sends, how it runs, or what is saved.
 |---|---|---|
 | Navigation | Four steps: Build Flow, Data & Rules, Load, Run & Results | Direct categories: Request Flow, Variables, Headers, Data files, Load Profile, Thresholds / SLA, k6 Script, Run & Results |
 | Request flow | Request cards in execution order, click one to edit; request groups sit below the list | Outline on the left (execution order + group label; a group also shows its condition), the selected request or group editor on the right |
-| Hidden settings | An **Advanced settings configured** notice lists categories and counts (never values) | Every setting is reachable from the outline and editor tabs |
+| Hidden settings | An **Advanced settings configured** notice lists categories and counts (never values) | Every setting is reachable from the outline and the request editor |
 | Load | Presets first, **Customize** opens the editor | The custom editor is always open; presets are optional and ask before replacing custom values |
 | Results | Overview first, detail tabs available | Same panel plus shortcuts to Requests, Metrics, Errors, Live log |
 
@@ -49,7 +49,8 @@ when changing either mode.
 | `public/js/components/flow-outline.js` | Advanced outline: pure `outlineModel()` / `resolveSelection()` plus a DOM adapter that reads card and group heads only |
 | `public/js/components/request-groups.js` | The group editor, one DOM for both modes: the "Run only if" row (variable, operator, comma-separated values) lives in the group body, and a badge with its summary in the always-visible head. The outline and the notice read that badge, never the inputs of a hidden panel |
 | `public/js/data-files.js` | The Data files view (`#view-datafiles`): one DOM for both modes, reached from the Data & Rules step (Simple) or its own category (Advanced). Cards keep their state in `card.dataSet`; file text is rendered with `textContent` only and nothing here reads the mode |
-| `public/js/components/export-rows.js` | "Save to CSV" blocks in the Extract tab, one DOM for both modes; values are DOM properties |
+| `public/js/components/req-card.js` | The request editor, one DOM for both modes: Headers and Body sections, then only the parts the request uses (shown when the editor opens, from the saved request or the live fields) or that "+ Add to this request" adds; "Wait after" in the footer. The menu (`menu-button.js`) closes on an outside click through one shared listener, so replaced cards leave nothing behind. Showing a part never changes a value; removing one clears it (after a confirm when it holds typed text) |
+| `public/js/components/export-rows.js` | "Save to CSV" blocks in the "Save values to a CSV file" part of a request, one DOM for both modes; values are DOM properties |
 | `public/js/components/outcome-target-rows.js` | Outcome Targets in the Thresholds / SLA view (`#view-sla`), one DOM for both modes, reached from the Data & Rules step (Simple) or its own category (Advanced), so the Simple notice does not list them. The request and label lists are read from the cards with `readRequestSettings()` (never hydrating a lazy panel), refreshed when the view is shown or the flow changes; values are DOM properties |
 | `public/js/export-results.js` | "Saved to CSV" in the Overview of Run & Results, shown in both modes; rows live in this tab's memory until the next run, names are rendered with `textContent` |
 | `public/js/components/advanced-notice.js` | Simple notice: pure `summarizeAdvancedSettings()` plus a DOM adapter that reads live panels when hydrated, otherwise `card.requestState` |
@@ -78,7 +79,7 @@ that will run with:
 - pre/post scripts (whitespace-only scripts do not count)
 - a pause other than the default 1 second
 - the automatic 2xx check turned off
-- expected statuses (requests with a list in the Advanced tab; never the statuses themselves)
+- expected statuses (requests with a list under Success statuses; never the statuses themselves)
 - group header defaults (groups only)
 - conditional groups: groups with a "Run only if" row filled in (groups only; a turned-off group counts under "configured but not run")
 - data files that will be used (a count of files; the notice is not per request)

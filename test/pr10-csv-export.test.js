@@ -9,7 +9,7 @@ const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
 const css = readStyles();
 const exportRows = read('../public/js/components/export-rows.js');
-const extractPanel = read('../public/js/components/request-editor/extract.js');
+const exportsPanel = read('../public/js/components/request-editor/exports.js');
 const reqCard = read('../public/js/components/req-card.js');
 const config = read('../public/js/config.js');
 const results = read('../public/js/export-results.js');
@@ -21,15 +21,17 @@ const stripComments = source => source.replace(/^\s*\/\/.*$/gm, '');
 const noMarkup = /innerHTML|insertAdjacentHTML|outerHTML|document\.write/;
 const noMode = /uiMode|ui-mode|localStorage|sessionStorage|data-ui-only/;
 
-test('the Extract tab has one "Save to CSV" section, built once in JS for Simple and Advanced', () => {
-  assert.match(extractPanel, /exportsSection\.className = 'exports-section'/);
-  assert.match(extractPanel, /textContent = 'Save to CSV'/);
-  assert.match(extractPanel, /'add-row-btn add-export'/);
+test('the request editor has one "Save values to a CSV file" section, built once in JS for Simple and Advanced', () => {
+  assert.match(exportsPanel, /exportsSection\.className = 'exports-section'/);
+  assert.match(exportsPanel, /textContent = '\+ Save to CSV'/);
+  assert.match(exportsPanel, /'add-row-btn add-export'/);
+  assert.match(reqCard, /exports: \(\) => createExportsPanel\(\)/, 'a lazy part of its own');
+  assert.match(reqCard, /title: 'Save values to a CSV file'/);
   for (const cls of ['export-block', 'export-file', 'export-skip-missing', 'export-column-row', 'export-col-name', 'export-col-value', 'export-add-column', 'export-remove']) {
     assert.match(exportRows, new RegExp(`['\` ]${cls}['\`]`), cls);
   }
   assert.doesNotMatch(html, /export-block|["\s]exports-list/, 'the markup has no second copy');
-  for (const source of [exportRows, extractPanel]) {
+  for (const source of [exportRows, exportsPanel]) {
     assert.doesNotMatch(stripComments(source), noMarkup);
     assert.doesNotMatch(stripComments(source), noMode);
   }
@@ -41,7 +43,7 @@ test('the Extract tab has one "Save to CSV" section, built once in JS for Simple
 test('exports travel with the request: collected, validated before Run, lazy panel, duplicate, store', () => {
   assert.match(config, /exports: {5}readExportBlocks\(body\.querySelector\('\.exports-list'\)\)/);
   assert.match(config, /exportsProblem\(runnable\.map/);
-  assert.match(reqCard, /for \(const exp of request\.exports \|\| \[\]\)/, 'lazy Extract panel from card.requestState');
+  assert.match(reqCard, /for \(const exp of request\.exports \|\| \[\]\)/, 'lazy Save to CSV section from card.requestState');
   assert.match(reqCard, /snapshot\.exports = /);
   assert.match(reqCard, /for \(const exp of snapshot\.exports\)/);
   assert.match(store, /request\.exports = normalizeExports\(request\.exports\)/);
@@ -85,7 +87,7 @@ test('the Simple notice counts requests that save to CSV, never the file name', 
 });
 
 test('styling covers the editor block and the results list, and wraps on narrow screens', () => {
-  for (const selector of ['.exports-section', '.export-block', '.export-head', '.export-column-row', '.run-exports', '.run-exports-warning', '.run-export', '.run-export-actions']) {
+  for (const selector of ['.exports-list', '.export-block', '.export-head', '.export-column-row', '.run-exports', '.run-exports-warning', '.run-export', '.run-export-actions']) {
     assert.ok(css.includes(selector), selector);
   }
   assert.match(css, /\.export-column-row \{ display: flex; flex-wrap: wrap;/);

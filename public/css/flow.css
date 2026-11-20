@@ -214,16 +214,61 @@ html[data-ui-mode="simple"] #reqs-main > .req-card:is([data-group-run="start"], 
   #reqs-main > .req-card.expanded .req-card-head .request-enabled-label { justify-self: start; }
 }
 
+/* ── Request editor: Headers + Body, the parts the request uses, then the footer ── */
 .req-card-body { min-width: 0; }
 .req-card.collapsed .req-card-body,
 .req-card.collapsed .grpc-row { display: none; }
-.req-tabs { padding: 0 var(--space-2); margin-inline: var(--space-2); }
-.req-tab-panel { padding: var(--space-4); }
-.req-tab-panel > div { display: flex; flex-direction: column; gap: 10px; }
-.req-tab-panel.hidden { display: none; }
-/* Payload editors open tall enough to read a real JSON body without dragging. */
-.req-tab-panel textarea.body { height: clamp(320px, 60vh, 900px); }
-.req-tab-panel :is(textarea.pre-script, textarea.post-script) { height: clamp(180px, 28vh, 420px); }
+.req-card.expanded .req-card-body {
+  display: grid; gap: var(--space-3); padding: 0 var(--space-4) var(--space-4);
+}
+/* Headers and Body side by side when there is room, else one under the other. */
+.req-main-sections {
+  display: grid; gap: var(--space-3); align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+.req-extra-sections { display: grid; gap: var(--space-3); }
+.req-extra-sections:not(:has(> .req-section:not([hidden]))) { display: none; }
+.req-section { min-width: 0; border: 1px solid var(--border-2); border-radius: var(--radius-sm); }
+.req-section[hidden] { display: none; }
+.req-section-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+  min-height: 40px; padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+.req-section-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.req-section-head .req-section-remove { margin-left: auto; }
+.section-count {
+  min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.section-count:not(.visible) { display: none; }
+.tag-advanced {
+  padding: 1px 6px; border-radius: 999px; background: var(--accent-lite); color: var(--accent-text);
+  font-size: var(--text-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+}
+.req-panel { padding: var(--space-3); }
+.req-panel > div { display: flex; flex-direction: column; gap: 10px; }
+/* The body editor opens tall enough for a real JSON body; drag the corner for more. */
+.req-panel textarea.body { height: clamp(180px, 32vh, 640px); }
+.req-panel :is(textarea.pre-script, textarea.post-script) { height: clamp(140px, 22vh, 420px); }
+.req-body-note { margin: calc(-1 * var(--space-1)) var(--space-3) var(--space-3); }
+.req-body-note[hidden] { display: none; }
+.req-editor-foot {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4);
+}
+.req-wait { display: inline-flex; align-items: center; gap: var(--space-2); }
+.req-wait .opt-label { color: var(--text-muted); }
+/* The menu hangs from the footer (the card's full width), so it never sticks out of the card. */
+.req-editor-foot { position: relative; }
+.req-editor-foot .req-add { position: static; }
+.req-add-menu { max-width: 100%; min-width: min(300px, 100%); }
+.req-add-menu .req-add-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.req-add-menu .menu-item .tag-advanced { font-size: var(--text-xs); color: var(--accent-text); }
+.req-add-menu .menu-item .req-add-added {
+  padding: 1px 6px; border-radius: 999px; background: var(--ok-lite); color: var(--ok);
+  font-size: var(--text-xs); font-weight: 600;
+}
+.req-add-menu .menu-item .req-add-added[hidden] { display: none; }
 .headers-list, .extractions-list, .assertions-list, .outcome-rules-list, .group-headers-list {
   display: flex; flex-direction: column; gap: var(--space-2);
 }
@@ -257,12 +302,7 @@ html[data-ui-mode="simple"] #reqs-main > .req-card:is([data-group-run="start"], 
 .grpc-row .grpc-method { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 13px; }
 .grpc-row .opt-label { flex-shrink: 0; white-space: nowrap; }
 
-/* ── Save to CSV: editor blocks (Extract tab) ─────────────────── */
-.exports-section {
-  display: flex; flex-direction: column; gap: var(--space-2);
-  margin-top: var(--space-2); padding-top: var(--space-4); border-top: 1px dashed var(--border-2);
-}
-.exports-title { font-size: 13.5px; font-weight: 600; color: var(--text); margin: 0; }
+/* ── Save to CSV: editor blocks ("Save values to a CSV file") ─── */
 .exports-list { display: flex; flex-direction: column; gap: 10px; }
 .export-block {
   display: flex; flex-direction: column; gap: 7px; padding: var(--space-3);

@@ -12,8 +12,10 @@ const featureModules = [
   'body.js',
   'checks.js',
   'extract.js',
+  'exports.js',
+  'outcomes.js',
   'scripts.js',
-  'advanced.js',
+  'statuses.js',
 ];
 
 test('request editor is split into focused feature modules', async () => {

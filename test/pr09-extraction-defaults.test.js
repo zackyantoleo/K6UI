@@ -42,7 +42,7 @@ test('a row is read with its default as typed; an empty default is left out', ()
 
 test('the default travels everywhere a row is built or read: collect, open, lazy panels, duplicate', () => {
   assert.match(config, /\.map\(readExtractionRow\)/);
-  assert.match(reqCard, /list\.appendChild\(extractionRow\(extraction\)\)/, 'lazy Extract panel from card.requestState');
+  assert.match(reqCard, /list\.appendChild\(extractionRow\(extraction\)\)/, 'lazy extraction section from card.requestState');
   assert.match(reqCard, /default: row\.querySelector\('\.ext-default'\)\.value/, 'duplicate copies the default');
   assert.doesNotMatch(reqCard, /for \(const \[name, source, selector\] of snapshot\.extractions\)/, 'no positional snapshot that would drop it');
   assert.match(store, /function normalizeExtractions/);
