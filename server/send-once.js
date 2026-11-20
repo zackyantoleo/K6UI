@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { generateScript } from "./generator/index.js";
+import { createLineSplitter } from "./line-splitter.js";
 import { expandSubRequests } from "../public/js/sub-requests.js";
 
 export const SEND_ONCE_LIMITS = Object.freeze({
@@ -203,28 +204,23 @@ async function runOnce(script, { signal, limits, k6 }) {
         if (read?.record && !record) record = read.record;
         else if (read?.message && log.length < limits.messages) log.push(read.message);
       };
-      const splitter = () => {
-        let buffer = "";
-        return chunk => {
+      // Past `outputBytes` nothing more is read; a line cut there does not parse and is skipped.
+      const outputs = [child.stdout, child.stderr].map(stream => {
+        const lines = createLineSplitter(onLine);
+        stream.on("data", chunk => {
           if (readBytes >= limits.outputBytes) return;
           readBytes += chunk.length;
-          buffer += chunk.toString();
-          let index;
-          while ((index = buffer.indexOf("\n")) !== -1) {
-            onLine(buffer.slice(0, index));
-            buffer = buffer.slice(index + 1);
-          }
-          if (readBytes >= limits.outputBytes) buffer = "";
-        };
-      };
-      child.stdout.on("data", splitter());
-      child.stderr.on("data", splitter());
+          lines.push(chunk);
+        });
+        return lines;
+      });
       child.on("error", err => {
         finish(reject, err.code === "ENOENT"
           ? new SendOnceError("k6 was not found on the server. Make sure k6 is installed (https://k6.io/docs/get-started/installation/).", 503)
           : new SendOnceError(`Could not start k6: ${err.message}`, 500));
       });
       child.on("close", () => {
+        for (const lines of outputs) lines.end();
         if (timedOut) {
           finish(reject, new SendOnceError(`No answer within ${Math.round(limits.timeoutMs / 1000)} s, so the request was stopped.`, 504));
         } else if (record) {

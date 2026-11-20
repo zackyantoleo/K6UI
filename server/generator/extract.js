@@ -1,10 +1,35 @@
 // Codegen for extracting variables from a response (JSON path / header / regex).
-import { buildGjsonPath, buildJsonAccessor, buildRegex, jsLiteral } from "./helpers.js";
+import { buildGjsonPath, buildJsonAccessor, buildRegex, jsLiteral, oneLine } from "./helpers.js";
 
 const SOURCES = new Set(["json", "header", "regex"]);
 
 // An extraction that produces a variable (the others are skipped silently).
 export const isExtractable = (e) => Boolean(e && e.varName && SOURCES.has(e.source));
+
+// The name becomes a `let` in the script, so it must be a plain identifier (the
+// [A-Za-z_]\w* rule of the UI and the importers) that strict-mode JavaScript accepts
+// as a variable: not `class`, `let`, `eval`, ... `await` is reserved in a module.
+const VARIABLE_NAME = /^[A-Za-z_]\w*$/;
+
+function isUsableName(name) {
+  if (typeof name !== "string" || !VARIABLE_NAME.test(name) || name === "await") return false;
+  try {
+    new Function(`"use strict"; let ${name};`); // compiled, never run; `name` is \w only
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 400 naming the request when an extraction's name cannot be a variable.
+export function validateExtractionNames(requests) {
+  requests.forEach((req, i) => {
+    for (const e of req.extractions || []) {
+      if (!isExtractable(e) || isUsableName(e.varName)) continue;
+      throw new Error(`Request ${i + 1}: "${oneLine(e.varName)}" cannot be the name of an extracted value. Use letters, digits and _ (not starting with a digit), and not a JavaScript word such as "class".`);
+    }
+  });
+}
 
 // The fixed value an extraction falls back to, or null when it has none. "" (or
 // no field at all) means none: a regex with no match gives "", a missing JSON path

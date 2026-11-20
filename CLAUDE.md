@@ -11,15 +11,20 @@ npm start        # http://localhost:3000
 npm run dev      # auto-restart on server file changes
 ```
 
+The server listens on `127.0.0.1` and answers only `Host: localhost` / `127.x` / `[::1]` (403 otherwise, against DNS rebinding); `HOST=0.0.0.0` shares it on the network on purpose (Host check off, a warning at start), `PORT` changes the port (`server/host-check.js`).
+
 Prerequisites: Node 18+, and the `k6` binary on PATH (only needed to run tests; script generation works without it).
 
 ## Code map
 
 ```
 server/                 Backend (Node/Express, ESM)
-├── index.js            Express bootstrap: static public/ + mount /api
+├── index.js            Express bootstrap: Host check, static public/ + mount /api; `createServer()` listens on HOST (default 127.0.0.1)
+├── host-check.js       Loopback listen address test + the Host header check (`localHostOnly`, on unless HOST is a network address)
 ├── routes.js           API endpoints (see API section)
-├── k6-runner.js        Write script to a temp folder, spawn `k6 run` (REST API on a free port), parse output → events
+├── k6-runner.js        Write script to a temp folder, spawn `k6 run` (REST API on a free port), parse output → events; the run ends once (`finish()`: a spawn error or `close`, never an unhandled rejection)
+├── k6-console.js       `consoleMessageOf(line)`: k6's logrus `msg="..." source=console` → the message, unquoted the way Go quoted it (`\x7f`, `\U0001F600`, which JSON.parse rejects)
+├── line-splitter.js    Child process output → whole lines (`StringDecoder`, so a UTF-8 character cut between chunks stays whole; `end()` hands over a last line without `\n`). Used by k6-runner.js and send-once.js
 ├── live-metrics.js     Free port from the OS, poll k6's `GET /v1/metrics` once a second → `metrics` events (a failed poll is skipped)
 ├── export-collector.js "Save to CSV" rows logged by the script → batched `export` events (memory only, size limits)
 ├── request-log-throttle.js Request records logged by the script → `req-log` events, ≤ 50 passed + 50 failed a second, `req-log-skipped` count (plus each record's `sk`)
@@ -30,7 +35,7 @@ server/                 Backend (Node/Express, ESM)
 │   ├── options.js      k6 options object (VUs/stages/per-vu-iterations scenario + thresholds; a race burst's scenario + `k6ui_race_late`)
 │   ├── request.js      Code block for one HTTP request
 │   ├── assertions.js   check() block from per-request assertions
-│   ├── extract.js      Variable extraction from responses (HTTP JSON: `res.json("<gjson path>")`); an extraction `default` → `extractOr(() => read, "default")`
+│   ├── extract.js      Variable extraction from responses (HTTP JSON: `res.json("<gjson path>")`); an extraction `default` → `extractOr(() => read, "default")`; `validateExtractionNames()`: a name that is not `[A-Za-z_]\w*` or is a strict-mode JavaScript word (`class`, `let`, `eval`, `await`…) is a 400 naming the request
 │   ├── interpolate.js  {{varName}} interpolation → template literals
 │   ├── data.js         Data files (CSV) → SharedArray literal + the row of each iteration (or of a group's start), size limits
 │   ├── run-if.js       A group's "run only if" condition → the `if (...)` expression, 400 for a condition that cannot work
@@ -38,7 +43,7 @@ server/                 Backend (Node/Express, ESM)
 │   ├── outcomes.js     Outcome rules → `outcomeOf_<n>()` per request (one `if` per rule) + `OUTCOME_RULES_<n>` data, one always-passing threshold per label, 400 for rules that cannot work; outcome targets → `count<op><n>` on the same thresholds + `OUTCOME_THRESHOLDS` data; `{{$outcome}}` → `$outcome`
 │   ├── expected-statuses.js Expected statuses → `const EXPECTED_STATUSES_<n> = http.expectedStatuses(...)` + `responseCallback` in the params, the status test of the check and the request record, 400 for a list that cannot work
 │   ├── race.js         Race burst load mode → per-vu-iterations scenario, `const RACE` + `RACE_LATE` Counter, `setup()` → `{ k6uiRaceT0 }`, `k6uiRaceWait()` / `k6uiRaceWarmup()` / `k6uiRaceRecord()`, the warm-up + wait before the race request's pre-processor, its send time and per-VU record (`raceRequestCode()`), 400 naming the field
-│   └── helpers.js      JSON selectors (`buildGjsonPath()` for HTTP, a JS accessor for gRPC), regex literals & `jsLiteral()` (string literal, U+2028/U+2029 escaped)
+│   └── helpers.js      JSON selectors (`buildGjsonPath()` for HTTP, a JS accessor for gRPC), regex literals & `jsLiteral()` (string literal, U+2028/U+2029 escaped), `oneLine()` (every project value written into a `//` comment goes through it: \r, \n, U+2028, U+2029 → space)
 └── importer/           k6 script source → JSON configuration + warnings (reverse of generator/)
     ├── index.js        importK6Script() — acorn parse (never executes the script), imports, top-level consts
     ├── values.js       Static evaluation; textOf() renders expressions as text with {{var}} placeholders

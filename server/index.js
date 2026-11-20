@@ -3,9 +3,13 @@ import express from "express";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isLoopbackAddress, localHostOnly } from "./host-check.js";
 import { apiRouter } from "./routes.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Loopback only unless HOST says otherwise (see host-check.js).
+const DEFAULT_HOST = "127.0.0.1";
 
 // A configuration can carry CSV data files (see generator/data.js): up to
 // MAX_DATA_BYTES of text, which JSON escaping can roughly double. Only the two
@@ -14,8 +18,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONFIG_BODY_LIMIT = "24mb";
 const DEFAULT_BODY_LIMIT = "1mb";
 
-export function createApp() {
+// `localOnly` (default true): answer only requests addressed to localhost.
+export function createApp({ localOnly = true } = {}) {
   const app = express();
+  if (localOnly) app.use(localHostOnly);
   app.use(["/api/generate", "/api/run", "/api/send-once"], express.json({ limit: CONFIG_BODY_LIMIT }));
   app.use(express.json({ limit: DEFAULT_BODY_LIMIT }));
   app.use(express.static(join(__dirname, "..", "public")));
@@ -30,14 +36,18 @@ export function createApp() {
 
 export function createServer({
   port = process.env.PORT || 3000,
-  host,
+  host = process.env.HOST || DEFAULT_HOST,
   onListening,
 } = {}) {
-  const app = createApp();
+  const localOnly = isLoopbackAddress(host);
+  const app = createApp({ localOnly });
   const server = app.listen(port, host, () => {
     const address = server.address();
     const boundPort = address && typeof address === "object" ? address.port : port;
-    console.log(`K6UI running at http://${host || "localhost"}:${boundPort}`);
+    console.log(`K6UI running at http://${localOnly ? "localhost" : host}:${boundPort}`);
+    if (!localOnly) {
+      console.warn(`Warning: K6UI listens on ${host}, so other machines can reach it. Anyone who can open it can run load tests and send requests from this machine.`);
+    }
     onListening?.();
   });
   return server;

@@ -2,6 +2,7 @@
 // extractions + optional request logging + sleep.
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
+import { oneLine } from "./helpers.js";
 import { expectedStatusTest, expectedStatusesName, expectedStatusesOf } from "./expected-statuses.js";
 
 // ctx = { localVars, processorVars, dataVars, globalVars, hoistedVars, dynamicVars } — see interpolate.js.
@@ -39,7 +40,7 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
   const resVar = `res_${prefix}_${index}`;
   const lines = [];
 
-  lines.push(`  // Request ${index + 1}: ${method} ${req.url}`);
+  lines.push(`  // Request ${index + 1}: ${oneLine(`${method} ${req.url}`)}`);
 
   if (hasBody) {
     const bodyCode = interpolate(req.body, ctx);

@@ -5,10 +5,10 @@
 // and values are compared as strings.
 import { cleanRunIfValues, describeRunIf, runIfProblem } from "../../public/js/run-if.js";
 import { resolveVariable } from "./interpolate.js";
+import { oneLine } from "./helpers.js";
 
 // U+2028/U+2029 end a JS line, so they must not appear raw in a string literal or a comment.
 const literal = (value) => JSON.stringify(value).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
-const oneLine = (text) => String(text ?? "").replace(/[\r\n\u2028\u2029]+/g, " ").trim();
 
 // "Group "Checkout"" (or "Request group 2" when it has no name), for error messages.
 export function groupLabel(group, position) {

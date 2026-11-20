@@ -30,7 +30,9 @@ import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { consoleMessageOf } from "./k6-console.js";
 import { createExportCollector } from "./export-collector.js";
+import { createLineSplitter } from "./line-splitter.js";
 import { createRaceCollector } from "./race-collector.js";
 import { createRequestLogThrottle } from "./request-log-throttle.js";
 import { METRICS_INTERVAL_MS, freePort, startMetricsPoller } from "./live-metrics.js";
@@ -72,58 +74,65 @@ export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = M
     })
     : null;
 
-  child.on("error", (err) => {
+  const requestLogs = createRequestLogThrottle(onEvent);
+  const exportRows = createExportCollector(onEvent);
+  const raceRecords = createRaceCollector();
+
+  // The run ends exactly once: after `close`, or after an `error` that means k6 never
+  // started (a spawn failure is followed by a `close` too, which is then ignored).
+  // A failure while the results are read or handed over becomes an `error` event, not
+  // an unhandled rejection (that would stop the server); the folder is removed and
+  // onEnd() runs either way.
+  let finished = false;
+  async function finish(readResults) {
+    if (finished) return;
+    finished = true;
     poller?.stop();
+    try {
+      if (readResults) onEvent("done", await readResults());
+    } catch (err) {
+      onEvent("error", { message: `Failed to read the results: ${err.message}` });
+    } finally {
+      await cleanup();
+      onEnd();
+    }
+  }
+
+  child.on("error", (err) => {
     if (err.code === "ENOENT") {
       onEvent("error", { message: "k6 was not found on the server. Make sure k6 is installed (https://k6.io/docs/get-started/installation/)." });
     } else {
       onEvent("error", { message: `Failed to run k6: ${err.message}` });
     }
-    cleanup();
-    onEnd();
+    // Without a pid k6 never started; otherwise (a failed kill) `close` still follows.
+    if (child.pid === undefined) finish(null);
   });
 
-  const requestLogs = createRequestLogThrottle(onEvent);
-  const exportRows = createExportCollector(onEvent);
-  const raceRecords = createRaceCollector();
-
-  // Split the stdout/stderr streams into whole lines.
-  function makeLineSplitter(onLine) {
-    let buf = "";
-    return (chunk) => {
-      buf += chunk.toString();
-      let idx;
-      while ((idx = buf.indexOf("\n")) !== -1) {
-        onLine(buf.slice(0, idx));
-        buf = buf.slice(idx + 1);
-      }
-    };
-  }
-
+  // K6UI's own console lines (Save to CSV rows, race records, request records) never
+  // reach the live log, not even a broken one, since it may hold a token.
   function handleOutputLine(line) {
-    const t = line.trim();
-    // k6 wraps console.log in logrus text format: ...msg="<content>" source=console
-    const consoleMatch = t.match(/ msg="(.*)" source=console$/);
-    if (consoleMatch) {
-      try {
-        // logrus escaping is equivalent to JSON string body escaping — reverse it
-        const raw = JSON.parse('"' + consoleMatch[1] + '"');
-        if (exportRows.addLine(raw)) return;
-        if (raceRecords.addLine(raw)) return;
-        if (raw.startsWith('{"__r":1,')) {
-          requestLogs.add(JSON.parse(raw));
-          return;
-        }
-      } catch { /* fall through to a plain log line */ }
+    const message = consoleMessageOf(line);
+    if (message !== null) {
+      if (exportRows.addLine(message)) return;
+      if (raceRecords.addLine(message)) return;
+      if (message.startsWith('{"__r":1,')) {
+        try {
+          requestLogs.add(JSON.parse(message));
+        } catch { /* a broken record is dropped */ }
+        return;
+      }
     }
     onEvent("log", { line: line + "\n" });
   }
 
-  child.stdout.on("data", makeLineSplitter(handleOutputLine));
-  child.stderr.on("data", makeLineSplitter(handleOutputLine));
+  const outputs = [child.stdout, child.stderr].map((stream) => {
+    const lines = createLineSplitter(handleOutputLine);
+    stream.on("data", (chunk) => lines.push(chunk));
+    return lines;
+  });
 
-  child.on("close", async (code) => {
-    poller?.stop();
+  child.on("close", (code) => finish(async () => {
+    for (const lines of outputs) lines.end();
     let summary = null;
     try {
       summary = JSON.parse(await readFile(summaryPath, "utf8"));
@@ -133,10 +142,8 @@ export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = M
     const outcome = code === 0 ? "passed" : code === 99 ? "threshold-failed" : "failed";
     exportRows.flush();
     requestLogs.flush();
-    onEvent("done", { code, outcome, summary, ...raceRecords.result() });
-    await cleanup();
-    onEnd();
-  });
+    return { code, outcome, summary, ...raceRecords.result() };
+  }));
 
   return {
     stop() {
