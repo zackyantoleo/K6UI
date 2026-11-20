@@ -120,7 +120,7 @@ export function readOutputLine(line, limits = SEND_ONCE_LIMITS) {
   return { message: { level: String(entry.level || "info"), text: tidy(text, limits.messageChars) } };
 }
 
-// The request record (see printHttpRecord in generator/index.js) → the result.
+// The request record (see printHttpRecord in generator/request-log.js) → the result.
 export function sendOnceResult(record, log = []) {
   const request = readBody(record.rq);
   const response = readBody(record.rb);

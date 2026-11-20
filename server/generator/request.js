@@ -2,7 +2,7 @@
 // extractions + optional request logging + sleep.
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
-import { oneLine } from "./helpers.js";
+import { oneLine, responseVar } from "./helpers.js";
 import { expectedStatusTest, expectedStatusesName, expectedStatusesOf } from "./expected-statuses.js";
 
 // ctx = { localVars, processorVars, dataVars, globalVars, hoistedVars, dynamicVars } — see interpolate.js.
@@ -10,7 +10,8 @@ import { expectedStatusTest, expectedStatusesName, expectedStatusesOf } from "./
 // label this response, after the extractions, and the variable that holds the label.
 // race = { before, after } of a race burst's race request (race.js raceRequestCode):
 // `before` right before http.request, `after` after the outcome lines.
-export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequests, outcome = null, race = null) {
+// logRequests = request details are on: print the request record after the response.
+export function buildRequestCode(req, index, ctx, { logRequests = false, outcome = null, race = null } = {}) {
   const method = (req.method || "GET").toUpperCase();
   const urlCode = interpolate(req.url, ctx);
 
@@ -37,17 +38,17 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
     req.body != null &&
     String(req.body).trim() !== "";
 
-  const resVar = `res_${prefix}_${index}`;
+  const resVar = responseVar(index);
   const lines = [];
 
   lines.push(`  // Request ${index + 1}: ${oneLine(`${method} ${req.url}`)}`);
 
   if (hasBody) {
     const bodyCode = interpolate(req.body, ctx);
-    lines.push(`  const body_${prefix}_${index} = ${bodyCode};`);
+    lines.push(`  const body_main_${index} = ${bodyCode};`);
     if (race) lines.push(race.before);
     lines.push(
-      `  const ${resVar} = http.request(${JSON.stringify(method)}, ${urlCode}, body_${prefix}_${index}, ${paramsCode});`
+      `  const ${resVar} = http.request(${JSON.stringify(method)}, ${urlCode}, body_main_${index}, ${paramsCode});`
     );
   } else {
     if (race) lines.push(race.before);
@@ -62,19 +63,12 @@ export function buildRequestCode(req, index, prefix, ctx, extractTarget, logRequ
     lines.push(`  check(${resVar}, { ${JSON.stringify(label)}: (r) => ${test} });`);
   }
 
-  const extractCode = buildExtractionLines(
-    req.extractions,
-    resVar,
-    extractTarget,
-    extractTarget ? null : ctx && ctx.localVars,
-    "http",
-    ctx && ctx.hoistedVars
-  );
+  const extractCode = buildExtractionLines(req.extractions, resVar, { declared: ctx?.localVars, hoisted: ctx?.hoistedVars });
   if (extractCode) lines.push(extractCode);
   if (outcome) lines.push(outcome.code);
   if (race) lines.push(race.after);
 
-  // Per-request log: logHttpRequest() (helpers in generator/index.js) prints
+  // Per-request log: logHttpRequest() (helpers in generator/request-log.js) prints
   // one {__r:1,...} JSON line that k6-runner.js turns into a req-log event. A
   // request with outcome rules or expected statuses calls logHttpOutcome() with its
   // label and whether the status counts as a success.

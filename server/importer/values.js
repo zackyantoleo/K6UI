@@ -158,7 +158,7 @@ export function resolveConst(rawNode, ctx) {
 
 function identifierText(node, ctx, depth) {
   const name = node.name;
-  // K6UI's own `$outcome` (the latest outcome label, generator/index.js) → {{$outcome}}.
+  // K6UI's own `$outcome` (the latest outcome label, generator/flow.js) → {{$outcome}}.
   if (name === OUTCOME_VARIABLE && ctx.outcomeHelper) return `{{${name}}}`;
   if (ctx.bindings.has(name)) return ctx.materialize(name);
 

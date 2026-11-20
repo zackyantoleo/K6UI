@@ -555,7 +555,7 @@ function unsupported(stmt, state) {
 }
 
 // try { console.log(...) } catch {} or try { logHttpRequest(...) } catch {} — the
-// request-log line K6UI itself generates (helpers: server/generator/index.js), and the
+// request-log line K6UI itself generates (helpers: server/generator/request-log.js), and the
 // race burst's per-VU record `try { k6uiRaceRecord(...) } catch (e) {}` (generator/race.js).
 const REQUEST_LOG_CALLS = new Set(["logHttpRequest", "logHttpOutcome", "logGrpcRequest", "k6uiRaceRecord"]);
 const isRequestLogCall = (node) =>

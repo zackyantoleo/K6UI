@@ -6,7 +6,7 @@
 // the record: a body cut at the size cap sends just the recorded part, and with
 // "Hide secrets" the [REDACTED] values are copied as they are. `notes` says so.
 
-// The note redactResponseSample() in server/generator/index.js puts after a cut value.
+// The note redactResponseSample() in server/generator/request-log.js puts after a cut value.
 const CUT_NOTE = /\n… \[(\d+) more characters not shown\]$/;
 // curl computes it from the body it sends; a recorded one is wrong for a cut body.
 const SKIPPED_HEADERS = new Set(['content-length']);

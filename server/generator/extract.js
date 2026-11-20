@@ -58,12 +58,10 @@ function extractOr(read, fallback) {
 // mode = 'http' → JSON source reads res.json(<gjson path>); regex matches res.body.
 // mode = 'grpc' → JSON source reads the already-decoded res.message; regex
 //                 matches JSON.stringify(res.message).
-// targetPrefix = 'data' → data.varName = ...  (for setup, stored on the return value)
-// targetPrefix = null   → let varName = ...   (for the main function/teardown)
-// localVarSet prevents a double `let` for the same variable name.
-// hoisted = names already declared with `let` above a conditional block (see
-// index.js): they are assigned, never declared again.
-export function buildExtractionLines(extractions, resVar, targetPrefix, localVarSet, mode = "http", hoisted = null) {
+// declared = names already declared with `let` (each new one is added), so a name is
+// never declared twice; hoisted = names declared above a conditional block (see
+// flow.js): they are assigned, never declared again.
+export function buildExtractionLines(extractions, resVar, { mode = "http", declared = null, hoisted = null } = {}) {
   if (!Array.isArray(extractions)) return "";
   const lines = [];
 
@@ -95,13 +93,9 @@ export function buildExtractionLines(extractions, resVar, targetPrefix, localVar
     const fallback = extractionDefault(e);
     if (fallback !== null) rhs = `extractOr(() => ${read}, ${jsLiteral(fallback)})`;
 
-    if (targetPrefix) {
-      lines.push(`  ${targetPrefix}.${e.varName} = ${rhs};`);
-    } else {
-      const declared = (localVarSet && localVarSet.has(e.varName)) || (hoisted && hoisted.has(e.varName));
-      lines.push(`  ${declared ? '' : 'let '}${e.varName} = ${rhs};`);
-      if (localVarSet) localVarSet.add(e.varName);
-    }
+    const known = declared?.has(e.varName) || hoisted?.has(e.varName);
+    lines.push(`  ${known ? '' : 'let '}${e.varName} = ${rhs};`);
+    declared?.add(e.varName);
   }
 
   return lines.join("\n");

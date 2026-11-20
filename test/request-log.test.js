@@ -4,7 +4,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { generateScript, requestLogBudget } from '../server/generator/index.js';
+import { generateScript } from '../server/generator/index.js';
+import { requestLogBudget } from '../server/generator/request-log.js';
 import { buildOptions } from '../server/generator/options.js';
 import { importK6Script } from '../server/importer/index.js';
 import { createRequestLogThrottle } from '../server/request-log-throttle.js';

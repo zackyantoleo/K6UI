@@ -15,6 +15,7 @@
 // signature) is fresh when the request leaves. A script without race mode is unchanged.
 import { DEFAULT_MAX_DURATION } from "./options.js";
 import { interpolate } from "./interpolate.js";
+import { responseVar } from "./helpers.js";
 import { RACE_LATE_METRIC, RACE_WARMUP_TAG, planRace } from "../../public/js/shared/race.js";
 
 // → the plan (public/js/shared/race.js planRace), or null when the load mode is not race.
@@ -149,6 +150,6 @@ export function raceRequestCode(race, outcomeName) {
   const i = race.index;
   return {
     before: `  const race_sent_${i} = Date.now();`,
-    after: `  try { k6uiRaceRecord(data.k6uiRaceT0, race_at_${i}, race_sent_${i}, res_main_${i}, ${outcomeName || "undefined"}); } catch (e) {}`,
+    after: `  try { k6uiRaceRecord(data.k6uiRaceT0, race_at_${i}, race_sent_${i}, ${responseVar(i)}, ${outcomeName || "undefined"}); } catch (e) {}`,
   };
 }
