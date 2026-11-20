@@ -12,6 +12,7 @@ import {
 } from './request-groups.js';
 import { helpButton } from './help-tips.js';
 import { initFlowArrange } from './flow-arrange.js';
+import { createVariablesPanel } from './variables-panel.js';
 
 export function addRequest({ openCurl = false } = {}) {
   const container = $('#reqs-main');
@@ -84,7 +85,13 @@ export function buildFlowView() {
   layout.className = 'flow-layout';
   const zone = buildZone('main', 'Main Scenario', 'Repeated per VU', 'badge-loop',
     'Every virtual user runs these requests in order, again and again, for as long as the test lasts.');
-  layout.append(createFlowOutline({ view, onAddRequest: () => addRequest(), onAddGroup: addRequestGroup }), zone);
+  // The variables panel comes before the zone: it sits above the list on narrow
+  // screens and in Advanced, beside it on wide Simple screens (flow.css).
+  layout.append(
+    createFlowOutline({ view, onAddRequest: () => addRequest(), onAddGroup: addRequestGroup }),
+    createVariablesPanel(),
+    zone,
+  );
   view.appendChild(layout);
   initFlowArrange();
 }

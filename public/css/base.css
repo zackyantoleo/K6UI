@@ -50,6 +50,7 @@ html[data-ui-mode="simple"] [data-ui-only="advanced"] { display: none !important
 [data-icon="help"]    { --icon: var(--i-help); }
 [data-icon="grip"]    { --icon: var(--i-grip); }
 [data-icon="more"]    { --icon: var(--i-more); }
+[data-icon="alert"]   { --icon: var(--i-alert); }
 
 /* ── Focus ───────────────────────────────────────────────────── */
 .btn:focus-visible, button:focus-visible, a:focus-visible,

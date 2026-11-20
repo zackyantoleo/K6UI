@@ -9,6 +9,7 @@ import { createDataSetId } from './project-store.js';
 import {
   CsvError, MAX_DATA_BYTES, MAX_DATA_SET_BYTES, parseCsv, readDataSet, toColumnName,
 } from './csv-parse.js';
+import { dataFileProblem } from './variables.js';
 
 const PREVIEW_ROWS = 5;
 const PREVIEW_COLUMNS = 12;
@@ -390,6 +391,25 @@ export function useAsDataFile(fileName, text) {
 
 // Data files the generator will use: rows and at least one valid column.
 export const usableDataFileCount = () => cards().filter(card => card.usable).length;
+
+// The {{columns}} of every data file, for the variables panel and the warnings
+// (public/js/variables.js): a file that is not usable lists its typed names, so a
+// warning can say why they give nothing.
+export function dataFileColumns() {
+  return cards().map((card, index) => {
+    const set = card.dataSet;
+    const info = describeCard(card);
+    return {
+      label: String(set.name ?? '').trim() || set.fileName || `Data file ${index + 1}`,
+      groupId: set.groupId || '',
+      columns: info.columns.length ? info.columns.map(column => column.name) : (set.columns || []).filter(Boolean),
+      usable: Boolean(card.usable),
+      problem: dataFileProblem({
+        content: Boolean(set.content), broken: Boolean(info.error), rows: info.rows.length, columns: info.columns.length,
+      }),
+    };
+  });
+}
 
 export function initDataFiles() {
   $('#add-data-file').addEventListener('click', () => {

@@ -123,9 +123,8 @@
         <!-- VIEW: Request Flow -->
         <section id="view-flow" class="view">
           <p class="view-hint">
-            Arrange the requests k6 will run. Use
-            <code>{{variable_name}}</code> in a URL, header, or body
-            to insert global variables or values extracted from previous responses.
+            Arrange the requests k6 will run. Type <code>{{</code> in a URL, header, or body
+            to insert a variable: a global variable, a data file column, or a value taken from an earlier response.
             <button data-help="variable"></button>
           </p>
           <section id="advanced-notice" class="advanced-notice" data-ui-only="simple" aria-labelledby="advanced-notice-title" hidden>
@@ -133,7 +132,7 @@
             <p class="advanced-notice-intro"></p>
             <ul class="advanced-notice-list"></ul>
             <p class="advanced-notice-skipped" hidden></p>
-            <p class="advanced-notice-foot">Switching between Simple and Advanced changes only the layout, never what runs. Open a request's tabs to review its settings.</p>
+            <p class="advanced-notice-foot">Switching between Simple and Advanced changes only the layout, never what runs. Open a request to review its settings.</p>
           </section>
           <div id="flow-empty-state" class="flow-empty-state" role="status">
             <div class="empty-state-mark" data-icon="flow" aria-hidden="true"></div>

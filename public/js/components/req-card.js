@@ -716,9 +716,15 @@ export function reqCard(index, context, requestId = '') {
   plaintextLabel.append(plaintext, ' Plaintext (no TLS)');
   grpcRow.append(grpcLabel, grpcMethod, plaintextLabel);
 
+  // {{variables}} this request sends but cannot use yet (components/variables-panel.js fills it).
+  const varWarnings = document.createElement('ul');
+  varWarnings.className = 'req-var-warnings';
+  varWarnings.setAttribute('aria-label', 'Variable warnings');
+  varWarnings.hidden = true;
+
   const body = document.createElement('div');
   body.className = 'req-card-body';
-  card.append(head, grpcRow, body);
+  card.append(head, varWarnings, grpcRow, body);
   card.ensureRequestPanel = panelId => ensureRequestPanel(card, panelId);
 
   function syncProtocol() {
