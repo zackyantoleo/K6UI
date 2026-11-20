@@ -285,7 +285,7 @@ html[data-ui-mode="simple"] #reqs-main > .req-card:is([data-group-run="start"], 
 .check-template-btn:hover { border-color: var(--accent-line); background: var(--accent-lite); }
 .check-template-btn strong { font-size: 13px; font-weight: 600; }
 .check-template-btn span { color: var(--text-muted); font-size: 12px; line-height: 1.35; }
-.preset-btn:focus-visible, .check-template-btn:focus-visible, #customize-load:focus-visible {
+.load-goal:focus-visible, .check-template-btn:focus-visible, .race-advanced-toggle:focus-visible {
   outline: 2px solid var(--focus); outline-offset: 2px;
 }
 

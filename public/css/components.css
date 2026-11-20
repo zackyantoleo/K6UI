@@ -284,7 +284,6 @@
 .help-tip[hidden] { display: none; }
 .radio-card .radio-card-title { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; color: var(--text); }
 .radio-card .radio-card-title strong { margin: 0; }
-.preset-item { display: inline-flex; align-items: center; gap: 4px; }
 
 .drawer-overlay { position: fixed; inset: 0; z-index: 50; background: var(--scrim); }
 .drawer-overlay.hidden { display: none; }

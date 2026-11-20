@@ -1,5 +1,7 @@
 // Load Profile → Race burst (config.load.mode "race", see public/js/race.js): the race
-// request, timing, VUs, spread or offsets, lead time, warm-up and "fail if late".
+// request, VUs and timing (spread or offsets) in view; lead time, warm-up, "fail if
+// late" and max duration under "Advanced timing", folded in Simple with a one-line
+// summary of their values, always open in Advanced (css/views.css).
 // The request list comes from the request cards as they are now, read without
 // opening lazy editor panels (readRequestSettings), and is refreshed whenever the
 // view is shown or the flow changes. A chosen request that is no longer offered stays
@@ -57,6 +59,22 @@ export function refreshRaceRequests() {
   select.value = value;
 }
 
+// The "Advanced timing" values in one line, so a folded section still shows them.
+export function raceTimingSummary({ leadMs = '', warmup = true, failIfLate = false, maxDuration = '' } = {}) {
+  return [
+    `${String(leadMs).trim() || '?'} ms lead time`,
+    warmup ? 'warm-up on' : 'no warm-up',
+    failIfLate ? 'a late VU fails the run' : 'a late VU is a warning',
+    `stops after ${String(maxDuration).trim() || '1h'}`,
+  ].join(' · ');
+}
+
+function setAdvancedOpen(open) {
+  $('#race-advanced-toggle')?.setAttribute('aria-expanded', String(open));
+  const body = $('#race-advanced-body');
+  if (body) body.hidden = !open;
+}
+
 // Which fields the timing uses; in offsets mode the VU count is the number of offsets.
 function syncRaceFields() {
   const timing = $('#race-timing').value;
@@ -70,6 +88,13 @@ function syncRaceFields() {
     ? 'One VU per offset. Each VU runs the flow once.'
     : 'Each VU runs the flow once. A number, or a global variable like {{RACERS}}.';
   $('#race-warmup-path-field').classList.toggle('hidden', !$('#race-warmup').checked);
+  const summary = $('#race-advanced-sum');
+  if (summary) summary.textContent = raceTimingSummary({
+    leadMs: $('#race-lead').value,
+    warmup: $('#race-warmup').checked,
+    failIfLate: $('#race-fail-late').checked,
+    maxDuration: $('#race-max-duration').value,
+  });
 }
 
 // → { vus, maxDuration, race } as typed.
@@ -119,6 +144,8 @@ export function initRaceSettings() {
   if (!panel || !view) return;
   panel.addEventListener('input', syncRaceFields);
   panel.addEventListener('change', syncRaceFields);
+  const toggle = $('#race-advanced-toggle');
+  toggle?.addEventListener('click', () => setAdvancedOpen(toggle.getAttribute('aria-expanded') !== 'true'));
   // The request list follows the flow: refreshed when the view is shown and after structural edits.
   new MutationObserver(() => {
     if (!view.classList.contains('hidden')) refreshRaceRequests();

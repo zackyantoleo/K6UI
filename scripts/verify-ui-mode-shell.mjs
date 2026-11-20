@@ -131,15 +131,15 @@ try {
     await active('advanced', view, view);
   }
   await nav('load').click();
-  // Stage 4: Advanced always shows the custom load editor (no Customize click).
-  assert.equal(await page.locator('#load-custom-editor').isVisible(), true);
+  // Advanced always shows the custom load editor: the kind of load and its fields.
+  assert.equal(await page.locator('#load-kind').isVisible(), true);
   await page.locator('#vus').fill('7');
   await page.locator('#duration').fill('17s');
   await radio('simple').check();
   await radio('advanced').check();
   assert.equal(await page.locator('#vus').inputValue(), '7');
   assert.equal(await page.locator('#duration').inputValue(), '17s');
-  assert.equal(await page.locator('input[name="load-mode"]:checked').inputValue(), 'simple');
+  assert.equal(await page.locator('#load-kind').inputValue(), 'simple');
   await nav('results').click();
   await page.locator('.results-tab[data-tab="errors"]').click();
   await radio('simple').check();
@@ -244,7 +244,7 @@ try {
     await radio('simple').check();
     await page.locator('#simple-nav [data-view="load"]').click();
     const tip = page.locator('#help-tip');
-    const smokeHelp = page.locator('.preset-item [data-help="smoke"]');
+    const smokeHelp = page.locator('.load-goal-item [data-help="smoke"]');
     assert.equal(await smokeHelp.getAttribute('aria-label'), 'About Smoke test');
     await smokeHelp.hover();
     assert.equal(await tip.isVisible(), true, 'Hover shows the tooltip');
@@ -258,16 +258,8 @@ try {
     assert.equal(await smokeHelp.getAttribute('aria-expanded'), 'true');
     await page.keyboard.press('Escape');
     assert.equal(await tip.isVisible(), false, 'Escape closes it');
-    assert.equal(await page.locator('#load-custom-editor').isVisible(), false, 'A help click does nothing else');
-    await page.locator('#customize-load').click();
-    const stagesRadio = page.locator('input[name="load-mode"][value="stages"]');
-    const before = await page.locator('input[name="load-mode"]:checked').getAttribute('value');
-    await page.locator('.radio-card [data-help="stages"]').click();
-    assert.equal(await page.locator('input[name="load-mode"]:checked').getAttribute('value'), before, 'Help inside a radio card does not pick it');
-    assert.equal(await stagesRadio.evaluate(node => node.labels[0].querySelector('strong').textContent), 'Staged');
-    assert.equal(await page.evaluate(() => document.querySelector('input[name="load-mode"][value="stages"]').getAttribute('aria-labelledby')), 'load-mode-stages-name');
-    await page.keyboard.press('Escape');
-    await page.locator('#customize-load').click();
+    assert.equal(await page.locator('.load-goal[data-goal="smoke"]').getAttribute('aria-pressed'), 'false', 'A help click does not pick the goal');
+    assert.equal(await page.locator('.load-goal[aria-pressed="true"]').getAttribute('data-goal'), 'custom');
     await page.locator('label[for="vus"]').count().then(count => assert.equal(count, 1, 'VUs has a real label'));
 
     // Glossary: opens on the filter, filters, Escape closes and returns focus.
@@ -739,10 +731,10 @@ try {
     assert.equal(await page.locator('#load-block-load').isVisible(), true);
     assert.equal(await page.locator('#load-block-goals').isVisible(), true, 'Simple: load and goals on one page');
     assert.equal(await page.locator('#load-goals-sum').textContent(), '1 goal');
-    await page.locator('#errorRate').fill('1');
+    await page.locator('#goal-error-on').check();
     // An opened project's load counts as custom: the preset asks before replacing it.
     page.once('dialog', dialog => dialog.accept());
-    await page.locator('.preset-btn[data-preset="smoke"]').click();
+    await page.locator('.load-goal[data-goal="smoke"]').click();
     await page.waitForFunction(() => document.querySelector('#step-summary-load').textContent === 'Smoke · 1 user · 30s · 2 goals');
 
     // A link to one block opens the page there and unfolds it.
@@ -804,6 +796,198 @@ try {
     await page.setViewportSize({ width: 1440, height: 900 });
   }
   checks.push('Test data: one page with Variables, Shared headers and CSV data files (folding in Simple, one open block per category in Advanced); "Used in" per variable; CSV dropped on the zone (one card each, non-CSV refused with a reason), on a card (asks first, Cancel keeps rows), or chosen; share and end of rows as sentences, File options folded until a file has no usable column; a stray file drop is caught. Pass/fail goals inside Load & goals (Thresholds / SLA in Advanced). Each Simple step says what it holds and updates as values change');
+
+  // Load & goals: a question with five goals, a sentence, a short race burst, goals as sentences (stage 6).
+  {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await radio('simple').check();
+    const project = {
+      schemaVersion: 2,
+      scenario: {
+        groups: [],
+        requests: [
+          { id: 'req_login', name: 'Log in', type: 'http', method: 'POST', url: 'https://fixture.test/login' },
+          {
+            id: 'req_redeem', name: 'Redeem', type: 'http', method: 'POST', url: 'https://fixture.test/redeem',
+            outcomes: { rules: [{ label: 'success', status: '200', source: 'none' }], fallback: 'other' },
+          },
+        ],
+      },
+      variables: [], globalHeaders: [], dataSets: [],
+      load: { mode: 'iterations', vus: '4', iterations: '2', maxDuration: '10m' },
+      thresholds: { p95: '', errorRate: '' },
+    };
+    const open = config => page.evaluate(async value => (await import('/js/project-io.js')).applyConfig(value), config);
+    const collect = () => page.evaluate(async () => structuredClone((await import('/js/config.js')).collectConfig()));
+    const script = async config => (await (await page.request.post(`${origin}/api/generate`, { data: config })).json()).script;
+    const pressed = () => page.locator('.load-goal[aria-pressed="true"]').getAttribute('data-goal');
+    const sentence = () => page.locator('#load-shape-summary').textContent();
+    await open(project);
+    const opened = await collect();
+    await page.locator('#simple-nav [data-view="load"]').click();
+    assert.equal(await page.locator('#load-goal-title').textContent(), 'What do you want to find out?');
+    assert.deepEqual(await page.locator('.load-goal').evaluateAll(cards => cards.map(card => card.dataset.goal)),
+      ['smoke', 'load', 'stress', 'race', 'custom']);
+    assert.equal(await page.locator('.load-goal[data-goal="smoke"] .load-goal-badge').textContent(), 'Start here');
+    // An opened project counts as Custom; its kind of load and its sentence are shown.
+    assert.equal(await pressed(), 'custom');
+    assert.equal(await page.locator('#load-settings-title').textContent(), 'Custom settings');
+    assert.equal(await page.locator('#load-kind').inputValue(), 'iterations');
+    assert.equal(await page.locator('#load-kind').isVisible(), true);
+    await page.waitForFunction(() => document.querySelector('#load-shape-summary').textContent.startsWith('4 users'));
+    assert.equal(await sentence(), '4 users each run your 2 requests 2 times (8 runs in total), then stop.');
+    assert.deepEqual(await page.locator('.load-stats dt').allTextContents(), ['Most users at once', 'Length', 'Kind']);
+    assert.equal(await page.locator('#load-mode-name').textContent(), 'Iterations');
+    // Threshold switches: an empty project goal is off, the input is disabled with a common value.
+    assert.equal(await page.locator('#goal-p95-on').isChecked(), false);
+    assert.equal(await page.locator('#p95').isDisabled(), true);
+    assert.equal(await page.locator('#p95').inputValue(), '500');
+    assert.equal(await page.locator('#errorRate').inputValue(), '1');
+    assert.deepEqual(opened.thresholds, { p95: '', errorRate: '' }, 'off = "" (not used)');
+    assert.equal(await page.locator('#load-goals-sum').textContent(), 'None yet');
+    // Nothing changed by showing the page: the same config and the same script.
+    const openedScript = await script(opened);
+    assert.deepEqual(await collect(), opened);
+    assert.equal(await script(await collect()), openedScript, 'opening the page changes nothing that runs');
+    const saved = (load, keys) => Object.fromEntries(keys.map(key => [key, load[key]]));
+    assert.deepEqual(saved(opened.load, Object.keys(project.load)), project.load, 'the load as saved');
+
+    // A preset asks first (opened values count as custom); Cancel keeps everything.
+    let asked = 0;
+    page.once('dialog', dialog => { asked += 1; dialog.dismiss(); });
+    await page.locator('.load-goal[data-goal="smoke"]').click();
+    assert.equal(asked, 1);
+    assert.equal(await pressed(), 'custom');
+    assert.deepEqual(await collect(), opened, 'Cancel keeps the opened load');
+    page.once('dialog', dialog => { asked += 1; dialog.accept(); });
+    await page.locator('.load-goal[data-goal="smoke"]').click();
+    assert.equal(asked, 2);
+    assert.equal(await pressed(), 'smoke');
+    assert.equal(await page.locator('#load-settings-title').textContent(), 'Smoke settings');
+    assert.equal(await page.locator('#load-kind').isVisible(), false, 'Simple: a preset hides the kind of load');
+    assert.equal(await page.locator('#stages').isVisible(), true);
+    assert.deepEqual(saved((await collect()).load, ['mode', 'stages']), { mode: 'stages', stages: [{ duration: '30s', target: '1' }] }, 'the same Smoke preset as before');
+    await page.waitForFunction(() => document.querySelector('#load-shape-summary').textContent.startsWith('1 user runs'));
+    assert.equal(await sentence(), '1 user runs your 2 requests over and over for 30s. If anything fails here, fix it before adding load.');
+    assert.equal(await page.locator('#step-summary-load').textContent(), 'Smoke · 1 user · 30s · no goals');
+    // Preset to preset: no question (nothing typed since).
+    await page.locator('.load-goal[data-goal="load"]').click();
+    assert.equal(asked, 2);
+    assert.equal(await pressed(), 'load');
+    await page.waitForFunction(() => document.querySelector('#load-shape-summary').textContent.startsWith('Starts with'));
+    assert.equal(await sentence(), 'Starts with 1 user, climbs to 10 users, then comes back down to 0. The whole test takes 5m.');
+    await page.locator('#view-load').scrollIntoViewIfNeeded();
+    await page.locator('#load-goal-title').evaluate(node => node.scrollIntoView({ block: 'start' }));
+    await page.screenshot({ path: resolve(output, 'stage6-load-preset-1440.png') });
+    const chartBefore = await page.locator('#load-chart').innerHTML();
+    // Typing in a preset makes it Custom with the same values; the chart follows at once.
+    await page.locator('#stages .stage-target').nth(1).fill('30');
+    assert.equal(await pressed(), 'custom');
+    assert.equal(await page.locator('#load-kind').inputValue(), 'stages');
+    assert.equal(await page.locator('#load-kind').isVisible(), true);
+    await page.waitForFunction(() => document.querySelector('#load-shape-summary').textContent.includes('30 users'));
+    assert.notEqual(await page.locator('#load-chart').innerHTML(), chartBefore);
+    assert.match(await page.locator('#step-summary-load').textContent(), /^up to 30 users · 5m/);
+    // The kind of load inside Custom.
+    await page.locator('#load-kind').selectOption('simple');
+    assert.equal(await page.locator('#vus').isVisible(), true);
+    assert.equal(await page.locator('#stages').isVisible(), false);
+    await page.waitForFunction(() => document.querySelector('#load-shape-summary').textContent.includes('all starting at once'));
+
+    // Race burst: request, users and timing in view; the rest under Advanced timing.
+    await page.locator('.load-goal[data-goal="race"]').click();
+    assert.equal(asked, 2, 'Race burst switches the mode, it does not replace values');
+    assert.equal(await page.locator('#load-kind').isVisible(), false);
+    for (const id of ['#race-request', '#race-vus', '#race-timing']) assert.equal(await page.locator(id).isVisible(), true, id);
+    for (const id of ['#race-lead', '#race-warmup', '#race-warmup-path', '#race-fail-late', '#race-max-duration']) {
+      assert.equal(await page.locator(id).isVisible(), false, `${id} folded`);
+    }
+    assert.equal(await page.locator('#race-advanced-sum').textContent(), '2000 ms lead time · warm-up on · a late VU is a warning · stops after 1h');
+    assert.equal((await collect()).load.mode, 'race');
+    await page.locator('#race-request').selectOption('req_redeem');
+    await page.waitForFunction(() => document.querySelector('#load-shape-summary').textContent.includes('Redeem'));
+    assert.match(await sentence(), /^10 users each run the requests before "Request 2 · .*Redeem.*" once, then send it at the same moment\.$/);
+    await page.locator('#race-advanced-toggle').click();
+    assert.equal(await page.locator('#race-advanced-toggle').getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('#race-lead').isVisible(), true);
+    assert.equal(await page.locator('#race-advanced-sum').isVisible(), false);
+    await page.locator('#race-fail-late').check();
+    await page.locator('#race-advanced-toggle').click();
+    assert.equal(await page.locator('#race-lead').isVisible(), false);
+    assert.match(await page.locator('#race-advanced-sum').textContent(), /a late VU fails the run/);
+    assert.equal((await collect()).load.race.failIfLate, true);
+    await page.screenshot({ path: resolve(output, 'stage6-load-race-1440.png'), fullPage: true });
+    // Advanced: the custom editor is always open, Advanced timing included.
+    await radio('advanced').check();
+    await nav('load').click();
+    assert.equal(await page.locator('#race-lead').isVisible(), true, 'Advanced shows the timing without a click');
+    assert.equal(await page.locator('#race-advanced-toggle').isVisible(), false);
+    await radio('simple').check();
+    assert.equal(await page.locator('#race-lead').isVisible(), false, 'Simple keeps its own folded state');
+
+    // Goals as sentences: a switch turns a goal on; off writes "" again.
+    await page.locator('#goal-p95-on').check();
+    assert.equal(await page.locator('#p95').isDisabled(), false);
+    assert.equal((await collect()).thresholds.p95, '500');
+    await page.locator('#p95').fill('300');
+    await page.locator('#goal-error-on').check();
+    assert.deepEqual((await collect()).thresholds, { p95: '300', errorRate: '1' });
+    await page.waitForFunction(() => document.querySelector('#load-goals-sum').textContent === '2 goals');
+    await page.locator('#goal-error-on').uncheck();
+    assert.equal((await collect()).thresholds.errorRate, '', 'a goal switched off is not used');
+    assert.equal(await page.locator('#errorRate').inputValue(), '1', 'its number stays as a suggestion');
+    // Advanced shows the k6 expression of each goal.
+    assert.equal(await page.locator('#goal-p95-tech').isVisible(), false);
+    await radio('advanced').check();
+    await nav('sla').click();
+    assert.equal(await page.locator('#goal-p95-tech').textContent(), 'p(95)<300');
+    assert.equal(await page.locator('#goal-error-tech').textContent(), 'not used');
+    await radio('simple').check();
+    // "+ Add goal" → a count of a response label (outcome target).
+    assert.equal(await page.locator('#outcome-targets').isVisible(), false, 'no target, no list');
+    await page.locator('#add-goal-btn').click();
+    assert.equal(await page.locator('#add-goal-menu').isVisible(), true);
+    assert.equal(await page.locator('#outcome-targets-empty').isVisible(), false, 'a request has labels');
+    await page.locator('#add-outcome-target').click();
+    assert.equal(await page.locator('#add-goal-menu').isVisible(), false);
+    assert.equal(await page.locator('#outcome-targets').isVisible(), true);
+    assert.equal(await page.locator('#outcome-targets-list .outcome-target-row').count(), 1);
+    assert.equal(await page.locator('.outcome-target-request').inputValue(), 'req_redeem', 'one request with labels is chosen for you');
+    await page.locator('.outcome-target-label').selectOption('success');
+    await page.locator('.outcome-target-value').fill('1');
+    assert.deepEqual((await collect()).thresholds.outcomes, [{ request: 'req_redeem', label: 'success', op: '<=', value: '1' }]);
+    await page.locator('#outcome-targets-list .row-remove').click();
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'add-goal-btn', 'removing the last target returns to Add goal');
+    // Keyboard: the menu opens on its item, Escape closes it.
+    await page.locator('#add-goal-btn').press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'add-outcome-target');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#add-goal-menu').isVisible(), false);
+
+    // A saved project with goals opens with the switches on, the same values, the same script.
+    const withGoals = { ...project, load: { mode: 'stages', stages: [{ duration: '10s', target: '2' }] }, thresholds: { p95: '800', errorRate: '2' } };
+    await open(withGoals);
+    await page.locator('#simple-nav [data-view="load"]').click();
+    assert.equal(await page.locator('#goal-p95-on').isChecked(), true);
+    assert.equal(await page.locator('#p95').inputValue(), '800');
+    assert.equal(await page.locator('#goal-error-on').isChecked(), true);
+    assert.equal(await pressed(), 'custom');
+    assert.deepEqual((await collect()).thresholds, withGoals.thresholds, 'the goals as saved');
+    assert.deepEqual(saved((await collect()).load, ['mode', 'stages']), withGoals.load);
+    const race = { ...project, load: { mode: 'race', vus: '3', maxDuration: '1h', race: { request: 'req_redeem', timing: 'together', spreadMs: '100', offsets: '', leadMs: '3000', warmup: true, warmupPath: '/', failIfLate: false } } };
+    await open(race);
+    assert.equal(await pressed(), 'race', 'a race project opens on Race burst');
+    assert.match(await page.locator('#race-advanced-sum').textContent(), /^3000 ms lead time/);
+    assert.deepEqual(saved((await collect()).load, Object.keys(race.load)), race.load, 'the race as saved');
+    assert.match(await script(await collect()), /"?leadMs"?:\s*3000\b/);
+    await page.locator('#simple-nav [data-view="load"]').click();
+    await page.screenshot({ path: resolve(output, 'stage6-load-1440.png'), fullPage: true });
+    await page.setViewportSize({ width: 375, height: 812 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, '375 px: no sideways scroll');
+    await page.screenshot({ path: resolve(output, 'stage6-load-375.png'), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+  checks.push('Load & goals: "What do you want to find out?" with five goals (Smoke marked Start here); an opened project is Custom (Race burst for a race) and a preset asks first, Cancel keeps it; presets write the same staged loads; typing in a preset makes it Custom; the kind of load sits in Custom (always shown in Advanced); a plain sentence and the chart change at once; race burst shows request, users and timing, the rest folded under Advanced timing with a summary (always open in Advanced); goals as sentences with switches, off = "", common values as suggestions, k6 expression in Advanced; outcome targets from Add goal (mouse and keyboard); opened projects give the same script');
 
   assert.deepEqual(forbidden, []);
   assert.deepEqual(errors, []);

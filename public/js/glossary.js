@@ -37,6 +37,8 @@ export const GLOSSARY = Object.freeze({
     'More traffic than normal, rising until something gives. It answers: where is the limit, and what fails first?'),
   race: entry('traffic', 'Race burst',
     'Many virtual users send the same request at the same instant, for example redeeming one voucher twice. It finds double-spend and stock bugs, not speed problems.'),
+  customLoad: entry('traffic', 'Custom load',
+    'Set the numbers yourself: the same number of virtual users the whole time, users going up and down in steps, or a set number of runs per user.'),
   raceLead: entry('traffic', 'Lead time',
     'Time every virtual user gets to finish the requests before the race request (logging in, for example) before the shared moment. Too short, and some users arrive late.'),
 

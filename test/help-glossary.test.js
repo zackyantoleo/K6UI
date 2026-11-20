@@ -25,13 +25,14 @@ test('every help key in index.html and in JS-built panels has a glossary entry',
 test('help buttons sit beside labels, never inside a <label>, so field names stay as they are', () => {
   const html = read('public/index.html');
   for (const label of html.matchAll(/<label\b[^>]*>([\s\S]*?)<\/label>/g)) {
-    // A radio card's radio is named by aria-labelledby (below), so its help button is allowed.
+    // A radio card's radio is named by aria-labelledby, so its help button is allowed.
     if (/aria-labelledby=/.test(label[1])) continue;
     assert.doesNotMatch(label[1], /data-help=/, `help button inside a label: ${label[0].slice(0, 80)}`);
   }
-  // A radio card is one big label: its radio is named by the title only.
-  for (const value of ['simple', 'stages', 'iterations', 'race']) {
-    assert.match(html, new RegExp(`value="${value}"[^>]*aria-labelledby="load-mode-${value}-name"`));
+  // A goal card is a button: its help button sits next to it, never inside it.
+  for (const goal of html.matchAll(/<button type="button" class="load-goal"[\s\S]*?<\/button>(<button data-help="(\w+)">)?/g)) {
+    assert.doesNotMatch(goal[0].slice(0, goal[0].indexOf('</button>')), /data-help=/, 'help button inside a goal card');
+    assert.ok(goal[2], `goal card without a help button: ${goal[0].slice(0, 80)}`);
   }
 });
 

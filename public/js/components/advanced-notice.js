@@ -153,7 +153,7 @@ export function initAdvancedNotice() {
     pending = false;
     if (document.documentElement.dataset.uiMode !== 'simple') return;
     const requests = [...document.querySelectorAll('#reqs-main > .req-card')].map(readRequestSettings);
-    const race = document.querySelector('input[name="load-mode"]:checked')?.value === 'race';
+    const race = document.querySelector('.load-goal[data-goal="race"]')?.getAttribute('aria-pressed') === 'true';
     renderNotice(notice, summarizeAdvancedSettings(requests, readGroupSettings(), usableDataFileCount(), race));
   }
   function schedule() {

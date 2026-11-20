@@ -16,6 +16,8 @@ import { outcomeThresholdsProblem } from './outcome-thresholds.js';
 import { readOutcomeTargetRows } from './components/outcome-target-rows.js';
 import { readRaceSettings } from './components/race-settings.js';
 import { raceProblem } from './race.js';
+import { readLoadMode } from './components/load-chart.js';
+import { readThresholdFields } from './components/pass-fail-goals.js';
 
 // ── Row readers ────────────────────────────────────────────────
 function readHeaderRows(scope) {
@@ -88,12 +90,12 @@ function readVariableRows() {
 // p95 / error rate, plus outcome targets when the view has some (no `outcomes` key otherwise).
 function thresholdFields() {
   const outcomes = readOutcomeTargetRows();
-  return { p95: $('#p95').value, errorRate: $('#errorRate').value, ...(outcomes.length ? { outcomes } : {}) };
+  return { ...readThresholdFields(), ...(outcomes.length ? { outcomes } : {}) };
 }
 
 // ── Public API ─────────────────────────────────────────────────
 export function collectConfig() {
-  const mode = $('input[name="load-mode"]:checked').value;
+  const mode = readLoadMode();
   const load = { mode };
   if (mode === 'simple') {
     load.vus      = $('#vus').value;
