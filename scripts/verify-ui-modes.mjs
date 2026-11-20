@@ -103,6 +103,8 @@ function auditPage() {
   };
   const shown = element => {
     if (!element.getClientRects().length) return false;
+    // Content of a closed <details> keeps its last layout box in Chrome; it is not shown.
+    if (element.checkVisibility?.() === false) return false;
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     return style.visibility !== 'hidden' && rect.width * rect.height > 4;

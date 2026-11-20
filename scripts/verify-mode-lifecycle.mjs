@@ -336,7 +336,7 @@ try {
     await page.locator('#results-tab-overview').click();
     await radio('advanced').check();
     await page.screenshot({ path: resolve(output, 'advanced-results-1440.png'), fullPage: true });
-    checks.push('Advanced Overview shortcuts open the shared Requests/Metrics/Errors/Live Log tabs; hidden in Simple; tab not reset by switches');
+    checks.push('Advanced Overview shortcuts open the shared Requests/Errors/Raw k6 output tabs; hidden in Simple; tab not reset by switches');
 
     // 4c. Threshold failure (k6 exit 99) with a switch mid-run.
     await openProject(runFixture({ path: '/slow', duration: '2s', p95: '1' }));
@@ -346,7 +346,7 @@ try {
     await waitState('TARGETS NOT MET');
     const failed = await results();
     assert.match(failed.verdict, /\bthreshold-failed\b/);
-    assert.equal(await page.locator('#run-verdict-title').textContent(), 'Targets were not met');
+    assert.equal(await page.locator('#run-verdict-title').textContent(), 'Failed: a goal was missed');
     await radio('advanced').check();
     assert.match((await results()).verdict, /\bthreshold-failed\b/);
     assert.deepEqual(runPosts, ['POST', 'POST']);

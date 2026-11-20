@@ -403,7 +403,7 @@
         <!-- VIEW: Focused run and results workspace -->
         <section id="view-results" class="view hidden">
           <div class="results-toolbar">
-            <p class="view-hint">Start with the verdict, then inspect only the detail you need.</p>
+            <p class="view-hint">Check what will happen, run it, then read the verdict.</p>
             <div class="results-toolbar-actions">
               <span id="run-state" class="run-state-badge" role="status" aria-live="polite"></span>
               <div class="report-download" role="group" aria-label="Download the report of this run">
@@ -415,21 +415,60 @@
             </div>
           </div>
 
-          <div id="results-empty-state" class="results-empty-state" role="status">
-            <div class="empty-state-mark" data-icon="play" aria-hidden="true"></div>
-            <div>
-              <h3>Ready when your flow is ready</h3>
-              <p>Run the test to get a plain-language verdict, request details, metrics, and errors.</p>
+          <!-- Before you run: what will happen, a checklist with the place that fixes each item,
+               and the recording options (components/run-check.js). Folds once a run starts. -->
+          <details id="prerun" class="prerun" open>
+            <summary class="prerun-summary">
+              <span class="prerun-title">Before you run</span>
+              <span id="prerun-headline" class="prerun-headline"></span>
+            </summary>
+            <div class="prerun-body">
+              <dl id="prerun-facts" class="prerun-facts" aria-label="What will happen">
+                <div><dt>Requests</dt><dd id="prerun-requests">—</dd></div>
+                <div><dt>Target</dt><dd id="prerun-target">—</dd></div>
+                <div><dt>Goals</dt><dd id="prerun-goals">—</dd></div>
+                <div class="prerun-wide"><dt>What will happen</dt><dd id="prerun-load">—</dd></div>
+              </dl>
+              <ul id="prerun-checklist" class="prerun-checklist" aria-label="Checks before the run"></ul>
+              <section id="prerun-record" class="logging-control prerun-record" aria-labelledby="prerun-record-title">
+                <h4 id="prerun-record-title">Keep a copy of requests (for debugging)</h4>
+                <div class="label-row">
+                <label class="toggle-label">
+                  <input type="checkbox" id="log-requests" />
+                  Record request details on the next run
+                </label>
+                <button data-help="recordRequests"></button>
+                </div>
+                <div class="logging-options" role="group" aria-label="Which requests to record">
+                  <label for="log-filter">Record</label>
+                  <select id="log-filter">
+                    <option value="all">Every request</option>
+                    <option value="errors">Failed requests only</option>
+                    <option value="sample">A sample, plus every failed request</option>
+                  </select>
+                  <span class="log-sample-every" id="log-sample-every-field" hidden>
+                    <label for="log-sample-every">Every Nth iteration of each VU</label>
+                    <input type="number" id="log-sample-every" min="1" max="10000" step="1" value="10" inputmode="numeric" />
+                  </span>
+                  <label class="toggle-label log-redact-label">
+                    <input type="checkbox" id="log-redact" />
+                    Hide secrets (Authorization, cookies, tokens, passwords)
+                  </label>
+                </div>
+                <p>Off by default. URLs, headers, payloads, and response samples may contain sensitive data and are shown exactly as sent and received unless Hide secrets is on. They stay in this browser tab until the next run. Bodies are capped at 4 KB, and up to 50 records a second reach this page. Recording every request slows k6 under heavy load; record failed requests only or a sample there.</p>
+              </section>
+              <div class="prerun-run">
+                <button type="button" class="btn primary" data-icon="play" id="prerun-run-btn">Run test</button>
+                <span class="prerun-run-note">You can stop at any time; the results so far are kept.</span>
+              </div>
             </div>
-            <button type="button" class="btn primary" data-icon="play" id="results-empty-run-btn">Run Test</button>
-          </div>
+          </details>
 
           <div class="results-tabs" role="tablist" aria-label="Test results">
             <button type="button" id="results-tab-overview" class="results-tab active" role="tab" aria-selected="true" aria-controls="tab-overview" tabindex="0" data-tab="overview">Overview</button>
             <button type="button" id="results-tab-requests" class="results-tab" role="tab" aria-selected="false" aria-controls="tab-requests" tabindex="-1" data-tab="requests">Requests <span class="tab-count" id="req-log-count">0</span></button>
-            <button type="button" id="results-tab-metrics" class="results-tab" role="tab" aria-selected="false" aria-controls="tab-metrics" tabindex="-1" data-tab="metrics">Metrics</button>
             <button type="button" id="results-tab-errors" class="results-tab" role="tab" aria-selected="false" aria-controls="tab-errors" tabindex="-1" data-tab="errors">Errors <span class="tab-count" id="error-count">0</span></button>
-            <button type="button" id="results-tab-live" class="results-tab" role="tab" aria-selected="false" aria-controls="tab-live" tabindex="-1" data-tab="live">Live Log</button>
+            <button type="button" id="results-tab-live" class="results-tab" role="tab" aria-selected="false" aria-controls="tab-live" tabindex="-1" data-tab="live">Raw k6 output</button>
           </div>
 
           <div id="tab-overview" class="results-tab-panel" role="tabpanel" aria-labelledby="results-tab-overview">
@@ -437,7 +476,7 @@
               <span class="verdict-mark" aria-hidden="true">○</span>
               <div>
                 <h3 id="run-verdict-title">No test has run yet</h3>
-                <p id="run-verdict-detail">Run your flow to see whether its targets passed.</p>
+                <p id="run-verdict-detail">Look through the checks above, then run the test.</p>
               </div>
             </div>
             <dl class="run-metadata" aria-label="Run metadata">
@@ -446,7 +485,21 @@
               <div><dt>Requests</dt><dd id="run-request-total">0</dd></div>
               <div><dt>Errors</dt><dd id="run-error-total">0</dd></div>
             </dl>
-            <div id="overview-metrics" class="metrics-grid" aria-label="Key performance metrics"></div>
+            <div id="overview-metrics" class="result-cards" aria-label="Key figures"></div>
+            <section id="run-per-request" class="run-per-request" aria-labelledby="run-per-request-title" hidden>
+              <h3 id="run-per-request-title">Each request</h3>
+              <p id="run-per-request-hint" class="results-panel-hint"></p>
+              <div class="req-log-wrap" tabindex="0" aria-label="Scrollable table of each request">
+                <table class="run-per-request-table" aria-labelledby="run-per-request-title">
+                  <thead><tr><th scope="col">#</th><th scope="col">Request</th><th scope="col">Sent</th><th scope="col">Failed</th><th scope="col">95% within</th><th scope="col" class="run-per-request-bar"><span class="sr-only">Compared with the slowest</span></th></tr></thead>
+                  <tbody id="run-per-request-rows"></tbody>
+                </table>
+              </div>
+            </section>
+            <section id="run-next" class="run-next" aria-labelledby="run-next-title" hidden>
+              <h3 id="run-next-title">What to do next</h3>
+              <ul id="run-next-list" class="run-next-list"></ul>
+            </section>
             <section id="run-race" class="run-race" aria-labelledby="run-race-title" hidden>
               <h3 id="run-race-title">Race burst</h3>
               <p id="run-race-note" class="run-race-note" role="note"></p>
@@ -483,41 +536,22 @@
               </p>
               <ul id="run-exports-list" class="run-exports-list"></ul>
             </section>
+            <details id="run-all-metrics" class="run-all-metrics" hidden>
+              <summary>All k6 metrics</summary>
+              <div id="run-metrics" class="metrics-grid"></div>
+            </details>
             <div class="result-shortcuts" data-ui-only="advanced" role="group" aria-label="Result details">
               <button type="button" class="btn ghost sm" data-results-tab="requests">Inspect requests</button>
-              <button type="button" class="btn ghost sm" data-results-tab="metrics">All metrics</button>
               <button type="button" class="btn ghost sm" data-results-tab="errors">Review errors</button>
-              <button type="button" class="btn ghost sm" data-results-tab="live">Live log</button>
+              <button type="button" class="btn ghost sm" data-results-tab="live">Raw k6 output</button>
             </div>
           </div>
 
           <div id="tab-requests" class="results-tab-panel hidden" role="tabpanel" aria-labelledby="results-tab-requests">
-            <div class="logging-control">
-              <div class="label-row">
-              <label class="toggle-label">
-                <input type="checkbox" id="log-requests" />
-                Record request details on the next run
-              </label>
-              <button data-help="recordRequests"></button>
-              </div>
-              <div class="logging-options" role="group" aria-label="Which requests to record">
-                <label for="log-filter">Record</label>
-                <select id="log-filter">
-                  <option value="all">Every request</option>
-                  <option value="errors">Failed requests only</option>
-                  <option value="sample">A sample, plus every failed request</option>
-                </select>
-                <span class="log-sample-every" id="log-sample-every-field" hidden>
-                  <label for="log-sample-every">Every Nth iteration of each VU</label>
-                  <input type="number" id="log-sample-every" min="1" max="10000" step="1" value="10" inputmode="numeric" />
-                </span>
-                <label class="toggle-label log-redact-label">
-                  <input type="checkbox" id="log-redact" />
-                  Hide secrets (Authorization, cookies, tokens, passwords)
-                </label>
-              </div>
-              <p>Off by default. URLs, headers, payloads, and response samples may contain sensitive data and are shown exactly as sent and received unless Hide secrets is on. They stay in this browser tab until the next run. Bodies are capped at 4 KB, and up to 50 records a second reach this page. Recording every request slows k6 under heavy load; record failed requests only or a sample there.</p>
-            </div>
+            <p class="req-log-hint">
+              <span id="req-log-hint-text">Requests are recorded only when "Record request details" is on before the run.</span>
+              <button type="button" class="btn ghost sm" id="req-log-options">Recording options</button>
+            </p>
             <p id="req-log-skipped" class="req-log-skipped" role="status" hidden></p>
             <div class="req-log-toolbar">
               <label class="req-filter-label">
@@ -547,11 +581,6 @@
             </div>
           </div>
 
-          <div id="tab-metrics" class="results-tab-panel hidden" role="tabpanel" aria-labelledby="results-tab-metrics">
-            <p class="results-panel-hint">Detailed k6 summary metrics from the completed run.</p>
-            <div id="run-metrics" class="metrics-grid"></div>
-          </div>
-
           <div id="tab-errors" class="results-tab-panel hidden" role="tabpanel" aria-labelledby="results-tab-errors">
             <div class="errors-toolbar"><p>Runtime errors and failed requests appear here.</p><button type="button" class="btn ghost sm" id="clear-errors">Clear errors</button></div>
             <ol id="run-errors" class="error-list" aria-live="polite"></ol>
@@ -559,7 +588,7 @@
           </div>
 
           <div id="tab-live" class="results-tab-panel hidden" role="tabpanel" aria-labelledby="results-tab-live">
-            <div class="live-log-toolbar"><p>Raw k6 output. Retention is limited to the 1,500 most recent lines.</p><button type="button" class="btn ghost sm" id="clear-live-log">Clear log</button></div>
+            <div class="live-log-toolbar"><p>What k6 printed while it ran, as it printed it. The 1,500 most recent lines are kept.</p><button type="button" class="btn ghost sm" id="clear-live-log">Clear log</button></div>
             <pre id="log-output" class="log-block" tabindex="0" aria-label="Live k6 output"></pre>
           </div>
         </section>
