@@ -145,7 +145,7 @@
 /* Form views read better at a fixed measure; flow, script and results use the room. */
 #view-data, #view-vars, #view-headers, #view-datafiles, #view-load, #view-sla { max-width: var(--content-w); }
 .view-hint { max-width: 78ch; font-size: var(--text-md); color: var(--text-muted); }
-.view-hint code, .note code {
+.view-hint code, .note code, .flow-vars-hint code {
   background: var(--accent-lite); color: var(--accent-text);
   border-radius: 4px; padding: 1px 5px; font-size: 12px;
 }

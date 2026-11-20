@@ -492,6 +492,185 @@ try {
   }
   checks.push('Request editor: no tabs; Headers + Body (by method) + the parts in use; "+ Add to this request" by keyboard (Arrow Down, End, Escape, Enter) and click-outside, marks added parts, puts the cursor in the part; removing an empty part asks nothing, a filled one asks (Cancel keeps it); "Wait after" beside its help');
 
+  // Variables: the panel, {{ suggestions and the "not available yet" warnings.
+  {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await radio('simple').check();
+    await page.locator('#simple-nav [data-view="flow"]').click();
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+    const project = {
+      schemaVersion: 2,
+      scenario: {
+        groups: [],
+        requests: [
+          { id: 'req_pay', name: 'Pay order', type: 'http', method: 'POST', url: '{{base_url}}/orders/{{order_id}}/pay',
+            body: '{"t":"{{ token }}"}' },
+          { id: 'req_login', name: 'Log in', type: 'http', method: 'POST', url: '{{base_url}}/login', body: '{"email":"{{email}}"}',
+            extractions: [{ varName: 'token', source: 'json', selector: 'token' }] },
+          { id: 'req_create', name: 'Create order', type: 'http', method: 'POST', url: '{{base_url}}/orders',
+            headers: [{ key: 'Authorization', value: 'Bearer {{token}}' }],
+            extractions: [{ varName: 'order_id', source: 'json', selector: 'id' }] },
+        ],
+      },
+      variables: [{ key: 'base_url', value: 'https://fixture.test' }],
+      dataSets: [{ id: 'ds_users', name: 'Users', fileName: 'users.csv', delimiter: ',', skipHeader: true, columns: [],
+        content: 'email,password\nuser1@example.test,pass1\n', share: 'next-row', onEnd: 'recycle' }],
+      load: { mode: 'simple', vus: '1', duration: '5s' },
+      thresholds: { p95: '', errorRate: '' },
+    };
+    await page.evaluate(async config => (await import('/js/project-io.js')).applyConfig(config), project);
+    await page.evaluate(() => new Promise(done => requestAnimationFrame(() => setTimeout(done, 0))));
+    const cardOf = id => page.locator(`#reqs-main > .req-card[data-request-id="${id}"]`);
+    const panel = page.locator('#flow-vars');
+    const chips = () => panel.locator('.var-chip').evaluateAll(nodes => nodes.map(node => node.textContent.replace(/\s+/g, ' ').trim()));
+    const warnings = id => cardOf(id).locator('.var-warning-text').allTextContents();
+    const list = page.locator('#var-suggest');
+    const options = () => list.locator('[role="option"]').evaluateAll(nodes => nodes.map(node => ({
+      name: node.querySelector('.var-suggest-name').textContent,
+      later: node.classList.contains('is-later'),
+      selected: node.getAttribute('aria-selected') === 'true',
+    })));
+
+    // The panel: every source, beside the list on a wide Simple screen.
+    assert.equal(await panel.isVisible(), true);
+    assert.deepEqual(await chips(), ['{{base_url}}', '{{email}}', '{{password}}', '{{token}} after #2', '{{order_id}} after #3']);
+    assert.deepEqual(await panel.locator('.flow-vars-group-title').allTextContents(),
+      ['Global variables', 'Each row of Users', 'From responses']);
+    assert.equal(await panel.locator('.flow-vars-count').textContent(), '5');
+    const panelBox = await panel.boundingBox();
+    const zoneBox = await page.locator('#zone-main').boundingBox();
+    assert.ok(panelBox.x > zoneBox.x + zoneBox.width - 1, 'wide Simple screen: the panel is beside the list');
+
+    // Warnings: a value a later request takes, and spaces inside the braces.
+    assert.deepEqual(await warnings('req_pay'), ['{{order_id}} not available yet', '{{ token }} has spaces']);
+    assert.match(await cardOf('req_pay').locator('.var-warning').first().getAttribute('title'),
+      /^Request #3 \(Create order\) gives \{\{order_id\}\}, but it runs after this one\./);
+    assert.deepEqual(await warnings('req_login'), []);
+    assert.equal(await cardOf('req_login').locator('.req-var-warnings').isVisible(), false);
+
+    // {{ in a URL: the list opens under the caret, what this request can use first.
+    await cardOf('req_create').locator('.req-card-head').click();
+    const url = cardOf('req_create').locator('.url');
+    await url.click();
+    await url.press('End');
+    await url.pressSequentially('?u={{');
+    assert.equal(await list.isVisible(), true);
+    assert.equal(await url.getAttribute('aria-controls'), 'var-suggest');
+    assert.deepEqual((await options()).map(item => [item.name, item.later]), [
+      ['{{base_url}}', false], ['{{email}}', false], ['{{password}}', false], ['{{token}}', false], ['{{order_id}}', true],
+    ], 'a value this request takes itself is offered, marked "not available here yet"');
+    assert.equal(await url.getAttribute('aria-activedescendant'), 'var-suggest-0');
+    await url.pressSequentially('pa');
+    assert.deepEqual((await options()).map(item => item.name), ['{{password}}']);
+    await url.press('Backspace');
+    await url.press('Backspace');
+    await url.press('ArrowDown');
+    assert.equal((await options()).findIndex(item => item.selected), 1);
+    await url.press('ArrowUp');
+    await url.press('ArrowUp');
+    assert.equal((await options()).findIndex(item => item.selected), 4, 'Arrow Up from the first wraps to the last');
+    await url.press('ArrowDown');
+    await url.press('ArrowDown');
+    await url.press('Enter');
+    assert.equal(await url.inputValue(), '{{base_url}}/orders?u={{email}}');
+    assert.equal(await list.isVisible(), false);
+    assert.equal(await page.evaluate(() => document.activeElement.classList.contains('url')), true, 'focus stays in the field');
+    assert.equal(await url.getAttribute('aria-activedescendant'), null);
+    // Escape closes the list only: the editor stays open and nothing is inserted.
+    await url.pressSequentially('&p={{');
+    await url.press('Escape');
+    assert.equal(await list.isVisible(), false);
+    assert.equal(await url.inputValue(), '{{base_url}}/orders?u={{email}}&p={{');
+    assert.equal(await cardOf('req_create').evaluate(card => card.classList.contains('expanded')), true);
+    // A click on an option inserts it and finishes the braces typed after the caret.
+    await url.press('Backspace');
+    await url.press('Backspace');
+    await url.pressSequentially('{{pa}}');
+    for (let i = 0; i < 2; i++) await url.press('ArrowLeft');
+    await url.press('ArrowRight');
+    await url.press('ArrowLeft');
+    assert.equal(await list.isVisible(), true, 'a caret inside "{{pa" shows the list again');
+    await list.locator('[role="option"]').first().click();
+    assert.equal(await url.inputValue(), '{{base_url}}/orders?u={{email}}&p={{password}}');
+    // The body of a request whose token comes from an earlier request: available.
+    const body = cardOf('req_create').locator('textarea.body');
+    await body.click();
+    await body.pressSequentially('{"t":"{{to');
+    assert.deepEqual(await options(), [{ name: '{{token}}', later: false, selected: true }]);
+    await body.press('Tab');
+    assert.equal(await body.inputValue(), '{"t":"{{token}}');
+    // A global header goes with every request: offered without marks.
+    await page.locator('#simple-nav [data-view="data"]').click();
+    await page.locator('.data-rule-card[data-view="headers"]').click();
+    if (!(await page.locator('#global-headers-list .h-val').count())) await page.locator('#add-global-header').click();
+    const shared = page.locator('#global-headers-list .h-val').first();
+    await shared.fill('');
+    await shared.pressSequentially('Bearer {{');
+    assert.deepEqual((await options()).map(item => [item.name, item.later]),
+      [['{{base_url}}', false], ['{{email}}', false], ['{{password}}', false], ['{{token}}', false], ['{{order_id}}', false]]);
+    await shared.press('Escape');
+    await shared.fill('');
+    await page.locator('#simple-nav [data-view="flow"]').click();
+
+    // Moving "Pay order" below "Create order" clears its warning; turning "Create order" off brings one back.
+    const more = cardOf('req_pay').locator('.request-more');
+    await more.click();
+    await cardOf('req_pay').locator('.request-move-down').click();
+    await cardOf('req_pay').locator('.request-move-down').click();
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await warnings('req_pay'), ['{{ token }} has spaces']);
+    await cardOf('req_create').locator('.request-enabled').uncheck();
+    assert.deepEqual(await warnings('req_pay'), ['{{order_id}} not available', '{{ token }} has spaces']);
+    assert.match(await cardOf('req_pay').locator('.var-warning').first().getAttribute('title'), /and it is turned off\./);
+    assert.deepEqual(await chips(), ['{{base_url}}', '{{email}}', '{{password}}', '{{token}} after #1'],
+      'a request that does not run gives nothing');
+    await cardOf('req_create').locator('.request-enabled').check();
+    // An open card writes the reason out.
+    await cardOf('req_pay').locator('.request-expand').click();
+    assert.match(await cardOf('req_pay').locator('.var-warning-detail').first().innerText(), /^Write it without spaces, as \{\{token\}\}/);
+
+    // Chips: one Tab stop, arrows move, a click copies, a drag inserts into a field.
+    const chip = name => panel.locator(`.var-chip[data-var="${name}"]`);
+    assert.equal(await panel.locator('.var-chip[tabindex="0"]').count(), 1);
+    await chip('base_url').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.var), 'email');
+    await page.keyboard.press('End');
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.var), 'order_id');
+    assert.equal(await chip('order_id').getAttribute('tabindex'), '0');
+    await chip('email').click();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '{{email}}');
+    assert.match(await panel.locator('.flow-vars-status').textContent(), /^Copied \{\{email\}\}\./);
+    const payUrl = cardOf('req_pay').locator('.url');
+    await payUrl.fill('');
+    await chip('base_url').dragTo(payUrl);
+    assert.equal(await payUrl.inputValue(), '{{base_url}}');
+    // The panel folds away.
+    const toggle = panel.locator('.flow-vars-toggle');
+    await toggle.click();
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(await panel.locator('.flow-vars-body').isVisible(), false);
+    await toggle.click();
+    assert.equal(await panel.locator('.flow-vars-body').isVisible(), true);
+
+    // Advanced: the same panel above the selected editor; the warnings are on the card.
+    await radio('advanced').check();
+    await page.locator('#flow-outline .outline-item[data-id="req_pay"]').click();
+    assert.equal(await panel.isVisible(), true);
+    const advancedPanel = await panel.boundingBox();
+    const editor = await cardOf('req_pay').boundingBox();
+    assert.ok(advancedPanel.y + advancedPanel.height <= editor.y, 'Advanced: the panel is above the editor');
+    assert.deepEqual(await warnings('req_pay'), ['{{ token }} has spaces']);
+    // Narrow Simple screen: above the list.
+    await radio('simple').check();
+    await page.setViewportSize({ width: 375, height: 812 });
+    const narrowPanel = await panel.boundingBox();
+    const narrowZone = await page.locator('#zone-main').boundingBox();
+    assert.ok(narrowPanel.y + narrowPanel.height <= narrowZone.y, 'narrow screen: the panel is above the list');
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+  checks.push('Variables: panel lists globals, data file columns and extracted values (beside the list in wide Simple, above it when narrow, above the editor in Advanced, folds away); chips one Tab stop with arrows, click copies, drag inserts; {{ in a URL, body or global header opens suggestions (aria-controls/activedescendant), filter, arrows wrap, Enter/Tab/click insert and close, Escape closes only that list, a value the request takes itself is marked; warnings for a later value and spaces, cleared by moving the request, "not available" when its source is off, reason written out in an open card');
+
   assert.deepEqual(forbidden, []);
   assert.deepEqual(errors, []);
   const result = { checks, layouts, generated, errors, forbidden, nativeZoomTested: false, realRunTested: false };

@@ -23,6 +23,8 @@ import { initRaceSettings } from './components/race-settings.js';
 import { initHelpTips, initGlossary } from './components/help-tips.js';
 import { initMenuButton } from './components/menu-button.js';
 import { initRequestMorePanels } from './components/req-card.js';
+import { initVariablesPanel } from './components/variables-panel.js';
+import { initVariableSuggest } from './components/var-suggest.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -233,6 +235,8 @@ initOutcomeTargets();
 initRaceSettings();
 initHelpTips();
 initRequestMorePanels();
+initVariablesPanel();
+initVariableSuggest();
 initGlossary();
 initUiMode();
 navigate('flow', { focusHeading: false });

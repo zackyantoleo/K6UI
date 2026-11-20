@@ -68,7 +68,13 @@ test('outline is a text-only sibling that never reparents cards; handlers notify
   ]);
   assert.doesNotMatch(outline, /innerHTML|insertAdjacentHTML|cloneNode|collectConfig|applyConfig|projectStore/);
   assert.doesNotMatch(outline, /#reqs-main'\)\.append|reqs-main.*insertBefore/);
-  assert.match(flowView, /layout\.append\(createFlowOutline\(/);
+  assert.match(flowView, /layout\.append\(\s*createFlowOutline\([\s\S]*?\),\s*createVariablesPanel\(\),\s*zone,\s*\)/,
+    'outline, variables panel and zone are siblings in the layout');
+  // The variables panel and {{ suggestions read the cards and never rebuild, move or collect them.
+  for (const file of ['variables-panel.js', 'var-suggest.js']) {
+    const source = await read(`public/js/components/${file}`);
+    assert.doesNotMatch(source, /innerHTML|insertAdjacentHTML|cloneNode|collectConfig|applyConfig|projectStore|ensureRequestPanel/, file);
+  }
   assert.match(config, /collectReqList\('reqs-main'\)/, 'collector still reads every card in #reqs-main');
   assert.equal(requestCard.match(/notifyFlowChanged\(/g)?.length, 3, 'move up/down (one shared afterMove), duplicate, remove');
   assert.match(requestCard, /function afterMove\([^)]*\) \{[^}]*notifyFlowChanged\(\)/s);
