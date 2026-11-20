@@ -137,7 +137,7 @@ export function readLoadMode() {
 }
 
 // "Request 2 · Redeem" for the race request, or the first request that runs.
-function raceRequestName() {
+export function raceRequestName() {
   const select = $('#race-request');
   const text = select?.selectedOptions[0]?.textContent || '';
   return select?.value ? text : (/\((.*)\)$/.exec(text)?.[1] || '');

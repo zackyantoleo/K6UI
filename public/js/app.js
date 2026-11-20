@@ -29,6 +29,7 @@ import { initViewBlocks } from './components/view-blocks.js';
 import { initStepSummaries } from './components/step-summary.js';
 import { initLoadGoals } from './components/load-goals.js';
 import { initPassFailGoals } from './components/pass-fail-goals.js';
+import { initRunCheck } from './components/run-check.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -108,7 +109,7 @@ $('#clear-errors')?.addEventListener('click', clearErrors);
 // ── Run / Stop ─────────────────────────────────────────────────
 $('#run-btn').addEventListener('click', runTest);
 $('#results-run-btn').addEventListener('click', runTest);
-$('#results-empty-run-btn').addEventListener('click', runTest);
+$('#prerun-run-btn').addEventListener('click', runTest);
 $('#stop-btn').addEventListener('click', stopTest);
 
 // ── Save / Open project ────────────────────────────────────────
@@ -166,6 +167,7 @@ initVariableSuggest();
 initGlossary();
 initViewBlocks();
 initStepSummaries();
+initRunCheck();
 initUiMode();
 navigate('flow', { focusHeading: false });
 checkK6();

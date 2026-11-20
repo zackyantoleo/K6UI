@@ -13,11 +13,14 @@ const requestGenerator = read('../server/generator/request.js');
 const grpcGenerator = read('../server/generator/grpc-request.js');
 const css = readStyles();
 
-test('results workspace separates overview, requests, metrics, errors, and optional live log', () => {
-  for (const tab of ['overview', 'requests', 'metrics', 'errors', 'live']) {
+test('results workspace separates overview, requests, errors, and raw k6 output (metrics folded into the overview)', () => {
+  for (const tab of ['overview', 'requests', 'errors', 'live']) {
     assert.match(html, new RegExp(`data-tab="${tab}"`));
     assert.match(html, new RegExp(`id="tab-${tab}"`));
   }
+  assert.doesNotMatch(html, /data-tab="metrics"|id="tab-metrics"/);
+  assert.match(html, /data-tab="live">Raw k6 output</);
+  assert.match(html, /<details id="run-all-metrics"[^>]*>\s*<summary>All k6 metrics<\/summary>\s*<div id="run-metrics"/);
   assert.match(html, /role="tablist"/);
   assert.match(html, /role="tab"/);
   assert.match(html, /aria-controls="tab-overview"/);
@@ -32,9 +35,8 @@ test('overview leads with a plain-language verdict and explicit run metadata', (
   for (const id of ['run-started', 'run-elapsed', 'run-request-total', 'run-error-total']) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
-  assert.match(runner, /Test passed/i);
-  assert.match(runner, /Targets were not met/i);
-  assert.match(runner, /Test stopped/i);
+  assert.match(runner, /verdictText\(/);
+  assert.match(runner, /renderReading\('aborted'\)/);
 });
 
 test('results provide clear and filter controls with bounded request and live-log retention', () => {
@@ -67,11 +69,9 @@ test('request logging is opt-in and warns that response samples may contain sens
 });
 
 test('run lifecycle distinguishes failed, threshold-failed, and aborted states', () => {
-  assert.match(runner, /status:\s*'threshold-failed'/);
+  assert.match(runner, /data\.outcome === 'passed' \|\| data\.outcome === 'threshold-failed' \? data\.outcome : 'failed'/);
   assert.match(runner, /status:\s*'failed'/);
   assert.match(runner, /status:\s*'aborted'/);
-  assert.match(runner, /data\.outcome === 'passed'/);
-  assert.match(runner, /data\.outcome === 'threshold-failed'/);
   assert.match(k6Runner, /code === 99 \? "threshold-failed"/);
   assert.match(runner, /setInterval/);
   assert.match(runner, /performance\.now/);

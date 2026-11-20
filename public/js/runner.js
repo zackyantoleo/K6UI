@@ -1,5 +1,6 @@
 // Focused run/results workspace: streams /api/run SSE into bounded, text-safe
-// overview, request, metric, error, and live-log panels.
+// overview (verdict sentence, key figures compared with the goals, each request,
+// what to do next, all k6 metrics), request, error, and raw k6 output panels.
 import { $, $$ } from './dom.js';
 import { navigate } from './nav.js';
 import { collectConfig, validate } from './config.js';
@@ -11,6 +12,12 @@ import { markOutcomeResultsStopped, renderOutcomeResults, resetOutcomeResults } 
 import { outcomeThresholdText } from './outcome-thresholds.js';
 import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
 import { curlFromRecord } from './curl-export.js';
+import { summaryChecks } from './run-report.js';
+import { thresholdRequests } from './outcome-thresholds.js';
+import { chosenGoal } from './components/load-chart.js';
+import { goalResults, metricCards, nextSteps, perRequestRows, runFigures, verdictText } from './run-summary.js';
+import { renderNextSteps, renderPerRequest, renderResultCards, resetOverview } from './result-overview.js';
+import { noteRunPassed, renderRunCheck, runAction } from './components/run-check.js';
 
 export const MAX_REQ_LOGS = 500;
 const MAX_LOG_LINES = 1500;
@@ -35,6 +42,8 @@ let lastElapsedMs = 0;
 let stopRequested = false;
 // Set by `done`: a `metrics` event after it (none should come) never replaces the final values.
 let runFinished = false;
+// The latest live `metrics` event: the figures of a run that was stopped before `done`.
+let lastLiveMetrics = null;
 // The run the report describes: set when a run starts, null after Clear results.
 let lastRun = null;
 let verdictState = { status: 'idle', title: '', detail: '' };
@@ -92,7 +101,7 @@ export function setRunning(running) {
   $('#run-btn').classList.toggle('hidden', running);
   $('#stop-btn').classList.toggle('hidden', !running);
   $('#results-run-btn').disabled = running;
-  $('#results-empty-run-btn').disabled = running;
+  $('#prerun-run-btn').disabled = running;
   syncReportButtons(running);
   const dot = $('#nav-run-dot');
   if (running) {
@@ -409,24 +418,29 @@ function fmt(value, digits = 2) {
   return value == null || Number.isNaN(Number(value)) ? '—' : Number(value).toFixed(digits);
 }
 
-function metricCards(summary) {
+// "All k6 metrics" (folded under the Overview): k6's own figures with k6's names.
+function allMetricCards(summary) {
   const metrics = summary?.metrics || {};
   const requests = metrics.http_reqs;
   const duration = metrics.http_req_duration;
   const failures = metrics.http_req_failed;
   const cards = [];
-  if (requests) cards.push({ label: 'Total Requests', value: requests.count ?? '—' });
-  if (requests?.rate != null) cards.push({ label: 'Requests/sec', value: fmt(requests.rate, 1) });
+  if (requests) cards.push({ label: 'Total Requests (http_reqs)', value: requests.count ?? '—' });
+  if (requests?.rate != null) cards.push({ label: 'Requests/sec (http_reqs rate)', value: fmt(requests.rate, 1) });
   if (duration) {
-    cards.push({ label: 'Average response', value: `${fmt(duration.avg)} ms` });
+    cards.push({ label: 'Fastest response (min)', value: `${fmt(duration.min)} ms` });
+    cards.push({ label: 'Median response (med)', value: `${fmt(duration.med)} ms` });
+    cards.push({ label: 'Average response (avg)', value: `${fmt(duration.avg)} ms` });
+    cards.push({ label: 'p90 response', value: `${fmt(duration['p(90)'])} ms` });
     cards.push({ label: 'p95 response', value: `${fmt(duration['p(95)'])} ms` });
-    cards.push({ label: 'Slowest response', value: `${fmt(duration.max)} ms` });
+    cards.push({ label: 'Slowest response (max)', value: `${fmt(duration.max)} ms` });
   }
   if (failures?.value != null) {
     const percentage = failures.value * 100;
-    cards.push({ label: 'Error rate', value: `${fmt(percentage)} %`, tone: percentage === 0 ? 'ok' : 'bad' });
+    cards.push({ label: 'Error rate (http_req_failed)', value: `${fmt(percentage)} %`, tone: percentage === 0 ? 'ok' : 'bad' });
   }
-  if (metrics.vus_max?.value != null) cards.push({ label: 'Max VUs', value: metrics.vus_max.value });
+  if (metrics.iterations?.count != null) cards.push({ label: 'Iterations', value: metrics.iterations.count });
+  if (metrics.vus_max?.value != null) cards.push({ label: 'Max VUs (vus_max)', value: metrics.vus_max.value });
   return cards;
 }
 
@@ -444,13 +458,50 @@ function renderCard(container, card) {
 }
 
 function renderMetrics(summary) {
-  const cards = metricCards(summary);
+  const cards = allMetricCards(summary);
   const detailed = $('#run-metrics');
-  const overview = $('#overview-metrics');
   detailed.replaceChildren();
-  overview.replaceChildren();
   cards.forEach(card => renderCard(detailed, card));
-  cards.slice(0, 4).forEach(card => renderCard(overview, card));
+  $('#run-all-metrics').hidden = !cards.length;
+}
+
+// The key figures as cards, compared with the run's goals (live: the figures so far).
+function renderFigures({ summary = null, live = null } = {}) {
+  const figures = runFigures({ summary, live });
+  const goals = goalResults({ thresholds: lastRun?.config?.thresholds, summary, figures });
+  renderResultCards(metricCards({ figures, goals, live: Boolean(live) }));
+  return { figures, goals };
+}
+
+// Results tab buttons in "What to do next"; the rest is shared with "Before you run".
+function nextStepAction(action) {
+  if (action.kind === 'tab') activateResultsTab(action.value, { focus: true });
+  else runAction(action);
+}
+
+// The overview after `done` or a stop: verdict sentence, cards, each request and what
+// to do next. `status` = the run state. Returns the verdict's { title, detail }.
+function renderReading(status, { summary = null, code = null, targets = [] } = {}) {
+  const { figures, goals } = renderFigures(summary ? { summary } : { live: lastLiveMetrics });
+  const config = lastRun?.config || {};
+  const records = reqLogs.map(record => record.entry);
+  const perRequest = perRequestRows({ requests: thresholdRequests(config), checks: summaryChecks(summary), records });
+  const recorded = config.options?.logRequests === true;
+  const filter = String(config.options?.logFilter || 'all');
+  const hints = ['Sent and failed come from the status check of each request (— when it is off).'];
+  if (perRequest.timed) {
+    hints.push(`Times come from the ${reqLogReceived.toLocaleString('en-US')} recorded requests`
+      + `${filter === 'errors' ? ', failed ones only' : filter === 'sample' ? ', a sample' : ''}, not every request.`);
+  } else hints.push('Turn on "Record request details" before the next run to see the time of each request.');
+  renderPerRequest(summary || records.length ? perRequest : null, hints.join(' '));
+  const failedRequests = perRequest.rows.filter(row => row.failed > 0).sort((a, b) => b.failed - a.failed);
+  renderNextSteps(nextSteps({
+    status, goals, figures, perRequest, goal: lastRun?.goal, recorded, errors: errors.length, failedRequests,
+  }), nextStepAction);
+  return verdictText({
+    status, goals, targets, figures, code, race: config.load?.mode === 'race',
+    durationText: lastElapsedMs >= 1000 ? formatElapsed(lastElapsedMs) : '',
+  });
 }
 
 function applySummaryMetadata(summary) {
@@ -462,6 +513,8 @@ function applySummaryMetadata(summary) {
 // live values (requests, response times, VUs) are not shown yet.
 function showLiveMetrics(data) {
   if (runFinished) return;
+  lastLiveMetrics = data;
+  renderFigures({ live: data });
   const outcomes = Array.isArray(data?.outcomes) ? data.outcomes : [];
   const targets = Array.isArray(data?.outcomeThresholds) ? data.outcomeThresholds : [];
   if (outcomes.length || targets.length) renderOutcomeResults(outcomes, targets, { live: true });
@@ -487,20 +540,21 @@ function finishRun(data) {
     renderMetrics(data.summary);
     applySummaryMetadata(data.summary);
   }
-  if (data.outcome === 'passed') {
-    setVerdict({ status: 'passed', title: 'Test passed', detail: 'The run completed and all configured targets were met.', mark: '✓' });
-  } else if (data.outcome === 'threshold-failed') {
-    setVerdict({ status: 'threshold-failed', title: 'Targets were not met', detail: 'The run completed, but one or more k6 thresholds failed. Review Metrics and Errors.', mark: '!' });
-    addError('One or more configured k6 thresholds were not met.');
-    for (const target of (data.outcomeThresholds || []).filter(item => item?.status === 'not-met')) {
+  const targets = Array.isArray(data.outcomeThresholds) ? data.outcomeThresholds : [];
+  if (data.outcome === 'threshold-failed') {
+    addError('One or more pass/fail goals were not met.');
+    for (const target of targets.filter(item => item?.status === 'not-met')) {
       addError(`Outcome target ${target.number} was not met: ${outcomeThresholdText(target)} (counted ${target.count}).`);
     }
-  } else {
-    const detail = `k6 exited with code ${data.code ?? 'unknown'}. Review Errors and Live Log for the failure details.`;
-    setVerdict({ status: 'failed', title: 'Test failed to run', detail, mark: '×' });
-    addError(detail);
+  } else if (data.outcome !== 'passed') {
+    addError(`k6 exited with code ${data.code ?? 'unknown'}. See Raw k6 output for its message.`);
   }
   for (const message of raceErrors(data.race)) addError(message);
+  const status = data.outcome === 'passed' || data.outcome === 'threshold-failed' ? data.outcome : 'failed';
+  const words = renderReading(status, { summary: data.summary || null, code: data.code ?? null, targets });
+  const mark = { passed: '✓', 'threshold-failed': '!', failed: '×' }[status];
+  setVerdict({ status, ...words, mark });
+  if (status === 'passed') noteRunPassed(lastRun?.goal);
 }
 
 function handleSSE(event, data) {
@@ -509,7 +563,7 @@ function handleSSE(event, data) {
   else if (event === 'error') {
     appendLog(`\n[ERROR] ${data.message}\n`);
     addError(data.message);
-    setVerdict({ status: 'failed', title: 'Test failed to run', detail: data.message, mark: '×' });
+    setVerdict({ status: 'failed', title: 'The test could not run', detail: data.message, mark: '×' });
   } else if (event === 'req-log') addRequestLog(data);
   else if (event === 'req-log-skipped') showSkippedRequestLogs(data.skipped);
   else if (event === 'export') addExportRows(data);
@@ -534,10 +588,11 @@ function resetRunWorkspace() {
   resetOutcomeResults();
   renderRaceResult(null);
   $('#run-metrics').replaceChildren();
-  $('#overview-metrics').replaceChildren();
+  resetOverview();
+  lastLiveMetrics = null;
   setText('#run-started', '—');
   setText('#run-elapsed', '—');
-  setVerdict({ status: 'idle', title: 'No test has run yet', detail: 'Run your flow to see whether its targets passed.', mark: '○' });
+  setVerdict({ status: 'idle', title: 'No test has run yet', detail: 'Look through the checks above, then run the test.', mark: '○' });
 }
 
 export function clearResults() {
@@ -545,7 +600,8 @@ export function clearResults() {
   resetRunWorkspace();
   lastRun = null;
   syncReportButtons(false);
-  $('#results-empty-state').classList.remove('hidden');
+  $('#prerun').open = true;
+  renderRunCheck();
   activateResultsTab('overview');
   const dot = $('#nav-run-dot');
   dot.classList.add('hidden');
@@ -568,13 +624,14 @@ export async function runTest() {
     return;
   }
 
+  const goal = chosenGoal();
   navigate('results');
-  $('#results-empty-state').classList.add('hidden');
   resetRunWorkspace();
+  $('#prerun').open = false;
   activateResultsTab('overview');
-  setVerdict({ status: 'running', title: 'Test is running', detail: 'Live results will update while k6 executes your flow.', mark: '…' });
+  setVerdict({ status: 'running', ...verdictText({ status: 'running' }), mark: '…' });
   const started = new Date();
-  lastRun = { config, startedAt: started, summary: null, exitCode: null };
+  lastRun = { config, goal, startedAt: started, summary: null, exitCode: null };
   setText('#run-started', started.toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' }));
   startElapsedTimer();
   setRunning(true);
@@ -612,12 +669,12 @@ export async function runTest() {
     if (error.name === 'AbortError') {
       if (!stopRequested) {
         addError('The connection to the running test was interrupted.');
-        setVerdict({ status: 'failed', title: 'Test connection was interrupted', detail: 'K6UI stopped receiving results before the run completed.', mark: '×' });
+        setVerdict({ status: 'failed', title: 'The connection to the test was lost', detail: 'K6UI stopped receiving results before the run completed.', mark: '×' });
       }
     } else {
       appendLog(`\n[ERROR] ${error.message}\n`);
       addError(error.message);
-      setVerdict({ status: 'failed', title: 'Test failed to run', detail: error.message, mark: '×' });
+      setVerdict({ status: 'failed', title: 'The test could not run', detail: error.message, mark: '×' });
     }
   } finally {
     // Stopped, interrupted, or a stream that ended without `done`: live counts stay, marked as such.
@@ -633,8 +690,8 @@ export function stopTest() {
   stopRequested = true;
   abortCtrl.abort();
   stopElapsedTimer();
-  setVerdict({ status: 'aborted', title: 'Test stopped', detail: 'You stopped this run before it completed.', mark: '■' });
   addError('Run stopped by the user.');
+  setVerdict({ status: 'aborted', ...renderReading('aborted'), mark: '■' });
   setRunning(false);
 }
 

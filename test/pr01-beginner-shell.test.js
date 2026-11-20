@@ -55,7 +55,8 @@ test('load step starts from a question with five goals and results has a pre-run
   const goals = matches(html, /class="load-goal" data-goal="([^"]+)"/g).map(([, goal]) => goal);
   assert.deepEqual(goals, ['smoke', 'load', 'stress', 'race', 'custom']);
   assert.match(html, /What do you want to find out\?/);
-  assert.match(html, /id="results-empty-state"[^>]*role="status"/);
+  assert.match(html, /<details id="prerun"[^>]*open/);
+  assert.match(html, /id="prerun-checklist"/);
 });
 
 test('shell includes semantic navigation and accessible status regions', async () => {

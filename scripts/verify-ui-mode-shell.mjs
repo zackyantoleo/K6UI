@@ -989,6 +989,195 @@ try {
   }
   checks.push('Load & goals: "What do you want to find out?" with five goals (Smoke marked Start here); an opened project is Custom (Race burst for a race) and a preset asks first, Cancel keeps it; presets write the same staged loads; typing in a preset makes it Custom; the kind of load sits in Custom (always shown in Advanced); a plain sentence and the chart change at once; race burst shows request, users and timing, the rest folded under Advanced timing with a summary (always open in Advanced); goals as sentences with switches, off = "", common values as suggestions, k6 expression in Advanced; outcome targets from Add goal (mouse and keyboard); opened projects give the same script');
 
+  // Run & Results: the check before a run, the recording options there, the run in plain words (stage 7).
+  // /api/run never reaches the server: this page answers it with a recorded SSE stream (no k6 runs).
+  {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await radio('simple').check();
+    const open = config => page.evaluate(async value => (await import('/js/project-io.js')).applyConfig(value), config);
+    const collect = () => page.evaluate(async () => structuredClone((await import('/js/config.js')).collectConfig()));
+    const results = () => page.locator('#simple-nav [data-view="results"]').click();
+    const requests = [
+      { id: 'req_me', name: 'Profile', type: 'http', method: 'GET', url: '{{base_url}}/me', headers: [{ key: 'Authorization', value: 'Bearer {{token}}' }] },
+      { id: 'req_login', name: 'Log in', type: 'http', method: 'POST', url: '{{base_url}}/login', body: '{}', extractions: [{ varName: 'token', source: 'json', selector: 'token' }] },
+      { id: 'req_pay', name: 'Pay', type: 'http', method: 'POST', url: '{{base_url}}/pay', body: '{}' },
+    ];
+    const risky = {
+      schemaVersion: 2, scenario: { groups: [], requests },
+      variables: [{ key: 'base_url', value: 'https://api.shop.example' }], globalHeaders: [], dataSets: [],
+      load: { mode: 'simple', vus: '10', duration: '30s' }, thresholds: { p95: '', errorRate: '' },
+    };
+    const checklist = () => page.locator('#prerun-checklist > li').evaluateAll(items => items.map(item => `${item.dataset.check}:${item.className.split(' ').pop()}`));
+    await open(risky);
+    await results();
+    assert.equal(await page.locator('#prerun').evaluate(details => details.open), true, 'Before you run is open before a run');
+    assert.deepEqual(await checklist(), ['variables:bad', 'target:warn', 'smoke:warn', 'goals:warn']);
+    assert.equal(await page.locator('#prerun-headline').textContent(), '4 things to look at');
+    assert.match(await page.locator('#prerun-checklist [data-check="variables"]').textContent(), /\{\{token\}\} not available yet in "Profile"/);
+    assert.match(await page.locator('#prerun-checklist [data-check="target"]').textContent(), /api\.shop\.example.*not production/);
+    assert.equal(await page.locator('#prerun-requests').textContent(), '3 will run');
+    assert.equal(await page.locator('#prerun-target').textContent(), 'api.shop.example');
+    assert.equal(await page.locator('#prerun-goals').textContent(), 'None');
+    assert.match(await page.locator('#prerun-load').textContent(), /^10 users run your 3 requests over and over for 30s/);
+    // Each open item leads to the place that fixes it.
+    await page.locator('#prerun-checklist [data-check="variables"] button').click();
+    assert.equal(await page.locator('#page-title').textContent(), 'Build Flow');
+    assert.equal(await page.locator('#reqs-main > .req-card[data-request-id="req_me"]').evaluate(card => card.classList.contains('expanded')), true, 'the request opens');
+    await results();
+    await page.locator('#prerun-checklist [data-check="target"] button').click();
+    assert.equal(await page.locator('#page-title').textContent(), 'Test data');
+    assert.equal(await page.locator('#data-block-vars').isVisible(), true);
+    await results();
+    await page.locator('#prerun-checklist [data-check="smoke"] button').click();
+    assert.equal(await page.locator('#page-title').textContent(), 'Load & goals');
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.goal), 'smoke', 'focus on the Smoke goal');
+    await results();
+    await page.locator('#prerun-checklist [data-check="goals"] button').click();
+    assert.equal(await page.locator('#load-block-goals').isVisible(), true);
+    assert.equal(await page.locator('#load-block-goals').evaluate(block => block.getBoundingClientRect().top < innerHeight), true, 'the goals are in view');
+    checks.push('Before you run: what will happen (requests, target, goals, the load sentence) and a checklist: {{token}} used before the request that takes it, a production-looking target, no smoke test, no goal; each button opens the place that fixes it (the request, Test data → Variables, the Smoke goal, the goals)');
+
+    // Fixed: order, a test host, goals on. Looking at the results view changes nothing that is sent.
+    const fixed = { ...risky, scenario: { groups: [], requests: [requests[1], requests[0], requests[2]] },
+      variables: [{ key: 'base_url', value: 'https://staging.shop.example' }], thresholds: { p95: '500', errorRate: '1' } };
+    await open(fixed);
+    const before = await collect();
+    await results();
+    assert.deepEqual(await checklist(), ['variables:ok', 'target:ok', 'smoke:warn', 'goals:ok']);
+    assert.equal(await page.locator('#prerun-goals').textContent(), '95% within 500 ms, less than 1% fail');
+    // Recording options: before the run, no longer in the Requests tab.
+    assert.equal(await page.locator('#prerun #log-requests').count(), 1);
+    assert.equal(await page.locator('#tab-requests #log-requests').count(), 0);
+    assert.deepEqual((await page.locator('.results-tab').allTextContents()).map(text => text.replace(/\s*\d+$/, '').trim()),
+      ['Overview', 'Requests', 'Errors', 'Raw k6 output']);
+    await page.locator('#results-tab-requests').click();
+    await page.locator('#prerun').evaluate(details => { details.open = false; });
+    await page.locator('#req-log-options').click();
+    assert.equal(await page.locator('#prerun').evaluate(details => details.open), true, 'Recording options opens Before you run');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'log-requests');
+    assert.deepEqual(await collect(), before, 'the results view never changes the project');
+    await page.locator('#log-requests').check();
+    await page.locator('#log-filter').selectOption('sample');
+    assert.equal(await page.locator('#log-sample-every-field').isVisible(), true);
+    const recorded = await collect();
+    assert.deepEqual([recorded.options.logRequests, recorded.options.logFilter], [true, 'sample']);
+    assert.deepEqual({ ...recorded, options: before.options }, before, 'only the recording options changed');
+    await page.locator('#log-filter').selectOption('all');
+    await page.locator('#results-tab-overview').click();
+    checks.push('Recording options (record, filter, sample, hide secrets) live in Before you run, not the Requests tab; "Recording options" there opens and focuses them; the tabs are Overview, Requests, Errors, Raw k6 output (no Metrics); viewing the results never changes the project');
+
+    // A recorded stream: one without `done` shows the live figures, one with `done` the reading.
+    const sse = events => events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join('');
+    const record = (i, d, ok = true) => ({ vu: 1, it: 0, i, m: 'GET', url: `https://staging.shop.example/${i}`, s: ok ? 200 : 502, d, ok });
+    const live = ['metrics', { vus: 4, requests: 120, requestRate: 12, durationAvg: 300, durationP95: 610, failedRate: 0.05 }];
+    const summary = {
+      metrics: {
+        http_req_duration: { avg: 161, min: 41, med: 148, max: 902, 'p(90)': 271, 'p(95)': 312, thresholds: { 'p(95)<500': false } },
+        http_req_failed: { passes: 6, fails: 1440, value: 6 / 1446, thresholds: { 'rate<0.01': true } },
+        http_reqs: { count: 1446, rate: 48.2 }, iterations: { count: 482 }, vus_max: { value: 10, min: 10, max: 10 },
+      },
+      root_group: { name: '', path: '', groups: {}, checks: {
+        a: { name: 'status 2xx: request 1', passes: 482, fails: 0 },
+        b: { name: 'status 2xx: request 2', passes: 482, fails: 0 },
+        c: { name: 'status 2xx: request 3', passes: 476, fails: 6 },
+      } },
+    };
+    let stream = sse([['status', { message: 'Starting k6…' }], ['log', { line: 'running (0m01.0s)\n' }], live]);
+    await page.route('**/api/run', route => route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: stream }));
+    const cards = () => page.locator('#overview-metrics .result-card').evaluateAll(items => items.map(item => ({
+      label: item.querySelector('.result-card-name').textContent, value: item.querySelector('.result-card-value').textContent,
+      goal: item.querySelector('.result-card-goal').textContent, tech: item.querySelector('.result-card-tech').textContent,
+      help: item.querySelector('.result-card-label > .help-btn')?.dataset.help,
+    })));
+    await page.locator('#prerun-run-btn').click();
+    await page.waitForFunction(() => document.querySelectorAll('#overview-metrics .result-card').length === 4);
+    assert.equal(await page.locator('#prerun').evaluate(details => details.open), false, 'Before you run folds when a run starts');
+    const liveCards = await cards();
+    assert.deepEqual(liveCards.map(card => [card.label, card.value, card.goal]), [
+      ['95% of requests finished within', '610 ms', 'Goal: under 500 ms · over the goal so far'],
+      ['Failed requests', '5%', 'Goal: less than 1% · over the goal so far'],
+      ['Requests per second', '12', 'Average so far'],
+      ['Users now', '4', '120 requests so far'],
+    ]);
+    assert.deepEqual(liveCards.map(card => card.help), ['p95', 'errorRate', 'throughput', 'vu'], '"?" beside each label');
+    await page.waitForFunction(() => !document.querySelector('#results-run-btn').disabled);
+
+    stream = sse([
+      ['status', { message: 'Starting k6…' }], live,
+      ...[[0, 80], [0, 90], [1, 120], [1, 140], [2, 400], [2, 450, false]].map(([i, d, ok]) => ['req-log', record(i, d, ok)]),
+      ['log', { line: 'done\n' }],
+      ['done', { code: 99, outcome: 'threshold-failed', summary }],
+    ]);
+    await page.locator('#results-run-btn').click();
+    await page.waitForFunction(() => document.querySelector('#run-state').textContent === 'TARGETS NOT MET');
+    assert.equal(await page.locator('#run-verdict-title').textContent(), 'Failed: a goal was missed');
+    assert.match(await page.locator('#run-verdict-detail').textContent(), /^✓ 95% within 500 ms · ✕ less than 1% failed · 1,446 requests/);
+    assert.deepEqual((await cards()).map(card => [card.label, card.value, card.goal, card.tech]), [
+      ['95% of requests finished within', '312 ms', 'Goal: under 500 ms · met', 'http_req_duration p(95)'],
+      ['Failed requests', '0.41%', 'Goal: less than 1% · missed', 'http_req_failed'],
+      ['Requests per second', '48.2', 'Average over the run', 'http_reqs rate'],
+      ['Most users at once', '10', '1,446 requests in total', 'vus_max'],
+    ]);
+    const perRequest = await page.locator('#run-per-request-rows > tr').evaluateAll(rows => rows.map(row => [...row.cells].slice(0, 5).map(cell => cell.textContent)));
+    assert.deepEqual(perRequest, [
+      ['1', 'Log in', '482', '0', '90 ms'],
+      ['2', 'Profile', '482', '0', '140 ms'],
+      ['3', 'PaySlowest', '482', '6 (1.2%)', '450 ms'],
+    ]);
+    assert.equal(await page.locator('#run-per-request-rows .badge-slowest').count(), 1);
+    const next = await page.locator('#run-next-list > li').allTextContents();
+    assert.match(next[0], /^"Pay" failed 6 times, more than your goal allows/);
+    assert.match(next.at(-1), /"Pay" is the slowest request/);
+    assert.equal(await page.locator('#run-all-metrics').isVisible(), true);
+    await page.locator('#run-all-metrics > summary').click();
+    assert.match(await page.locator('#run-metrics').textContent(), /p95 response.*Iterations/s);
+    await page.locator('#run-next-list > li').first().getByRole('button', { name: 'Errors' }).click();
+    assert.equal(await page.locator('.results-tab[aria-selected="true"]').getAttribute('data-tab'), 'errors');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'results-tab-errors');
+    await page.locator('#results-tab-overview').click();
+    assert.equal(await page.locator('#tab-overview .result-shortcuts').isVisible(), false, 'Simple: no shortcuts');
+    await page.screenshot({ path: resolve(output, 'stage7-results-1440.png'), fullPage: true });
+    await page.setViewportSize({ width: 375, height: 812 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, '375 px: no sideways scroll');
+    await page.screenshot({ path: resolve(output, 'stage7-results-375.png'), fullPage: true });
+    await page.locator('#prerun').evaluate(details => { details.open = true; });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, '375 px: Before you run open, no sideways scroll');
+    await page.screenshot({ path: resolve(output, 'stage7-prerun-375.png'), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await radio('advanced').check();
+    assert.deepEqual(await page.locator('#tab-overview .result-shortcuts button').allTextContents(), ['Inspect requests', 'Review errors', 'Raw k6 output']);
+    await page.locator('#tab-overview .result-shortcuts [data-results-tab="live"]').click();
+    assert.equal(await page.locator('.results-tab[aria-selected="true"]').textContent(), 'Raw k6 output');
+    assert.match(await page.locator('#log-output').textContent(), /done/);
+    await page.locator('#results-tab-overview').click();
+    await page.screenshot({ path: resolve(output, 'stage7-results-advanced-1440.png'), fullPage: true });
+    await radio('simple').check();
+    checks.push('A run in plain words (recorded SSE, no k6): live cards "so far" against the goals; the verdict is a sentence (Failed: a goal was missed, ✓/✕ per goal); four cards with a plain name, "?", the value, the goal and k6\'s name; each request with sent/failed from its status check, times from the records and the slowest marked; What to do next with buttons (Errors opens and focuses the tab); All k6 metrics folded under the Overview; Advanced shortcuts Inspect requests / Review errors / Raw k6 output; 1440 + 375 px without sideways scroll');
+
+    // A smoke test that passes is remembered in this tab; Clear results opens Before you run again.
+    stream = sse([['done', { code: 0, outcome: 'passed', summary: { ...summary, metrics: { ...summary.metrics,
+      http_req_failed: { passes: 0, fails: 1446, value: 0, thresholds: { 'rate<0.01': false } } } } }]]);
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#simple-nav [data-view="load"]').click();
+    await page.locator('.load-goal[data-goal="smoke"]').click();
+    await results();
+    assert.equal(await page.locator('#prerun-checklist [data-check="smoke"]').getAttribute('class'), 'prerun-item ok');
+    await page.locator('#prerun-run-btn').click();
+    await page.waitForFunction(() => document.querySelector('#run-state').textContent === 'PASSED');
+    assert.equal(await page.locator('#run-verdict-title').textContent(), 'Passed: your service handled 10 users and met every goal');
+    assert.match((await page.locator('#run-next-list > li').allTextContents()).join(' '), /Try a load test/);
+    await page.locator('#simple-nav [data-view="load"]').click();
+    await page.locator('.load-goal[data-goal="custom"]').click();
+    await results();
+    assert.match(await page.locator('#prerun-checklist [data-check="smoke"]').textContent(), /A smoke test passed in this tab/);
+    await page.locator('#clear-results').click();
+    assert.equal(await page.locator('#prerun').evaluate(details => details.open), true);
+    assert.equal(await page.locator('#overview-metrics .result-card').count(), 0);
+    assert.equal(await page.locator('#run-per-request').isVisible(), false);
+    await page.unroute('**/api/run');
+    checks.push('Smoke test: chosen from the checklist, a passing run is remembered in this tab (the item turns OK for a later Custom run) and suggests a load test next; Clear results opens Before you run again and empties the reading');
+  }
+
   assert.deepEqual(forbidden, []);
   assert.deepEqual(errors, []);
   const result = { checks, layouts, generated, errors, forbidden, nativeZoomTested: false, realRunTested: false };
