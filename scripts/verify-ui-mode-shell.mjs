@@ -192,10 +192,29 @@ try {
   checks.push('Script category refreshes live form exactly once per click; config/script parity across mode switch; no serialized uiMode');
 
   // Real storage and reload, plus fault injection at each storage boundary.
+  // The project as typed is the browser draft (draft.js), kept apart from the mode.
   await radio('simple').check();
-  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage)), [['k6ui.uiMode', 'simple']]);
+  const cardsBefore = await page.locator('.req-card').count();
+  assert.ok(cardsBefore > 0);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('k6ui.draft') || 'null')?.project?.scenario?.requests
+    ?.some(request => request.url === 'https://fixture.test/changed'));
+  assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).sort()), ['k6ui.draft', 'k6ui.uiMode']);
+  assert.equal(await page.evaluate(() => localStorage.getItem('k6ui.uiMode')), 'simple');
+  assert.equal(await page.evaluate(() => 'uiMode' in JSON.parse(localStorage.getItem('k6ui.draft')).project), false, 'The mode is not part of the draft project');
+  // A refresh brings the project back; the k6 Script view (open before the refresh) reopens on Build Flow.
   await page.reload(); await ready(); await active('simple', 'flow', 'flow');
-  assert.equal(await page.locator('.req-card').count(), 0, 'UI preference is not project autosave');
+  assert.equal(await page.locator('.req-card').count(), cardsBefore, 'Refresh restores the project from the browser draft');
+  assert.equal(await page.locator('#reqs-main .req-card .url').first().inputValue(), 'https://fixture.test/changed');
+  assert.equal(await page.locator('#draft-status').textContent(), 'Restored from your last visit');
+  // New: asks first, then a fresh page with no draft.
+  let newAsked = '';
+  page.once('dialog', dialog => { newAsked = dialog.message(); return dialog.accept(); });
+  await Promise.all([page.waitForEvent('load'), page.locator('#new-project-btn').click()]);
+  await ready(); await active('simple', 'flow', 'flow');
+  assert.match(newAsked, /Start a new, empty project\?/);
+  assert.equal(await page.locator('.req-card').count(), 0, 'New starts an empty project');
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage)), [['k6ui.uiMode', 'simple']]);
+  assert.equal(await page.locator('#draft-status').isHidden(), true);
   await radio('advanced').check();
   await page.reload(); await ready(); await active('advanced', 'flow', 'flow');
   await page.evaluate(() => localStorage.setItem('k6ui.uiMode', ' Advanced '));
@@ -216,7 +235,7 @@ try {
     assert.equal(await isolated.locator('#view-load').isVisible(), true);
     await isolated.close();
   }
-  checks.push('Only the enum is stored; refresh remembers valid modes but not project; invalid/get/read/write failures remain usable');
+  checks.push('Mode enum and project draft stored apart; refresh restores the project, New clears it; invalid/get/read/write failures remain usable');
 
   // Presentation smoke for this shell, not the later outline/results redesign.
   await page.evaluate(async () => {

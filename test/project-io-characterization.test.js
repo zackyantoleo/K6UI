@@ -32,7 +32,7 @@ test('project open restores all top-level config domains and request flow', asyn
   ]) {
     assert.ok(js.includes(fragment), `Expected project restore contract to include ${fragment}`);
   }
-  assert.match(js, /navigate\('flow'\)/);
+  assert.match(js, /navigate\('flow'[,)]/);
 });
 
 test('project open resets the load modes the project does not use', async () => {

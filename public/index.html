@@ -16,6 +16,7 @@
       <span class="brand-name">K6UI</span>
     </div>
     <div class="project-actions" role="group" aria-label="Project file actions">
+      <button type="button" class="btn quiet sm" data-icon="plus" id="new-project-btn" title="Start a new, empty project">New</button>
       <button type="button" class="btn quiet sm" data-icon="folder" id="open-project-btn" title="Open a saved project file">Open</button>
       <button type="button" class="btn quiet sm" data-icon="save" id="save-project-btn" title="Save this project as a file">Save</button>
       <div class="menu-wrap">
@@ -25,6 +26,8 @@
           <button type="button" class="menu-item" role="menuitem" id="import-k6-btn"><strong>A k6 script or JMeter test plan</strong><span>A .js or .jmx file. Replaces the whole project.</span></button>
         </div>
       </div>
+      <!-- Whether this browser keeps the project as typed (draft.js); hidden for an empty project. -->
+      <span class="draft-status" id="draft-status" role="status" hidden></span>
     </div>
     <input type="file" id="project-file-input" accept=".json,application/json" hidden />
     <div class="topbar-end">

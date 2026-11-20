@@ -41,11 +41,18 @@ function readAssertionRows(scope) {
 }
 
 // ── Per card ───────────────────────────────────────────────────
-function collectReqList(containerId) {
+const LAZY_PANELS = ['headers', 'body', 'assertions', 'extractions', 'exports', 'statuses', 'outcomes', 'scripts'];
+
+const panelReady = (card, panelId) =>
+  card.querySelector(`.req-panel[data-panel="${panelId}"]`)?.dataset.panelReady === 'true';
+
+// `hydrate: false` (readProjectDraft): a panel that was never filled is read from
+// the request the card was loaded with (`card.requestState`), the same values
+// ensureRequestPanel() would put in it, so nothing is built.
+function collectReqList(containerId, { hydrate = true } = {}) {
   return $$(`#${containerId} .req-card`).map(card => {
-    for (const panelId of ['headers', 'body', 'assertions', 'extractions', 'exports', 'statuses', 'outcomes', 'scripts']) {
-      card.ensureRequestPanel?.(panelId);
-    }
+    if (!hydrate) return readCardLazily(card);
+    for (const panelId of LAZY_PANELS) card.ensureRequestPanel?.(panelId);
     const body = card.querySelector('.req-card-body');
     if (!card.dataset.requestId) card.dataset.requestId = createRequestId();
     // Outcome rules: saved only when the request has some (no `outcomes` key otherwise).
@@ -77,6 +84,43 @@ function collectReqList(containerId) {
   });
 }
 
+function readCardLazily(card) {
+  const saved = card.requestState || {};
+  const field = selector => card.querySelector(selector);
+  const list = selector => field(`.req-card-body ${selector}`);
+  const statuses = panelReady(card, 'statuses');
+  const scripts = panelReady(card, 'scripts');
+  const outcomes = panelReady(card, 'outcomes') ? readOutcomesPanel(list('.outcomes-panel')) : saved.outcomes;
+  const expectedStatuses = statuses ? field('.expected-statuses').value.trim() : String(saved.expectedStatuses || '').trim();
+  // "Wait after" exists once the editor was built (it is not a lazy part).
+  const sleep = field('.sleep');
+  if (!card.dataset.requestId) card.dataset.requestId = createRequestId();
+  return {
+    id:            card.dataset.requestId,
+    name:          field('.request-name')?.value.trim() || '',
+    enabled:       field('.request-enabled')?.checked !== false,
+    groupId:       field('.request-group-select')?.value || '',
+    type:          field('.protocol').value,
+    method:        field('.method').value,
+    url:           field('.url').value.trim(),
+    grpcMethod:    field('.grpc-method').value.trim(),
+    grpcPlaintext: field('.grpc-plaintext').checked,
+    headers:       panelReady(card, 'headers') ? readHeaderRows(list('.headers-list'))
+      : (saved.headers || []).filter(header => header?.key),
+    body:          panelReady(card, 'body') ? field('.body').value : saved.body || '',
+    checkStatus:   statuses ? field('.check-status').checked : saved.checkStatus !== false,
+    ...(expectedStatuses ? { expectedStatuses } : {}),
+    sleepAfter:    sleep ? sleep.value : String(saved.sleepAfter ?? 1),
+    extractions:   panelReady(card, 'extractions') ? readExtractionRows(list('.extractions-list'))
+      : (saved.extractions || []).filter(extraction => extraction?.varName),
+    exports:       panelReady(card, 'exports') ? readExportBlocks(list('.exports-list')) : saved.exports || [],
+    assertions:    panelReady(card, 'assertions') ? readAssertionRows(list('.assertions-list')) : saved.assertions || [],
+    ...(outcomes ? { outcomes } : {}),
+    preScript:     scripts ? field('.pre-script').value : saved.preScript || '',
+    postScript:    scripts ? field('.post-script').value : saved.postScript || '',
+  };
+}
+
 // ── Global variables ───────────────────────────────────────────
 function readVariableRows() {
   return $$('#global-vars-list .var-row')
@@ -93,8 +137,7 @@ function thresholdFields() {
   return { ...readThresholdFields(), ...(outcomes.length ? { outcomes } : {}) };
 }
 
-// ── Public API ─────────────────────────────────────────────────
-export function collectConfig() {
+function readConfig({ hydrate }) {
   const mode = readLoadMode();
   const load = { mode };
   if (mode === 'simple') {
@@ -112,8 +155,8 @@ export function collectConfig() {
       target:   s.querySelector('.stage-target').value,
     }));
   }
-  const config = {
-    scenario:      { groups: collectRequestGroups(), requests: collectReqList('reqs-main') },
+  return {
+    scenario:      { groups: collectRequestGroups(), requests: collectReqList('reqs-main', { hydrate }) },
     variables:     readVariableRows(),
     dataSets:      collectDataSets(),
     globalHeaders: readHeaderRows($('#global-headers-list')),
@@ -126,7 +169,18 @@ export function collectConfig() {
       logRedact:      $('#log-redact')?.checked ?? false,
     }),
   };
-  return projectStore.replace(config);
+}
+
+// ── Public API ─────────────────────────────────────────────────
+export function collectConfig() {
+  return projectStore.replace(readConfig({ hydrate: true }));
+}
+
+// The project as typed, for the browser draft (draft.js): same shape as
+// collectConfig(), but it never builds a lazy request panel and leaves the store
+// alone, so it is cheap enough to run after every change.
+export function readProjectDraft() {
+  return readConfig({ hydrate: false });
 }
 
 export function validate(config) {
