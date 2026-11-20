@@ -1,6 +1,6 @@
 // Run & Results → "Before you run": what will happen (requests, load sentence, target,
 // goals) and a checklist from run-summary.js (every {{variable}} has a value, the
-// target is not production, a smoke test passed, a goal is set), each open item with
+// target is not production, a goal is set), each open item with
 // a button to the place that fixes it. The recording options live here too, before the
 // run. Presentation only: it reads the forms as typed (never a lazy request panel, the
 // store, or the mode) and writes text with textContent. One DOM for both modes.
@@ -13,14 +13,7 @@ import { readThresholdFields } from './pass-fail-goals.js';
 import { checklistHeadline, goalTexts, preRunChecks } from '../run-summary.js';
 
 const ICONS = { ok: '✓', warn: '!', bad: '✕' };
-// A smoke test that passed in this tab (memory only; an opened project starts again).
-let smokePassed = false;
-
-export function noteRunPassed(goal) {
-  if (goal === 'smoke') smokePassed = true;
-}
-
-// Load & goals, at one goal card ("Choose Smoke test").
+// Load & goals, at one goal card ("Choose Load test" in What to do next).
 export function showLoadGoal(goal) {
   navigate('load');
   const card = $(`.load-goal[data-goal="${goal}"]`);
@@ -74,7 +67,7 @@ export function renderRunCheck() {
   const list = $('#prerun-checklist');
   if (!list) return;
   const state = readState();
-  const { facts, items } = preRunChecks({ flow: state.flow, goals: state.goals, goal: state.goal, smokePassed });
+  const { facts, items } = preRunChecks({ flow: state.flow, goals: state.goals });
 
   $('#prerun-requests').textContent = facts.requests
     ? `${facts.requests} will run${facts.off ? ` · ${facts.off} off` : ''}`
@@ -126,7 +119,6 @@ export function initRunCheck() {
     if (event.detail?.page === 'results') renderRunCheck();
   });
   window.addEventListener('k6ui:project-applied', () => {
-    smokePassed = false;
     if (!$('#view-results')?.classList.contains('hidden')) renderRunCheck();
   });
   $('#req-log-options')?.addEventListener('click', showRecordingOptions);

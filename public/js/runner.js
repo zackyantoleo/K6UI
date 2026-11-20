@@ -17,7 +17,7 @@ import { thresholdRequests } from './outcome-thresholds.js';
 import { chosenGoal } from './components/load-chart.js';
 import { goalResults, metricCards, nextSteps, perRequestRows, runFigures, verdictText } from './run-summary.js';
 import { renderNextSteps, renderPerRequest, renderResultCards, resetOverview } from './result-overview.js';
-import { noteRunPassed, renderRunCheck, runAction } from './components/run-check.js';
+import { renderRunCheck, runAction } from './components/run-check.js';
 
 export const MAX_REQ_LOGS = 500;
 const MAX_LOG_LINES = 1500;
@@ -554,7 +554,6 @@ function finishRun(data) {
   const words = renderReading(status, { summary: data.summary || null, code: data.code ?? null, targets });
   const mark = { passed: '✓', 'threshold-failed': '!', failed: '×' }[status];
   setVerdict({ status, ...words, mark });
-  if (status === 'passed') noteRunPassed(lastRun?.goal);
 }
 
 function handleSSE(event, data) {

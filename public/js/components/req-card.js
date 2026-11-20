@@ -199,7 +199,8 @@ function sectionShell(panelId, title, help, { advanced = false, removable = fals
   heading.className = 'req-section-title';
   heading.tabIndex = -1;
   heading.textContent = title;
-  head.append(heading, help);
+  head.append(heading);
+  if (help) head.appendChild(help);
   if (advanced) {
     const tag = document.createElement('span');
     tag.className = 'tag-advanced';
@@ -306,8 +307,8 @@ function buildEditor(card) {
   const body = card.querySelector('.req-card-body');
   const main = document.createElement('div');
   main.className = 'req-main-sections';
-  const headers = sectionShell('headers', 'Headers', helpButton('requestHeaders'));
-  const bodySection = sectionShell('body', 'Body', helpButton('requestBody'));
+  const headers = sectionShell('headers', 'Headers');
+  const bodySection = sectionShell('body', 'Body');
   const note = document.createElement('p');
   note.className = 'ext-hint req-body-note';
   note.hidden = true;

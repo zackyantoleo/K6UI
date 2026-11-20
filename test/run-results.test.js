@@ -46,19 +46,19 @@ test('test hosts are told apart from production ones', () => {
   assert.equal(requestHost({ type: 'grpc', url: 'grpc.staging.local:50051' }, []), 'grpc.staging.local:50051');
 });
 
-test('the checklist before a run: variables, target, smoke test, goals, each with a way to fix it', () => {
-  const good = preRunChecks({ flow: flowFromConfig(project()), goals: { p95: '500', errorRate: '1', outcomeTargets: 0 }, goal: 'smoke' });
+test('the checklist before a run: variables, target, goals, each with a way to fix it (no smoke test item)', () => {
+  const good = preRunChecks({ flow: flowFromConfig(project()), goals: { p95: '500', errorRate: '1', outcomeTargets: 0 } });
   assert.deepEqual(good.items.map(item => [item.key, item.tone]),
-    [['variables', 'ok'], ['target', 'ok'], ['smoke', 'ok'], ['goals', 'ok']]);
+    [['variables', 'ok'], ['target', 'ok'], ['goals', 'ok']]);
   assert.equal(good.facts.requests, 3, 'the request of the turned-off group does not run');
   assert.equal(good.facts.off, 1);
   assert.deepEqual(good.facts.hosts, ['staging.shop.example.com']);
-  assert.equal(checklistHeadline(good.items), 'All 4 checks look fine');
+  assert.equal(checklistHeadline(good.items), 'All 3 checks look fine');
 
-  // {{token}} before the request that extracts it, a production-looking target, no goals, not a smoke test.
+  // {{token}} before the request that extracts it, a production-looking target, no goals.
   const config = project({ variables: [{ key: 'base_url', value: 'https://api.example.com' }] });
   config.scenario.requests = [config.scenario.requests[2], config.scenario.requests[0]];
-  const bad = preRunChecks({ flow: flowFromConfig(config), goals: { p95: '', errorRate: '', outcomeTargets: 0 }, goal: 'load' });
+  const bad = preRunChecks({ flow: flowFromConfig(config), goals: { p95: '', errorRate: '', outcomeTargets: 0 } });
   const byKey = Object.fromEntries(bad.items.map(item => [item.key, item]));
   assert.equal(byKey.variables.tone, 'bad');
   assert.match(byKey.variables.text, /\{\{token\}\} not available yet in "Profile"/);
@@ -66,15 +66,14 @@ test('the checklist before a run: variables, target, smoke test, goals, each wit
   assert.equal(byKey.target.tone, 'warn');
   assert.match(byKey.target.text, /api\.example\.com.*not production/);
   assert.deepEqual(byKey.target.action, { label: 'Check the variables', kind: 'view', value: 'vars' }, 'the host comes from a global variable');
-  assert.deepEqual(byKey.smoke.action, { label: 'Choose Smoke test', kind: 'goal', value: 'smoke' });
+  assert.equal(byKey.smoke, undefined, 'no smoke test item');
   assert.deepEqual(byKey.goals.action, { label: 'Set goals', kind: 'view', value: 'sla' });
-  assert.equal(checklistHeadline(bad.items), '4 things to look at');
+  assert.equal(checklistHeadline(bad.items), '3 things to look at');
 
-  const smoked = preRunChecks({ flow: flowFromConfig(project()), goals: { outcomeTargets: 2 }, goal: 'load', smokePassed: true });
-  assert.equal(smoked.items.find(item => item.key === 'smoke').tone, 'ok');
-  assert.match(smoked.items.find(item => item.key === 'goals').text, /^2 pass\/fail goals are set/);
+  const targets = preRunChecks({ flow: flowFromConfig(project()), goals: { outcomeTargets: 2 } });
+  assert.match(targets.items.find(item => item.key === 'goals').text, /^2 pass\/fail goals are set/);
 
-  const empty = preRunChecks({ flow: flowFromConfig({}), goals: {}, goal: 'custom' });
+  const empty = preRunChecks({ flow: flowFromConfig({}), goals: {} });
   assert.deepEqual(empty.items[0], { key: 'requests', tone: 'bad', text: 'No request will run: add one, or turn one on.',
     action: { label: 'Build the flow', kind: 'view', value: 'flow' } });
 });

@@ -116,7 +116,7 @@ export function createVariablesPanel() {
   const count = node('span', 'flow-vars-count');
   toggle.append(label, count);
   title.appendChild(toggle);
-  head.append(title, helpButton('variable'));
+  head.append(title);
 
   const body = node('div', 'flow-vars-body');
   body.id = 'flow-vars-body';
