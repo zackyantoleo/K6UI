@@ -23,6 +23,7 @@ server/                 Backend (Node/Express, ESM)
 ├── live-metrics.js     Free port from the OS, poll k6's `GET /v1/metrics` once a second → `metrics` events (a failed poll is skipped)
 ├── export-collector.js "Save to CSV" rows logged by the script → batched `export` events (memory only, size limits)
 ├── request-log-throttle.js Request records logged by the script → `req-log` events, ≤ 50 passed + 50 failed a second, `req-log-skipped` count (plus each record's `sk`)
+├── send-once.js        POST /api/send-once: a script for one request (1 VU × 1 iteration, request details on, bodies up to 256 KB), run by k6 (`--log-format json`), the record read back; 30 s timeout (504), 2 at a time (429), no k6 (503); `unresolved` = {{names}} sent as typed
 ├── race-collector.js   Race burst records logged by the script (`{"k6uiRace":1,...}`, one per VU) → `raceRecords` on `done` (memory only, ≤ 10,000, later ones counted as `dropped`)
 ├── generator/          JSON configuration → k6 script source (string)
 │   ├── index.js        generateScript() — orchestration
@@ -95,6 +96,8 @@ public/                 Static frontend (ES modules, no bundler)
     ├── curl-export.js  Request record → a cURL command (`curlFromRecord()`: method, URL, request headers, body as recorded, bash/zsh quoting, `notes` when it cannot be complete). Shared by the Requests tab ("Copy as cURL") and the report (pure, no DOM)
     ├── curl-import.js  "Import from cURL" modal: parse + fill a request card
     ├── runner.js       POST /api/run, parse the SSE stream, render logs/table/verdict/figures; keeps the last run for the report (`runReport()`, `downloadRunReport(format)`)
+    ├── send-once.js    Send once, pure: `selectorFor()` (a clicked JSON value → the extraction selector; gRPC: one [n] per key), `variableNameFor()`, `responseJson()`, `resultSummary()`, `unresolvedText()`
+    ├── templates.js    First-run template "Log in, then use the token" in the existing schema (`withLoginTemplate()`)
     ├── run-summary.js  Run & Results in plain words (pure, no DOM): `preRunChecks()` (every {{variable}} has a value, the target host is not production-looking, a smoke test passed in this tab, a goal is set; each item with the place that fixes it), `runFigures()` (k6 summary of `done` or a live `metrics` event), `goalResults()` (a summary threshold `false` = passed), `metricCards()`, `perRequestRows()` (sent/failed from each request's status check `status …: request N`, times from the recorded records, slowest marked), `verdictText()`, `nextSteps()`
     ├── result-overview.js Run & Results Overview below the verdict: key figure cards (built once, updated in place; "?" beside each label), "Each request" table, "What to do next" (textContent only)
     ├── project-io.js   Save/load projects (JSON file = config object); opening one resets the load modes it does not use to a fresh page's values
@@ -106,6 +109,8 @@ public/                 Static frontend (ES modules, no bundler)
         ├── flow-arrange.js    Simple: drag a request by its handle (a drop next to a card takes that card's group, announced in `#flow-announcer`) and group bands (a header inside the first card of each run of one group, read from the group heads); cards never leave #reqs-main
         ├── request-editor/    One module per editor part (headers, body, checks, extract, exports = Save to CSV, statuses = expected statuses + "Use statuses from outcome rules" + the automatic status check, outcomes, scripts)
         ├── run-check.js       Run & Results "Before you run" (`#prerun`, a <details> that folds when a run starts): what will happen (requests, target, goals, the load sentence) + the checklist of run-summary.js with buttons to the place that fixes each item; holds the recording options (`#log-requests`, filter, sample, Hide secrets); reads the forms as typed, never a lazy panel; remembers a passing smoke test in this tab only
+        ├── send-once.js       "Send once" beside the URL of an open request: the response above the editor (textContent only), JSON values as buttons (one Tab stop, arrows) that add a row to "Take a value from the response" (`takeExtraction()` in req-card.js)
+        ├── first-run.js       `#flow-empty-state` of an empty project: three steps + four starts (blank, cURL, the login template, k6/JMeter import)
         ├── step-summary.js    What each Simple step holds, under its name ("3 requests · 1 group", "2 variables · 1 CSV file", "Smoke · 1 user · 30s · 2 goals", "Last run passed"), and the counts in the Test data / goals block headings: pure `stepSummaries()` + `loadSummary()`, a DOM adapter that reads the forms as typed (never a lazy panel) and the run badge's class
         ├── view-blocks.js     Folding the Test data blocks (Simple only; the toggle is `data-ui-only="simple"`, Advanced always shows a block open); `expandViewBlock()` for a link to one block
         ├── help-tips.js       "?" help buttons (`data-help="<key>"` in markup, `helpButton(key)` in JS): one shared tooltip (hover/focus, click keeps it open, Escape) + the Glossary panel; text only
@@ -138,6 +143,7 @@ UI form → `collectConfig()` (js/config.js) → `POST /api/generate` or `/api/r
 | `POST /api/generate` | config object (≤ 24 MB, to carry data files) | `{ script }`, 400 `{ error }`, or 413 `{ error }` (data file or body too big) |
 | `POST /api/import-script` | `{ script }` (k6 source) | `{ config, warnings: [{ line, message }] }` or 400 `{ error, warnings }` |
 | `POST /api/import-jmx` | raw .jmx XML (`Content-Type: application/xml`, ≤ 10 MB) | same as `/api/import-script` |
+| `POST /api/send-once` | `{ config, requestId }` (≤ 24 MB) | `{ sent, ok, error, request, response: { status, durationMs, headers, body, truncated, totalChars }, unresolved, log }` or `{ sent: false, error, log }`; 400 / 413 / 429 / 503 / 504 `{ error }`; `no-store`, `nosniff`. The generator gets `{ logBodyLimit }` only here; every other script is unchanged (`test/generator-send-once-characterization.test.js`) |
 | `POST /api/run` | config object (≤ 24 MB) | SSE stream (events below), or the same 400 / 413 JSON before it starts |
 
 SSE events from `/api/run`: `status` (progress), `log` (raw k6 output line), `req-log`

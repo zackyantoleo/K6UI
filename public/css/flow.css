@@ -168,7 +168,7 @@ html[data-ui-mode="simple"] #reqs-main > .req-card:is([data-group-run="start"], 
   grid-template-columns: minmax(84px, auto) minmax(0, 1fr) auto auto;
   grid-template-areas:
     "num name enabled actions"
-    "kind url url url";
+    "kind url send send";
 }
 #reqs-main > .req-card.expanded .req-card-head :is(.request-name-preview, .request-method-preview, .req-url-preview) { display: none; }
 #reqs-main > .req-card.expanded .req-card-head .req-num { grid-area: num; }
@@ -189,6 +189,11 @@ html[data-ui-mode="simple"] #reqs-main > .req-card:is([data-group-run="start"], 
   grid-area: url; width: 100%; min-width: 0;
   border-left-width: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
+/* "Send once" and its "?" sit after the URL; only an open request shows them. */
+.req-send { display: flex; align-items: center; gap: var(--space-1); }
+.req-card.collapsed .req-send { display: none; }
+#reqs-main > .req-card.expanded .req-card-head .req-send { grid-area: send; }
+.req-send-once { white-space: nowrap; }
 
 /* The card's own width decides the layout (it is narrower beside the outline).
    Narrow (a phone): everything stacks, with the viewport rule as a fallback. */
@@ -196,7 +201,7 @@ html[data-ui-mode="simple"] #reqs-main > .req-card:is([data-group-run="start"], 
 @container (max-width: 540px) {
   #reqs-main > .req-card.expanded .req-card-head {
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: "num name" "kind kind" "url url" "enabled actions";
+    grid-template-areas: "num name" "kind kind" "url url" "send send" "enabled actions";
   }
   #reqs-main > .req-card.expanded .req-card-head .req-num::before { content: none; }
   #reqs-main > .req-card.expanded .req-card-head .request-kind { justify-self: start; width: auto; margin-right: 0; border-radius: var(--radius-sm); }
@@ -206,7 +211,7 @@ html[data-ui-mode="simple"] #reqs-main > .req-card:is([data-group-run="start"], 
 @media (max-width: 640px) {
   #reqs-main > .req-card.expanded .req-card-head {
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: "num name" "kind kind" "url url" "enabled actions";
+    grid-template-areas: "num name" "kind kind" "url url" "send send" "enabled actions";
   }
   #reqs-main > .req-card.expanded .req-card-head .req-num::before { content: none; }
   #reqs-main > .req-card.expanded .req-card-head .request-kind { justify-self: start; width: auto; margin-right: 0; border-radius: var(--radius-sm); }
@@ -227,6 +232,48 @@ html[data-ui-mode="simple"] #reqs-main > .req-card:is([data-group-run="start"], 
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
 }
 .req-extra-sections { display: grid; gap: var(--space-3); }
+
+/* The response of "Send once", above the sections (components/send-once.js). */
+.send-once {
+  display: grid; gap: var(--space-2); min-width: 0; padding: var(--space-3);
+  background: var(--code-bg); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+}
+.send-once[hidden] { display: none; }
+.send-once.sending { opacity: .6; }
+.so-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.so-title { font-size: var(--text-md); }
+.so-status { font-family: var(--font-mono); font-weight: 700; }
+.so-status.ok { color: var(--ok); }
+.so-status.bad { color: var(--danger); }
+.so-facts { color: var(--text-muted); font-size: var(--text-sm); }
+.so-close { margin-left: auto; }
+.so-live:empty { display: none; }
+.so-live, .so-verdict, .so-note { color: var(--text-muted); font-size: var(--text-sm); }
+.so-error, .so-unresolved { font-size: var(--text-sm); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); overflow-wrap: anywhere; }
+.so-error { color: var(--text); background: var(--danger-lite); }
+.so-unresolved { color: var(--text); background: var(--warn-lite); }
+.so-body, .so-sent-body {
+  margin: 0; max-height: 420px; overflow: auto; padding: var(--space-2) var(--space-3);
+  font: var(--text-sm)/1.6 var(--font-mono); color: var(--code-text); white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--surface-1); border-radius: var(--radius-sm);
+}
+.so-key { color: var(--accent-text); }
+.so-take {
+  font: inherit; color: var(--accent-2); background: none; padding: 0 2px; margin: 0;
+  border: 1px dashed transparent; border-radius: 4px; cursor: pointer; text-align: left; overflow-wrap: anywhere;
+}
+.so-take:hover, .so-take:focus-visible { border-color: var(--accent-2); background: var(--accent-2l); }
+.so-take.taken { border-color: var(--accent-2); }
+.so-more > summary { cursor: pointer; color: var(--accent-text); font-size: var(--text-sm); font-weight: 600; }
+.so-more[hidden] { display: none; }
+.so-list { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 2px var(--space-3); margin: var(--space-2) 0 0; font: var(--text-xs)/1.5 var(--font-mono); }
+.so-list dt { color: var(--text-muted); overflow-wrap: anywhere; }
+.so-list dd { margin: 0; overflow-wrap: anywhere; }
+.so-sent-line { margin-top: var(--space-2); font: var(--text-sm) var(--font-mono); overflow-wrap: anywhere; }
+.so-sent-body { margin-top: var(--space-2); }
+.so-log-list { margin: var(--space-2) 0 0; padding-left: var(--space-4); font: var(--text-xs)/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.so-log-error { color: var(--danger); }
+.so-log-warning { color: var(--warn); }
 .req-extra-sections:not(:has(> .req-section:not([hidden]))) { display: none; }
 .req-section { min-width: 0; border: 1px solid var(--border-2); border-radius: var(--radius-sm); }
 .req-section[hidden] { display: none; }

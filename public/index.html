@@ -134,17 +134,42 @@
             <p class="advanced-notice-skipped" hidden></p>
             <p class="advanced-notice-foot">Switching between Simple and Advanced changes only the layout, never what runs. Open a request to review its settings.</p>
           </section>
-          <div id="flow-empty-state" class="flow-empty-state" role="status">
-            <div class="empty-state-mark" data-icon="flow" aria-hidden="true"></div>
-            <div>
-              <h3>Start with your first request</h3>
-              <p>Add a blank HTTP request or import a cURL command from DevTools or your API documentation.</p>
+          <!-- First run (an empty project): what load testing is, in three steps, and where to start. -->
+          <section id="flow-empty-state" class="flow-first" aria-labelledby="flow-first-title">
+            <h2 id="flow-first-title" class="flow-first-title">New to load testing? It takes three steps</h2>
+            <ol class="first-steps">
+              <li class="first-step">
+                <span class="first-step-n">1 · Build Flow</span>
+                <strong class="first-step-title">Write down what a user does</strong>
+                <span class="first-step-text">For example: log in, open the profile, create an order. One request per step.</span>
+              </li>
+              <li class="first-step">
+                <span class="first-step-n">2 · Load &amp; goals</span>
+                <span class="first-step-head"><strong class="first-step-title">Choose how much traffic</strong><button data-help="smoke"></button></span>
+                <span class="first-step-text">Start with a smoke test: 1 user for 30 seconds, to prove the flow works.</span>
+              </li>
+              <li class="first-step">
+                <span class="first-step-n">3 · Run &amp; Results</span>
+                <span class="first-step-head"><strong class="first-step-title">Read the verdict</strong><button data-help="threshold"></button></span>
+                <span class="first-step-text">Passed or failed against your goals, with the slowest request and the errors.</span>
+              </li>
+            </ol>
+            <h3 class="first-starts-title" id="first-starts-title">Start from</h3>
+            <div class="first-starts" role="group" aria-labelledby="first-starts-title">
+              <button id="empty-add-request" type="button" class="first-start">
+                <strong>One blank request</strong><span>Type a URL and method yourself.</span>
+              </button>
+              <button id="empty-import-curl" type="button" class="first-start">
+                <strong>A cURL command</strong><span>Paste "Copy as cURL" from DevTools or your API docs.</span>
+              </button>
+              <button id="empty-template-login" type="button" class="first-start">
+                <strong>Template: log in, then use the token</strong><span>Two requests: the second one sends the token the first one gets.</span>
+              </button>
+              <button id="empty-import-file" type="button" class="first-start">
+                <strong>A k6 or JMeter file</strong><span>Rebuild an existing test here.</span>
+              </button>
             </div>
-            <div class="empty-state-actions">
-              <button id="empty-add-request" type="button" class="btn primary" data-icon="plus">Add Request</button>
-              <button id="empty-import-curl" type="button" class="btn ghost">Import cURL</button>
-            </div>
-          </div>
+          </section>
           <!-- Populated by app.js -->
         </section>
 

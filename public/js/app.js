@@ -30,6 +30,8 @@ import { initStepSummaries } from './components/step-summary.js';
 import { initLoadGoals } from './components/load-goals.js';
 import { initPassFailGoals } from './components/pass-fail-goals.js';
 import { initRunCheck } from './components/run-check.js';
+import { initSendOnce } from './components/send-once.js';
+import { initFirstRun } from './components/first-run.js';
 
 // ── Navigation ─────────────────────────────────────────────────
 $$('.nav-link[data-view]').forEach(link => {
@@ -137,8 +139,7 @@ $('#project-file-input').addEventListener('change', e => {
 
 // ── Init ───────────────────────────────────────────────────────
 buildFlowView();
-$('#empty-add-request').addEventListener('click', () => addRequest());
-$('#empty-import-curl').addEventListener('click', () => addRequest({ openCurl: true }));
+initFirstRun();
 // Top bar Import menu: a cURL command adds one request; a k6 script or .jmx
 // replaces the project (script-import.js owns #import-k6-btn).
 initMenuButton($('#import-menu-btn'), $('#import-menu'));
@@ -168,6 +169,7 @@ initGlossary();
 initViewBlocks();
 initStepSummaries();
 initRunCheck();
+initSendOnce();
 initUiMode();
 navigate('flow', { focusHeading: false });
 checkK6();
