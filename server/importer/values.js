@@ -2,7 +2,7 @@
 // never executed: staticValue() folds literals and constants into plain JS
 // values (options, headers, JSON bodies), and textOf() renders an expression as
 // K6UI text, turning variable references into {{name}} placeholders.
-import { OUTCOME_VARIABLE } from "../../public/js/outcomes.js";
+import { OUTCOME_VARIABLE } from "../../public/js/shared/outcomes.js";
 
 export class Unresolvable extends Error {}
 

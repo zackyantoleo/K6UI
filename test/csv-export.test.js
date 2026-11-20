@@ -1,4 +1,4 @@
-// "Save to CSV": the shared rules (public/js/csv-export.js), the generator, the
+// "Save to CSV": the shared rules (public/js/shared/csv-export.js), the generator, the
 // server-side collector and runner, both importers, the store, and the results model.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,8 +10,8 @@ import { parse } from 'acorn';
 
 import {
   downloadName, exportProblem, exportsProblem, normalizeExport, normalizeExports, toCsv,
-} from '../public/js/csv-export.js';
-import { parseCsv } from '../public/js/csv-parse.js';
+} from '../public/js/shared/csv-export.js';
+import { parseCsv } from '../public/js/shared/csv-parse.js';
 import { migrateProject } from '../public/js/project-store.js';
 import { createExportStore } from '../public/js/export-results.js';
 import { generateScript } from '../server/generator/index.js';

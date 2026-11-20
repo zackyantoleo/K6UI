@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { generateScript } from '../server/generator/index.js';
-import { thresholdRequests } from '../public/js/outcome-thresholds.js';
+import { thresholdRequests } from '../public/js/shared/outcome-thresholds.js';
 import { flowFromConfig } from '../public/js/variables.js';
 import { summaryChecks } from '../public/js/run-report.js';
 import { GLOSSARY } from '../public/js/glossary.js';

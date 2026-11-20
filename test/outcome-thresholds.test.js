@@ -10,7 +10,7 @@ import { once } from 'node:events';
 import {
   normalizeOutcomeThreshold, normalizeOutcomeThresholds, outcomeThresholdText, outcomeThresholdsProblem,
   planOutcomeThresholds, readOutcomeThresholdResults, thresholdRequests,
-} from '../public/js/outcome-thresholds.js';
+} from '../public/js/shared/outcome-thresholds.js';
 import { generateScript } from '../server/generator/index.js';
 import { importK6Script } from '../server/importer/index.js';
 import { migrateProject } from '../public/js/project-store.js';

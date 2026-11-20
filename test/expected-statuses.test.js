@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import {
   expectedStatusesListProblem, expectedStatusesProblem, hasExpectedStatuses, normalizeExpectedStatuses,
   parseExpectedStatuses, statusesFromOutcomeRules,
-} from '../public/js/expected-statuses.js';
+} from '../public/js/shared/expected-statuses.js';
 import { generateScript } from '../server/generator/index.js';
 import { importK6Script } from '../server/importer/index.js';
 import { migrateProject, serializeProject } from '../public/js/project-store.js';

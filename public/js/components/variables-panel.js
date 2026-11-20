@@ -9,7 +9,7 @@ import { readRequestSettings } from './advanced-notice.js';
 import { collectRequestGroups } from './request-groups.js';
 import { helpButton } from './help-tips.js';
 import { dataFileColumns } from '../data-files.js';
-import { hasOutcomeRules } from '../outcomes.js';
+import { hasOutcomeRules } from '../shared/outcomes.js';
 import { navigate } from '../nav.js';
 import {
   VARIABLE_NAME, describeIssue, globalVariableName, variableCatalog, variableIssues, variableUsage,

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   activeOutcomeRules, normalizeOutcomes, outcomeLabels, outcomeMetricKey, outcomeProblem, outcomesProblem,
   parseOutcomeStatus, readOutcomeResults,
-} from '../public/js/outcomes.js';
+} from '../public/js/shared/outcomes.js';
 import { generateScript } from '../server/generator/index.js';
 import { importK6Script } from '../server/importer/index.js';
 import { migrateProject } from '../public/js/project-store.js';

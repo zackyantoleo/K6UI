@@ -7,15 +7,15 @@ import { collectRequestGroups, requestGroupProblem } from './components/request-
 import { collectDataSets, validateDataSets } from './data-files.js';
 import { readExtractionRow } from './components/rows.js';
 import { readExportBlocks } from './components/export-rows.js';
-import { exportsProblem } from './csv-export.js';
-import { normalizeRequestLog } from './request-log.js';
-import { outcomesProblem } from './outcomes.js';
-import { expectedStatusesListProblem } from './expected-statuses.js';
+import { exportsProblem } from './shared/csv-export.js';
+import { normalizeRequestLog } from './shared/request-log.js';
+import { outcomesProblem } from './shared/outcomes.js';
+import { expectedStatusesListProblem } from './shared/expected-statuses.js';
 import { readOutcomesPanel } from './components/request-editor/outcomes.js';
-import { outcomeThresholdsProblem } from './outcome-thresholds.js';
+import { outcomeThresholdsProblem } from './shared/outcome-thresholds.js';
 import { readOutcomeTargetRows } from './components/outcome-target-rows.js';
 import { readRaceSettings } from './components/race-settings.js';
-import { raceProblem } from './race.js';
+import { raceProblem } from './shared/race.js';
 import { readLoadMode } from './components/load-chart.js';
 import { readThresholdFields } from './components/pass-fail-goals.js';
 

@@ -11,7 +11,7 @@ import { collectConfig } from './config.js';
 import { migrateProject, projectStore, serializeProject } from './project-store.js';
 import { refreshRequestGroupOptions, restoreGroups } from './components/request-groups.js';
 import { restoreDataSets } from './data-files.js';
-import { normalizeRequestLog } from './request-log.js';
+import { normalizeRequestLog } from './shared/request-log.js';
 import { syncRequestLogFields } from './runner.js';
 import { restoreOutcomeTargetRows } from './components/outcome-target-rows.js';
 import { restoreRaceSettings } from './components/race-settings.js';

@@ -2,7 +2,7 @@
 import {
   Unresolvable, keyOf, resolveConst, safeText, sourceOf, tryStatic, unwrap,
 } from "./values.js";
-import { normalizeExpectedStatuses } from "../../public/js/expected-statuses.js";
+import { normalizeExpectedStatuses } from "../../public/js/shared/expected-statuses.js";
 
 const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 const BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);

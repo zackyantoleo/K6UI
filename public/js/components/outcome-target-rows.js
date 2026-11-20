@@ -1,6 +1,6 @@
 // Pass or fail → Add goal → Count of a response label (Thresholds / SLA in
 // Advanced; config.thresholds.outcomes, see
-// public/js/outcome-thresholds.js): one row per target: request, label, comparison
+// public/js/shared/outcome-thresholds.js): one row per target: request, label, comparison
 // and count. The request and label lists come from the request cards as they are
 // now, read without opening lazy editor panels (readRequestSettings), and are
 // refreshed whenever the view is shown or the flow changes. A row keeps a value that
@@ -12,7 +12,7 @@ import { readRequestSettings } from './advanced-notice.js';
 import {
   DEFAULT_OUTCOME_THRESHOLD_OP, OUTCOME_THRESHOLD_OPS, isBlankOutcomeThreshold, normalizeOutcomeThreshold,
   requestTitle, thresholdRequests,
-} from '../outcome-thresholds.js';
+} from '../shared/outcome-thresholds.js';
 
 const NOT_RUN = {
   'the request is turned off': 'turned off',

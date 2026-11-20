@@ -1,4 +1,4 @@
-// "Save to CSV" blocks of the "Save values to a CSV file" part of a request (see public/js/csv-export.js): a file
+// "Save to CSV" blocks of the "Save values to a CSV file" part of a request (see public/js/shared/csv-export.js): a file
 // name, "only when found", and columns of name + value ({{var}} or text). One
 // DOM for Simple and Advanced; values are set as DOM properties, never markup.
 

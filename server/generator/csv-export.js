@@ -1,10 +1,10 @@
-// "Save to CSV" exports (see public/js/csv-export.js) → after the request, one
+// "Save to CSV" exports (see public/js/shared/csv-export.js) → after the request, one
 // console.log line per row: {"k6uiExport":"<file>","columns":[...],"row":[...]}.
 // k6-runner.js hands those lines to server/export-collector.js instead of the
 // live log. Column values are {{var}} templates, interpolated like a URL.
 import {
   EXPORT_MARKER, exportColumns, exportsProblem, isBlankExport, normalizeExport,
-} from "../../public/js/csv-export.js";
+} from "../../public/js/shared/csv-export.js";
 import { extractionDefault, isExtractable } from "./extract.js";
 import { interpolate, resolveVariable } from "./interpolate.js";
 import { jsLiteral } from "./helpers.js";

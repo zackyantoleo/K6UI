@@ -9,7 +9,7 @@
 // and the run itself never notices.
 import http from "node:http";
 import net from "node:net";
-import { OUTCOME_METRIC } from "../public/js/outcomes.js";
+import { OUTCOME_METRIC } from "../public/js/shared/outcomes.js";
 
 export const METRICS_INTERVAL_MS = 1000;
 // The /v1/metrics answer is a few KB (one entry per metric and submetric); this only

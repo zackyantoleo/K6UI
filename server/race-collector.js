@@ -2,7 +2,7 @@
 // the race request logs one line
 //   {"k6uiRace":1,"vu":3,"t0":…,"at":…,"ar":…,"sent":…,"ms":12.4,"cn":false,"s":200,"oc":"success"}
 // k6-runner.js hands those lines here instead of the live log. The records stay in
-// memory and go out with `done` (`raceRecords`, read by public/js/race.js
+// memory and go out with `done` (`raceRecords`, read by public/js/shared/race.js
 // readRaceResult); a race run is one short burst, so nothing is sent while it runs.
 // At most MAX_RACE_RECORDS are kept; later ones are only counted (`dropped`).
 export const RACE_LINE_PREFIX = '{"k6uiRace":1,';

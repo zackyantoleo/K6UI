@@ -1,4 +1,4 @@
-// Race burst load mode (config.load.mode "race", see public/js/race.js) → k6 code:
+// Race burst load mode (config.load.mode "race", see public/js/shared/race.js) → k6 code:
 //   options     per-vu-iterations, 1 iteration per VU; k6ui_race_late gets count>=0
 //               (so k6 reports it) and, with "fail if late", count==0
 //   top level   const RACE (the plan; `config` is the form as typed, for the importer),
@@ -15,9 +15,9 @@
 // signature) is fresh when the request leaves. A script without race mode is unchanged.
 import { DEFAULT_MAX_DURATION } from "./options.js";
 import { interpolate } from "./interpolate.js";
-import { RACE_LATE_METRIC, RACE_WARMUP_TAG, planRace } from "../../public/js/race.js";
+import { RACE_LATE_METRIC, RACE_WARMUP_TAG, planRace } from "../../public/js/shared/race.js";
 
-// → the plan (public/js/race.js planRace), or null when the load mode is not race.
+// → the plan (public/js/shared/race.js planRace), or null when the load mode is not race.
 // A race that cannot work is a 400 naming the field.
 export function planRaceScript(config) {
   const { problem, race } = planRace(config);

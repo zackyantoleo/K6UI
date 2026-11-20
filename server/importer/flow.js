@@ -9,8 +9,8 @@ import { groupNameBefore, readRunIf } from "./run-if.js";
 import {
   Unresolvable, VALID_VAR_NAME, keyOf, resolveConst, safeText, sourceOf, staticValue, tryStatic, unwrap,
 } from "./values.js";
-import { OUTCOME_VARIABLE, normalizeOutcomes } from "../../public/js/outcomes.js";
-import { normalizeExpectedStatuses } from "../../public/js/expected-statuses.js";
+import { OUTCOME_VARIABLE, normalizeOutcomes } from "../../public/js/shared/outcomes.js";
+import { normalizeExpectedStatuses } from "../../public/js/shared/expected-statuses.js";
 
 // ── Where does a value come from? ──────────────────────────────
 // Descriptors: { kind: 'response', req } | { kind: 'json', req, path } |

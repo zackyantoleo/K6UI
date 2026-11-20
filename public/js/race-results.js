@@ -1,9 +1,9 @@
 // "Race burst" in the Overview of Run & Results (the `race` of the `done` event, see
-// public/js/race.js readRaceResult): a note (all in time, VUs late, VUs that never
+// public/js/shared/race.js readRaceResult): a note (all in time, VUs late, VUs that never
 // sent), the concurrency figures, the Gantt chart (race-gantt.js: one row per VU, from
 // its send time to its response, a tick at its planned time) and a table with every
 // VU. Shown in both modes; every text goes in with textContent.
-import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './race.js';
+import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './shared/race.js';
 import { GANTT_MAX_ROWS, raceGantt } from './race-gantt.js';
 
 const SVG = 'http://www.w3.org/2000/svg';

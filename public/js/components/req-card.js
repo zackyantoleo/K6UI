@@ -29,7 +29,7 @@ import {
 import { createStatusesPanel } from './request-editor/statuses.js';
 import { helpButton } from './help-tips.js';
 import { initMenuButton } from './menu-button.js';
-import { DEFAULT_OUTCOME_FALLBACK } from '../outcomes.js';
+import { DEFAULT_OUTCOME_FALLBACK } from '../shared/outcomes.js';
 import { createRequestId } from '../project-store.js';
 
 export { assertionRow };

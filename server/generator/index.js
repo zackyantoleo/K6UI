@@ -29,15 +29,15 @@ import {
 } from "./outcomes.js";
 import { buildExpectedStatusesSource, validateExpectedStatuses } from "./expected-statuses.js";
 import { buildRaceSource, buildRaceWaitCode, planRaceScript, raceRequestCode } from "./race.js";
-import { OUTCOME_VARIABLE } from "../../public/js/outcomes.js";
-import { expandSubRequests } from "../../public/js/sub-requests.js";
-import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/request-log.js";
+import { OUTCOME_VARIABLE } from "../../public/js/shared/outcomes.js";
+import { expandSubRequests } from "../../public/js/shared/sub-requests.js";
+import { LOG_BODY_LIMIT, normalizeRequestLog } from "../../public/js/shared/request-log.js";
 import { REQ_LOG_RATE } from "../request-log-throttle.js";
 
 // Request logging is opt-in because URLs, headers and bodies can contain
 // credentials or personal data. These helpers run inside the generated k6
 // script: they pick which requests to log (REQUEST_LOG, see
-// public/js/request-log.js), keep each VU within a record budget (REQUEST_LOG.rate /
+// public/js/shared/request-log.js), keep each VU within a record budget (REQUEST_LOG.rate /
 // .burst, see requestLogBudget), redact common secrets when REQUEST_LOG.redact is
 // on ("Hide secrets"; off by default: values are shown as sent), cap the bodies, and print
 // one {__r:1,...} JSON line that k6-runner.js turns into a req-log event.

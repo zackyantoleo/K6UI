@@ -205,7 +205,7 @@ either mode. See [ui-modes.md](ui-modes.md).
 
 ## State boundary
 
-`public/js/project-store.js` owns a normalized, deeply frozen snapshot (data files are normalized there too: defaults for missing fields, unique `ds_*` ids, a `groupId` that exists; a group's `runIf` is validated with `public/js/run-if.js`). `collectConfig()` updates the store from the form, while `applyConfig()` migrates and replaces state before rendering it into the form. Generator and runner payloads continue to use the same configuration semantics.
+`public/js/project-store.js` owns a normalized, deeply frozen snapshot (data files are normalized there too: defaults for missing fields, unique `ds_*` ids, a `groupId` that exists; a group's `runIf` is validated with `public/js/shared/run-if.js`). `collectConfig()` updates the store from the form, while `applyConfig()` migrates and replaces state before rendering it into the form. Generator and runner payloads continue to use the same configuration semantics.
 
 ## Verification
 

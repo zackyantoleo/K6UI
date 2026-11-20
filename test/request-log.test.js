@@ -8,7 +8,7 @@ import { generateScript, requestLogBudget } from '../server/generator/index.js';
 import { buildOptions } from '../server/generator/options.js';
 import { importK6Script } from '../server/importer/index.js';
 import { createRequestLogThrottle } from '../server/request-log-throttle.js';
-import { normalizeRequestLog, DEFAULT_SAMPLE_EVERY, MAX_SAMPLE_EVERY } from '../public/js/request-log.js';
+import { normalizeRequestLog, DEFAULT_SAMPLE_EVERY, MAX_SAMPLE_EVERY } from '../public/js/shared/request-log.js';
 import { loadScript } from './helpers/load-script.js';
 
 const configOf = (requests, options) => ({

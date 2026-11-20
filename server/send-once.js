@@ -22,7 +22,7 @@ import { join } from "node:path";
 
 import { generateScript } from "./generator/index.js";
 import { createLineSplitter } from "./line-splitter.js";
-import { expandSubRequests } from "../public/js/sub-requests.js";
+import { expandSubRequests } from "../public/js/shared/sub-requests.js";
 
 export const SEND_ONCE_LIMITS = Object.freeze({
   bodyChars: 256 * 1024,

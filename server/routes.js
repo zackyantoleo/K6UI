@@ -7,9 +7,9 @@ import { ScriptImportError, importK6Script } from "./importer/index.js";
 import { importJmx } from "./importer/jmx/index.js";
 import { startK6Run } from "./k6-runner.js";
 import { SendOnceError, sendOnce } from "./send-once.js";
-import { readOutcomeResults } from "../public/js/outcomes.js";
-import { readLiveOutcomeThresholdResults, readOutcomeThresholdResults } from "../public/js/outcome-thresholds.js";
-import { readRaceResult } from "../public/js/race.js";
+import { readOutcomeResults } from "../public/js/shared/outcomes.js";
+import { readLiveOutcomeThresholdResults, readOutcomeThresholdResults } from "../public/js/shared/outcome-thresholds.js";
+import { readRaceResult } from "../public/js/shared/race.js";
 
 export const apiRouter = Router();
 
@@ -91,9 +91,9 @@ function raceLabels(meta) {
 
 // POST /api/run — run a k6 test and stream live output via Server-Sent Events.
 // Emitted events: status, log, req-log, req-log-skipped, export, metrics, error, done (see k6-runner.js);
-// `done` also has `outcomes` when a request has outcome rules (public/js/outcomes.js readOutcomeResults),
-// `outcomeThresholds` when outcome targets are set (public/js/outcome-thresholds.js), and `race` in
-// race burst mode (public/js/race.js readRaceResult: how many VUs were late, and every VU's
+// `done` also has `outcomes` when a request has outcome rules (public/js/shared/outcomes.js readOutcomeResults),
+// `outcomeThresholds` when outcome targets are set (public/js/shared/outcome-thresholds.js), and `race` in
+// race burst mode (public/js/shared/race.js readRaceResult: how many VUs were late, and every VU's
 // planned and actual send time from the script's records). Each live
 // `metrics` event gets the same two outcome fields from its `outcomeCounts`, with live target statuses.
 apiRouter.post("/run", async (req, res) => {

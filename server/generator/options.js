@@ -1,6 +1,6 @@
 // Builds the k6 `options` object (load + thresholds) from the UI configuration.
 import { raceScenario, raceThresholds } from "./race.js";
-import { RACE_LATE_METRIC } from "../../public/js/race.js";
+import { RACE_LATE_METRIC } from "../../public/js/shared/race.js";
 
 // k6 aborts a per-vu-iterations scenario after maxDuration (its own default is
 // only 10m), so slower flows need a roomier cap.

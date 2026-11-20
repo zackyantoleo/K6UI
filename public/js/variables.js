@@ -22,8 +22,8 @@
 //                     extractions: [{ varName }], preScript, postScript, hasOutcomes,
 //                     exportValues: [text] }],   every card, in order (number = position + 1)
 // }
-import { OUTCOME_VARIABLE, hasOutcomeRules } from './outcomes.js';
-import { readDataSet } from './csv-parse.js';
+import { OUTCOME_VARIABLE, hasOutcomeRules } from './shared/outcomes.js';
+import { readDataSet } from './shared/csv-parse.js';
 
 export const VARIABLE_NAME = /^[A-Za-z_]\w*$/;
 // What interpolate.js replaces; anything else between braces is sent as text.

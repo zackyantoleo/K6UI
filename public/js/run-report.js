@@ -10,10 +10,10 @@
 // as {{variable}} stood for), the flow's own headers and bodies, data file rows,
 // Save to CSV values, and the raw k6 output.
 import { loadShape } from './components/load-chart.js';
-import { OUTCOME_METRIC, outcomeMetricKey } from './outcomes.js';
-import { THRESHOLD_VARIABLE, requestTitle } from './outcome-thresholds.js';
-import { DEFAULT_EXPECTED_STATUSES, normalizeExpectedStatuses } from './expected-statuses.js';
-import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './race.js';
+import { OUTCOME_METRIC, outcomeMetricKey } from './shared/outcomes.js';
+import { THRESHOLD_VARIABLE, requestTitle } from './shared/outcome-thresholds.js';
+import { DEFAULT_EXPECTED_STATUSES, normalizeExpectedStatuses } from './shared/expected-statuses.js';
+import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './shared/race.js';
 import { raceGantt } from './race-gantt.js';
 import { curlFromRecord } from './curl-export.js';
 

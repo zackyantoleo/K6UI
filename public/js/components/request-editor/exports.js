@@ -1,8 +1,8 @@
 // "Save values to a CSV file" section of a request: after the request, add a row
-// to a CSV file of the run (see public/js/csv-export.js). One DOM for Simple and
+// to a CSV file of the run (see public/js/shared/csv-export.js). One DOM for Simple and
 // Advanced; values are DOM properties, never markup.
 import { exportBlock } from '../export-rows.js';
-import { OUTCOME_VARIABLE } from '../../outcomes.js';
+import { OUTCOME_VARIABLE } from '../../shared/outcomes.js';
 
 export function createExportsPanel() {
   const exportsSection = document.createElement('div');

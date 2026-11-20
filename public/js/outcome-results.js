@@ -1,6 +1,6 @@
 // "Outcomes" in the Overview of Run & Results: for each request with outcome rules,
 // how many responses got each label (the `outcomes` of the `done` event, see
-// public/js/outcomes.js readOutcomeResults), and above them whether each outcome
+// public/js/shared/outcomes.js readOutcomeResults), and above them whether each outcome
 // target was met (`outcomeThresholds`, see outcome-thresholds.js
 // readOutcomeThresholdResults). Shown in both modes; names and labels are rendered
 // with textContent only.
@@ -10,8 +10,8 @@
 // and `done` replaces them with the final values. Both go through one DOM: rows are
 // kept by request, label and target number and only their text and bar width
 // change, so the bars glide from one second to the next.
-import { DEFAULT_OUTCOME_FALLBACK } from './outcomes.js';
-import { outcomeThresholdText, requestTitle as targetRequestTitle } from './outcome-thresholds.js';
+import { DEFAULT_OUTCOME_FALLBACK } from './shared/outcomes.js';
+import { outcomeThresholdText, requestTitle as targetRequestTitle } from './shared/outcome-thresholds.js';
 
 const TARGET_STATUS = {
   met: 'Met', 'not-met': 'Not met', skipped: 'Not checked', unknown: 'No result',

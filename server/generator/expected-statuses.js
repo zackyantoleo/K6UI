@@ -1,11 +1,11 @@
-// Expected statuses (see public/js/expected-statuses.js) → k6 code. A request with a
+// Expected statuses (see public/js/shared/expected-statuses.js) → k6 code. A request with a
 // list gets `responseCallback: EXPECTED_STATUSES_<n>` in its params (built once per
 // VU at the top level with http.expectedStatuses(), so k6 counts any other status
 // in http_req_failed), and its automatic status check and request record test the
 // same list instead of 200–399. <n> is the request number of the run, from 1.
 import {
   expectedStatusesListProblem, hasExpectedStatuses, normalizeExpectedStatuses, parseExpectedStatuses,
-} from "../../public/js/expected-statuses.js";
+} from "../../public/js/shared/expected-statuses.js";
 
 // Requests that will run → a 400 naming the request for a list that cannot work.
 export function validateExpectedStatuses(requests) {
