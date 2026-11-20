@@ -121,7 +121,7 @@ test('Send once and the first-run screen render text only, one DOM in both modes
   const html = read('public/index.html');
   const first = html.slice(html.indexOf('<section id="flow-empty-state"'), html.indexOf('</section>', html.indexOf('<section id="flow-empty-state"')));
   assert.doesNotMatch(first, /data-ui-only/, 'the same first-run screen in Simple and Advanced');
-  assert.match(first, /<strong class="first-step-title">Choose how much traffic<\/strong><button data-help="smoke"><\/button>/);
+  assert.match(first, /<h2 id="flow-first-title" class="flow-first-title">Start from<\/h2>/);
   assert.match(read('public/js/app.js'), /initFirstRun\(\);[\s\S]*initSendOnce\(\);/);
   // Colours and sizes come from the tokens.
   const css = read('public/css/flow.css') + read('public/css/components.css');

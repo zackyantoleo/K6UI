@@ -1028,8 +1028,8 @@ try {
     await open(risky);
     await results();
     assert.equal(await page.locator('#prerun').evaluate(details => details.open), true, 'Before you run is open before a run');
-    assert.deepEqual(await checklist(), ['variables:bad', 'target:warn', 'smoke:warn', 'goals:warn']);
-    assert.equal(await page.locator('#prerun-headline').textContent(), '4 things to look at');
+    assert.deepEqual(await checklist(), ['variables:bad', 'target:warn', 'goals:warn']);
+    assert.equal(await page.locator('#prerun-headline').textContent(), '3 things to look at');
     assert.match(await page.locator('#prerun-checklist [data-check="variables"]').textContent(), /\{\{token\}\} not available yet in "Profile"/);
     assert.match(await page.locator('#prerun-checklist [data-check="target"]').textContent(), /api\.shop\.example.*not production/);
     assert.equal(await page.locator('#prerun-requests').textContent(), '3 will run');
@@ -1045,14 +1045,10 @@ try {
     assert.equal(await page.locator('#page-title').textContent(), 'Test data');
     assert.equal(await page.locator('#data-block-vars').isVisible(), true);
     await results();
-    await page.locator('#prerun-checklist [data-check="smoke"] button').click();
-    assert.equal(await page.locator('#page-title').textContent(), 'Load & goals');
-    assert.equal(await page.evaluate(() => document.activeElement?.dataset.goal), 'smoke', 'focus on the Smoke goal');
-    await results();
     await page.locator('#prerun-checklist [data-check="goals"] button').click();
     assert.equal(await page.locator('#load-block-goals').isVisible(), true);
     assert.equal(await page.locator('#load-block-goals').evaluate(block => block.getBoundingClientRect().top < innerHeight), true, 'the goals are in view');
-    checks.push('Before you run: what will happen (requests, target, goals, the load sentence) and a checklist: {{token}} used before the request that takes it, a production-looking target, no smoke test, no goal; each button opens the place that fixes it (the request, Test data → Variables, the Smoke goal, the goals)');
+    checks.push('Before you run: what will happen (requests, target, goals, the load sentence) and a checklist: {{token}} used before the request that takes it, a production-looking target, no goal (no smoke test item); each button opens the place that fixes it (the request, Test data → Variables, the goals)');
 
     // Fixed: order, a test host, goals on. Looking at the results view changes nothing that is sent.
     const fixed = { ...risky, scenario: { groups: [], requests: [requests[1], requests[0], requests[2]] },
@@ -1060,7 +1056,7 @@ try {
     await open(fixed);
     const before = await collect();
     await results();
-    assert.deepEqual(await checklist(), ['variables:ok', 'target:ok', 'smoke:warn', 'goals:ok']);
+    assert.deepEqual(await checklist(), ['variables:ok', 'target:ok', 'goals:ok']);
     assert.equal(await page.locator('#prerun-goals').textContent(), '95% within 500 ms, less than 1% fail');
     // Recording options: before the run, no longer in the Requests tab.
     assert.equal(await page.locator('#prerun #log-requests').count(), 1);
@@ -1171,28 +1167,24 @@ try {
     await radio('simple').check();
     checks.push('A run in plain words (recorded SSE, no k6): live cards "so far" against the goals; the verdict is a sentence (Failed: a goal was missed, ✓/✕ per goal); four cards with a plain name, "?", the value, the goal and k6\'s name; each request with sent/failed from its status check, times from the records and the slowest marked; What to do next with buttons (Errors opens and focuses the tab); All k6 metrics folded under the Overview; Advanced shortcuts Inspect requests / Review errors / Raw k6 output; 1440 + 375 px without sideways scroll');
 
-    // A smoke test that passes is remembered in this tab; Clear results opens Before you run again.
+    // A passing smoke run suggests a load test next; the checklist has no smoke item; Clear results opens Before you run again.
     stream = sse([['done', { code: 0, outcome: 'passed', summary: { ...summary, metrics: { ...summary.metrics,
       http_req_failed: { passes: 0, fails: 1446, value: 0, thresholds: { 'rate<0.01': false } } } } }]]);
     page.once('dialog', dialog => dialog.accept());
     await page.locator('#simple-nav [data-view="load"]').click();
     await page.locator('.load-goal[data-goal="smoke"]').click();
     await results();
-    assert.equal(await page.locator('#prerun-checklist [data-check="smoke"]').getAttribute('class'), 'prerun-item ok');
+    assert.equal(await page.locator('#prerun-checklist [data-check="smoke"]').count(), 0);
     await page.locator('#prerun-run-btn').click();
     await page.waitForFunction(() => document.querySelector('#run-state').textContent === 'PASSED');
     assert.equal(await page.locator('#run-verdict-title').textContent(), 'Passed: your service handled 10 users and met every goal');
     assert.match((await page.locator('#run-next-list > li').allTextContents()).join(' '), /Try a load test/);
-    await page.locator('#simple-nav [data-view="load"]').click();
-    await page.locator('.load-goal[data-goal="custom"]').click();
-    await results();
-    assert.match(await page.locator('#prerun-checklist [data-check="smoke"]').textContent(), /A smoke test passed in this tab/);
     await page.locator('#clear-results').click();
     assert.equal(await page.locator('#prerun').evaluate(details => details.open), true);
     assert.equal(await page.locator('#overview-metrics .result-card').count(), 0);
     assert.equal(await page.locator('#run-per-request').isVisible(), false);
     await page.unroute('**/api/run');
-    checks.push('Smoke test: chosen from the checklist, a passing run is remembered in this tab (the item turns OK for a later Custom run) and suggests a load test next; Clear results opens Before you run again and empties the reading');
+    checks.push('Smoke test: a passing run suggests a load test next and adds no checklist item; Clear results opens Before you run again and empties the reading');
   }
 
   // First run and Send once (stage 8). Send once runs k6 once per click against a
@@ -1227,16 +1219,10 @@ try {
       await first.locator('input[name="ui-mode"][value="simple"]').check();
       const screen = first.locator('#flow-empty-state');
       assert.equal(await screen.isVisible(), true, 'an empty project shows the first-run screen');
-      assert.equal(await first.locator('#flow-first-title').textContent(), 'New to load testing? It takes three steps');
-      assert.deepEqual(await first.locator('.first-step-title').allTextContents(), ['Write down what a user does', 'Choose how much traffic', 'Read the verdict']);
+      assert.equal(await first.locator('#flow-first-title').textContent(), 'Start from');
+      assert.equal(await first.locator('.first-step').count(), 0, 'no three-step lecture');
       assert.deepEqual(await first.locator('.first-start strong').allTextContents(),
         ['One blank request', 'A cURL command', 'Template: log in, then use the token', 'A k6 or JMeter file']);
-      // "?" beside a step's label, not inside it, opening the shared tooltip.
-      const help = first.locator('.first-step-head .help-btn, .first-step-head [data-help]').first();
-      assert.equal(await help.evaluate(button => button.previousElementSibling?.className), 'first-step-title');
-      await help.focus();
-      await first.waitForFunction(() => /Smoke test/.test(document.querySelector('[role="tooltip"]:not([hidden])')?.textContent || ''));
-      await first.keyboard.press('Escape');
       await first.screenshot({ path: resolve(output, 'stage8-first-run-1440.png'), fullPage: true });
       await first.setViewportSize({ width: 375, height: 812 });
       assert.equal(await first.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, '375 px: first run without sideways scroll');
@@ -1262,7 +1248,7 @@ try {
       assert.deepEqual(templated.scenario.requests[0].extractions, [{ varName: 'token', source: 'json', selector: 'token' }]);
       assert.deepEqual(templated.scenario.requests[1].headers, [{ key: 'Authorization', value: 'Bearer {{token}}' }]);
       assert.equal(await first.locator('#flow-announcer').textContent(), 'Added two requests: Log in, then Use the token. Change base_url, username and password under Test data.');
-      checks.push('First run: an empty project explains load testing in three steps ("?" beside the step labels) and offers four starts, the same screen in Advanced; the k6/JMeter start opens the import dialog; the template adds Log in + Use the token with {{token}} passed on and base_url/username/password in Test data; 1440 + 375 px without sideways scroll');
+      checks.push('First run: an empty project offers four starts, the same screen in Advanced; the k6/JMeter start opens the import dialog; the template adds Log in + Use the token with {{token}} passed on and base_url/username/password in Test data; 1440 + 375 px without sideways scroll');
 
       // Point base_url at the local target, then Send once on "Log in".
       await first.evaluate(value => {

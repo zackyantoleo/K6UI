@@ -1,6 +1,5 @@
 // The first-run screen of Build Flow (`#flow-empty-state`, shown while the project
-// has no request; counts.js refreshFlowEmptyState()): load testing in three steps
-// and four ways to start. One DOM for Simple and Advanced. The template is an
+// has no request; counts.js refreshFlowEmptyState()): four ways to start. One DOM for Simple and Advanced. The template is an
 // ordinary project in the existing schema (templates.js), applied like an opened
 // project, so it is saved, generated and run like any other.
 import { $ } from '../dom.js';

@@ -125,7 +125,6 @@
           <p class="view-hint">
             Arrange the requests k6 will run. Type <code>{{</code> in a URL, header, or body
             to insert a variable: a global variable, a data file column, or a value taken from an earlier response.
-            <button data-help="variable"></button>
           </p>
           <section id="advanced-notice" class="advanced-notice" data-ui-only="simple" aria-labelledby="advanced-notice-title" hidden>
             <h3 id="advanced-notice-title">Advanced settings configured</h3>
@@ -134,28 +133,10 @@
             <p class="advanced-notice-skipped" hidden></p>
             <p class="advanced-notice-foot">Switching between Simple and Advanced changes only the layout, never what runs. Open a request to review its settings.</p>
           </section>
-          <!-- First run (an empty project): what load testing is, in three steps, and where to start. -->
+          <!-- First run (an empty project): where to start. -->
           <section id="flow-empty-state" class="flow-first" aria-labelledby="flow-first-title">
-            <h2 id="flow-first-title" class="flow-first-title">New to load testing? It takes three steps</h2>
-            <ol class="first-steps">
-              <li class="first-step">
-                <span class="first-step-n">1 · Build Flow</span>
-                <strong class="first-step-title">Write down what a user does</strong>
-                <span class="first-step-text">For example: log in, open the profile, create an order. One request per step.</span>
-              </li>
-              <li class="first-step">
-                <span class="first-step-n">2 · Load &amp; goals</span>
-                <span class="first-step-head"><strong class="first-step-title">Choose how much traffic</strong><button data-help="smoke"></button></span>
-                <span class="first-step-text">Start with a smoke test: 1 user for 30 seconds, to prove the flow works.</span>
-              </li>
-              <li class="first-step">
-                <span class="first-step-n">3 · Run &amp; Results</span>
-                <span class="first-step-head"><strong class="first-step-title">Read the verdict</strong><button data-help="threshold"></button></span>
-                <span class="first-step-text">Passed or failed against your goals, with the slowest request and the errors.</span>
-              </li>
-            </ol>
-            <h3 class="first-starts-title" id="first-starts-title">Start from</h3>
-            <div class="first-starts" role="group" aria-labelledby="first-starts-title">
+            <h2 id="flow-first-title" class="flow-first-title">Start from</h2>
+            <div class="first-starts">
               <button id="empty-add-request" type="button" class="first-start">
                 <strong>One blank request</strong><span>Type a URL and method yourself.</span>
               </button>
@@ -184,7 +165,6 @@
                 <button type="button" class="view-block-toggle" data-ui-only="simple" aria-expanded="true" aria-controls="data-block-vars-body">Variables</button>
                 <span data-ui-only="advanced">Variables</span>
               </h3>
-              <button data-help="variable"></button>
               <span class="view-block-sum" id="data-block-vars-sum"></span>
             </div>
             <div class="view-block-body" id="data-block-vars-body">

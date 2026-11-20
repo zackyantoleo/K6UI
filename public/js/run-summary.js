@@ -99,11 +99,10 @@ export function goalTexts({ p95 = '', errorRate = '', outcomeTargets = 0 } = {})
   return goals;
 }
 
-// The checklist before a run. state: { flow, goals: { p95, errorRate, outcomeTargets },
-// goal: the chosen load goal, smokePassed: a smoke test passed in this tab }
+// The checklist before a run. state: { flow, goals: { p95, errorRate, outcomeTargets } }
 // → [{ key, tone: 'ok' | 'warn' | 'bad', text, action? { label, kind, value } }]
 // action.kind: 'view' (navigate), 'request' (show that request), 'goal' (pick a load goal).
-export function preRunChecks({ flow, goals = {}, goal = 'custom', smokePassed = false } = {}) {
+export function preRunChecks({ flow, goals = {} } = {}) {
   const facts = flowFacts(flow);
   const items = [];
 
@@ -144,16 +143,6 @@ export function preRunChecks({ flow, goals = {}, goal = 'custom', smokePassed = 
         text: `${plural(facts.unknownHosts, 'request')} ${facts.unknownHosts === 1 ? 'gets its' : 'get their'} server only during the run. Make sure it is not production.`,
         action: fix });
     }
-  }
-
-  if (goal === 'smoke') {
-    items.push({ key: 'smoke', tone: 'ok', text: 'This is a smoke test: 1 user checks that the flow works.' });
-  } else if (smokePassed) {
-    items.push({ key: 'smoke', tone: 'ok', text: 'A smoke test passed in this tab.' });
-  } else {
-    items.push({ key: 'smoke', tone: 'warn',
-      text: 'This flow has not passed a smoke test in this tab yet. A short run with 1 user finds broken requests before they turn into thousands of errors.',
-      action: { label: 'Choose Smoke test', kind: 'goal', value: 'smoke' } });
   }
 
   const goalCount = goalTexts({ p95: goals.p95 }).length + goalTexts({ errorRate: goals.errorRate }).length
