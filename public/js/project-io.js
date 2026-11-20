@@ -12,7 +12,7 @@ import { migrateProject, projectStore, serializeProject } from './project-store.
 import { refreshRequestGroupOptions, restoreGroups } from './components/request-groups.js';
 import { restoreDataSets } from './data-files.js';
 import { normalizeRequestLog } from './shared/request-log.js';
-import { syncRequestLogFields } from './runner.js';
+import { syncRequestLogFields } from './request-table.js';
 import { restoreOutcomeTargetRows } from './components/outcome-target-rows.js';
 import { restoreRaceSettings } from './components/race-settings.js';
 import { restoreLoadMode } from './components/load-goals.js';

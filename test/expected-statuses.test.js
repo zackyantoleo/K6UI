@@ -17,6 +17,7 @@ import { summarizeAdvancedSettings } from '../public/js/components/advanced-noti
 import { compareRecords, nextSort } from '../public/js/request-sort.js';
 import { buildRunReport, reportToHtml } from '../public/js/run-report.js';
 import { loadScript } from './helpers/load-script.js';
+import { runnerSource } from './helpers/runner-source.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -311,7 +312,7 @@ test('the Requests table sorts by outcome; a record without one sorts first', ()
   const list = [{ oc: 'success' }, {}, { oc: 'Other' }, { oc: 'lock_rejected' }].map((entry, seq) => ({ entry, seq }));
   const sort = nextSort(null, 'oc');
   assert.deepEqual([...list].sort((x, y) => compareRecords(x, y, sort)).map(item => item.entry.oc), [undefined, 'lock_rejected', 'Other', 'success']);
-  const runner = read('../public/js/runner.js');
+  const runner = runnerSource();
   assert.match(runner, /appendCell\(row, outcome, 'req-outcome-cell'\);\n {2}appendCell\(row, `\$\{entry\.d\} ms`\);/);
   assert.match(runner, /cell\.colSpan = 8;/);
   assert.match(runner, /, outcome \$\{outcome\}/);

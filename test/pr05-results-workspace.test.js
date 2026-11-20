@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { readStyles } from './helpers/styles.js';
+import { runnerSource } from './helpers/runner-source.js';
 
 const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../public/index.html');
 const app = read('../public/js/app.js');
-const runner = read('../public/js/runner.js');
+const runner = runnerSource();
 const k6Runner = read('../server/k6-runner.js');
 const requestLogHelpers = read('../server/generator/request-log.js');
 const requestGenerator = read('../server/generator/request.js');
@@ -44,7 +45,8 @@ test('results provide clear and filter controls with bounded request and live-lo
   assert.match(html, /id="clear-live-log"/);
   assert.match(html, /id="filter-errors-only"/);
   assert.match(html, /id="filter-url"/);
-  assert.match(runner, /MAX_REQ_LOGS\s*=\s*500/);
+  assert.match(runner, /MAX_REQ_LOGS = MAX_REQUEST_RECORDS/);
+  assert.match(read('../public/js/shared/request-log.js'), /MAX_REQUEST_RECORDS = 500/);
   assert.match(runner, /MAX_LOG_LINES\s*=\s*1500/);
   assert.match(runner, /reqLogs\.shift\(\)/);
 });

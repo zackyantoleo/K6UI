@@ -8,10 +8,10 @@ import { variableRow, headerRow } from './components/rows.js';
 import { addRequest, buildFlowView, defaultStageRows } from './components/flow-view.js';
 import { collectConfig, readProjectDraft, validate } from './config.js';
 import {
-  runTest, stopTest, applyReqFilter, checkK6, activateResultsTab,
-  clearResults, clearLiveLog, clearErrors, syncRequestLogFields, sortRequestLog,
-  downloadRunReport, isTestRunning,
+  runTest, stopTest, checkK6, activateResultsTab,
+  clearResults, clearLiveLog, clearErrors, downloadRunReport, isTestRunning,
 } from './runner.js';
+import { applyReqFilter, sortRequestLog, syncRequestLogFields } from './request-table.js';
 import { initDraft } from './draft.js';
 import { saveProject, applyConfig } from './project-io.js';
 import { initCurlImport } from './curl-import.js';

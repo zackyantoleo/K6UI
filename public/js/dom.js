@@ -10,3 +10,9 @@ export function el(tag, className, text) {
   if (text != null) node.textContent = String(text);
   return node;
 }
+
+// Sets an element's text by selector, when the element exists.
+export function setText(selector, value) {
+  const target = $(selector);
+  if (target) target.textContent = String(value);
+}
