@@ -117,7 +117,7 @@ test('Send once and the first-run screen render text only, one DOM in both modes
     assert.doesNotMatch(source, /uiMode|data-ui-mode|data-ui-only/, `${file}: does not read the mode`);
   }
   const card = read('public/js/components/req-card.js');
-  assert.match(card, /sendButton\.textContent = 'Send once';\s*send\.append\(sendButton, helpButton\('sendOnce'\)\);/);
+  assert.match(card, /const sendButton = el\('button', 'btn ghost sm req-send-once', 'Send once'\);[^}]*?send\.append\(sendButton, helpButton\('sendOnce'\)\);/);
   const html = read('public/index.html');
   const first = html.slice(html.indexOf('<section id="flow-empty-state"'), html.indexOf('</section>', html.indexOf('<section id="flow-empty-state"')));
   assert.doesNotMatch(first, /data-ui-only/, 'the same first-run screen in Simple and Advanced');

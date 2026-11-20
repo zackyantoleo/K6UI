@@ -31,6 +31,7 @@ import { helpButton } from './help-tips.js';
 import { initMenuButton } from './menu-button.js';
 import { DEFAULT_OUTCOME_FALLBACK } from '../shared/outcomes.js';
 import { createRequestId } from '../project-store.js';
+import { el } from '../dom.js';
 
 export { assertionRow };
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -616,98 +617,23 @@ export function announceFlow(message) {
   if (region) region.textContent = message;
 }
 
-export function reqCard(index, context, requestId = '') {
-  const card = document.createElement('article');
-  card.className = 'req-card collapsed';
-  card.dataset.context = context;
-  card.dataset.requestId = requestId || createRequestId();
-
-  const head = document.createElement('div');
-  head.className = 'req-card-head';
-  const num = document.createElement('span');
-  num.className = 'req-num';
-  num.textContent = `#${index + 1}`;
-  const { nameInput } = createBasicFields(index);
-  const namePreview = document.createElement('strong');
-  namePreview.className = 'request-name-preview';
-  namePreview.textContent = `Request ${index + 1}`;
-  namePreview.setAttribute('aria-hidden', 'true');
-  const protocol = document.createElement('select');
-  protocol.className = 'protocol';
-  protocol.setAttribute('aria-label', `Request ${index + 1} protocol`);
-  for (const [value, label] of [['http', 'HTTP'], ['grpc', 'gRPC']]) {
-    const option = document.createElement('option');
+// A <select> with these [value, text] options.
+function selectField(className, ariaLabel, options) {
+  const field = el('select', className);
+  field.setAttribute('aria-label', ariaLabel);
+  for (const [value, text] of options) {
+    const option = el('option', '', text);
     option.value = value;
-    option.textContent = label;
-    protocol.appendChild(option);
+    field.appendChild(option);
   }
-  const method = document.createElement('select');
-  method.className = 'method';
-  method.setAttribute('aria-label', `Request ${index + 1} method`);
-  for (const value of METHODS) {
-    const option = document.createElement('option');
-    option.value = option.textContent = value;
-    method.appendChild(option);
-  }
-  const methodPreview = document.createElement('span');
-  methodPreview.className = 'method-badge request-method-preview m-GET';
-  methodPreview.textContent = 'GET';
-  methodPreview.setAttribute('aria-hidden', 'true');
-  // One visible method list: the HTTP methods plus gRPC. The protocol and method
-  // selects stay (hidden) as the values the rest of the app reads.
-  const kind = document.createElement('select');
-  kind.className = 'request-kind';
-  kind.setAttribute('aria-label', `Request ${index + 1} method`);
-  for (const value of METHODS) {
-    const option = document.createElement('option');
-    option.value = option.textContent = value;
-    kind.appendChild(option);
-  }
-  const otherProtocols = document.createElement('optgroup');
-  otherProtocols.label = 'Other protocol';
-  const grpcOption = document.createElement('option');
-  grpcOption.value = 'grpc';
-  grpcOption.textContent = 'gRPC';
-  otherProtocols.appendChild(grpcOption);
-  kind.appendChild(otherProtocols);
-  const handle = document.createElement('span');
-  handle.className = 'req-drag-handle';
-  handle.draggable = true;
-  handle.title = 'Drag to move this request (keyboard: ⋯ → Move up / Move down)';
-  handle.setAttribute('aria-hidden', 'true');
-  const groupSelect = document.createElement('select');
-  groupSelect.className = 'request-group-select';
-  groupSelect.setAttribute('aria-label', `Request ${index + 1} group`);
-  const ungroupedOption = document.createElement('option');
-  ungroupedOption.value = '';
-  ungroupedOption.textContent = 'No group';
-  groupSelect.appendChild(ungroupedOption);
-  const url = document.createElement('input');
-  url.className = 'url';
-  url.placeholder = 'https://api.example.com/endpoint';
-  url.setAttribute('aria-label', `Request ${index + 1} URL`);
-  const preview = document.createElement('span');
-  preview.className = 'req-url-preview empty';
-  preview.textContent = 'No URL yet';
-  const enabledLabel = document.createElement('label');
-  enabledLabel.className = 'request-enabled-label';
-  const enabled = document.createElement('input');
-  enabled.type = 'checkbox';
-  enabled.className = 'request-enabled';
-  enabled.checked = true;
-  enabled.className = 'request-enabled switch-input';
-  const enabledText = document.createElement('span');
-  enabledText.className = 'sr-only';
-  enabledText.textContent = 'Enabled';
-  enabledLabel.append(enabled, enabledText);
-  const actions = document.createElement('div');
-  actions.className = 'req-card-actions';
-  // ⋯ holds the actions a request needs now and then; the row keeps on/off and open/close.
-  const more = document.createElement('div');
-  more.className = 'req-more';
+  return field;
+}
+
+// ⋯ holds the actions a request needs now and then; the row keeps on/off and open/close.
+function buildMoreMenu(card, index) {
+  const more = el('div', 'req-more');
   const moreButton = button(`More actions for request ${index + 1}`, 'req-action-btn request-more', '⋯');
-  const morePanel = document.createElement('div');
-  morePanel.className = 'req-more-panel';
+  const morePanel = el('div', 'req-more-panel');
   morePanel.id = `${card.dataset.requestId}-more`;
   morePanel.hidden = true;
   moreButton.setAttribute('aria-expanded', 'false');
@@ -722,69 +648,90 @@ export function reqCard(index, context, requestId = '') {
   const moveUp = item(`Move request ${index + 1} up`, 'request-move-up', 'Move up');
   const moveDown = item(`Move request ${index + 1} down`, 'request-move-down', 'Move down');
   const remove = item(`Remove request ${index + 1}`, 'del', 'Delete request');
-  const groupLabel = document.createElement('label');
-  groupLabel.className = 'request-group-label';
-  const groupCaption = document.createElement('span');
-  groupCaption.textContent = 'Group';
-  groupLabel.append(groupCaption, groupSelect);
+  const groupSelect = selectField('request-group-select', `Request ${index + 1} group`, [['', 'No group']]);
+  const groupLabel = el('label', 'request-group-label');
+  groupLabel.append(el('span', '', 'Group'), groupSelect);
   morePanel.append(duplicate, curl, moveUp, moveDown, groupLabel, remove);
   more.append(moreButton, morePanel);
+  return { more, moreButton, morePanel, duplicate, curl, moveUp, moveDown, remove, groupSelect };
+}
+
+// The summary row of a closed card, which is also the head of an open one: drag handle,
+// number, name, method, URL, Send once, on/off switch, ⋯ menu and expand.
+function buildCardHead(card, index) {
+  const head = el('div', 'req-card-head');
+  const handle = el('span', 'req-drag-handle');
+  handle.draggable = true;
+  handle.title = 'Drag to move this request (keyboard: ⋯ → Move up / Move down)';
+  handle.setAttribute('aria-hidden', 'true');
+  const num = el('span', 'req-num', `#${index + 1}`);
+  const { nameInput } = createBasicFields(index);
+  const namePreview = el('strong', 'request-name-preview', `Request ${index + 1}`);
+  namePreview.setAttribute('aria-hidden', 'true');
+  const methodPreview = el('span', 'method-badge request-method-preview m-GET', 'GET');
+  methodPreview.setAttribute('aria-hidden', 'true');
+  const protocol = selectField('protocol', `Request ${index + 1} protocol`, [['http', 'HTTP'], ['grpc', 'gRPC']]);
+  const method = selectField('method', `Request ${index + 1} method`, METHODS.map(value => [value, value]));
+  // One visible method list: the HTTP methods plus gRPC. The protocol and method
+  // selects stay (hidden) as the values the rest of the app reads.
+  const kind = selectField('request-kind', `Request ${index + 1} method`, METHODS.map(value => [value, value]));
+  const otherProtocols = el('optgroup');
+  otherProtocols.label = 'Other protocol';
+  const grpcOption = el('option', '', 'gRPC');
+  grpcOption.value = 'grpc';
+  otherProtocols.appendChild(grpcOption);
+  kind.appendChild(otherProtocols);
+  const url = el('input', 'url');
+  url.placeholder = 'https://api.example.com/endpoint';
+  url.setAttribute('aria-label', `Request ${index + 1} URL`);
+  // "Send once" (components/send-once.js): sends this request one time and shows the response.
+  const send = el('div', 'req-send');
+  const sendButton = el('button', 'btn ghost sm req-send-once', 'Send once');
+  sendButton.type = 'button';
+  sendButton.dataset.icon = 'play';
+  send.append(sendButton, helpButton('sendOnce'));
+  const preview = el('span', 'req-url-preview empty', 'No URL yet');
+  const enabledLabel = el('label', 'request-enabled-label');
+  const enabled = el('input', 'request-enabled switch-input');
+  enabled.type = 'checkbox';
+  enabled.checked = true;
+  enabledLabel.append(enabled, el('span', 'sr-only', 'Enabled'));
+  const menu = buildMoreMenu(card, index);
   const expand = button(`Expand request ${index + 1}`, 'req-action-btn request-expand', '▾');
   expand.setAttribute('aria-expanded', 'false');
-  actions.append(more, expand);
-  // "Send once" (components/send-once.js): sends this request one time and shows the response.
-  const send = document.createElement('div');
-  send.className = 'req-send';
-  const sendButton = document.createElement('button');
-  sendButton.type = 'button';
-  sendButton.className = 'btn ghost sm req-send-once';
-  sendButton.dataset.icon = 'play';
-  sendButton.textContent = 'Send once';
-  send.append(sendButton, helpButton('sendOnce'));
+  const actions = el('div', 'req-card-actions');
+  actions.append(menu.more, expand);
   head.append(handle, num, namePreview, methodPreview, nameInput, protocol, method, kind, url, send, preview, enabledLabel, actions);
+  return { head, nameInput, namePreview, methodPreview, protocol, method, kind, url, preview, enabled, enabledLabel, expand, menu };
+}
 
-  const grpcRow = document.createElement('div');
-  grpcRow.className = 'grpc-row hidden';
-  const grpcLabel = document.createElement('span');
-  grpcLabel.className = 'grpc-label';
-  grpcLabel.textContent = 'gRPC';
-  const grpcMethod = document.createElement('input');
-  grpcMethod.className = 'grpc-method';
+function buildGrpcRow() {
+  const grpcRow = el('div', 'grpc-row hidden');
+  const grpcMethod = el('input', 'grpc-method');
   grpcMethod.placeholder = 'package.Service/Method';
-  const plaintextLabel = document.createElement('label');
-  plaintextLabel.className = 'opt-label';
-  const plaintext = document.createElement('input');
+  const plaintextLabel = el('label', 'opt-label');
+  const plaintext = el('input', 'grpc-plaintext');
   plaintext.type = 'checkbox';
-  plaintext.className = 'grpc-plaintext';
   plaintextLabel.append(plaintext, ' Plaintext (no TLS)');
-  grpcRow.append(grpcLabel, grpcMethod, plaintextLabel);
+  grpcRow.append(el('span', 'grpc-label', 'gRPC'), grpcMethod, plaintextLabel);
+  return grpcRow;
+}
 
-  // {{variables}} this request sends but cannot use yet (components/variables-panel.js fills it).
-  const varWarnings = document.createElement('ul');
-  varWarnings.className = 'req-var-warnings';
-  varWarnings.setAttribute('aria-label', 'Variable warnings');
-  varWarnings.hidden = true;
-
-  const body = document.createElement('div');
-  body.className = 'req-card-body';
-  card.append(head, varWarnings, grpcRow, body);
-  card.ensureRequestPanel = panelId => ensureRequestPanel(card, panelId);
-
+// The head's fields keep the summary (name, method badge, URL preview, on/off) and
+// the hidden protocol / method selects in step with what is typed.
+function wireCardHead(card, fields, grpcRow, index) {
+  const { head, nameInput, namePreview, methodPreview, protocol, method, kind, url, preview, enabled, enabledLabel, expand } = fields;
   function syncProtocol() {
     const grpc = protocol.value === 'grpc';
     method.classList.toggle('hidden', grpc);
     grpcRow.classList.toggle('hidden', !grpc);
     url.placeholder = grpc ? 'host:port — e.g. localhost:50051' : 'https://api.example.com/endpoint';
   }
-  function syncKind() {
-    kind.value = protocol.value === 'grpc' ? 'grpc' : method.value;
-  }
   function syncPreview() {
-    syncKind();
+    kind.value = protocol.value === 'grpc' ? 'grpc' : method.value;
     const position = card.parentElement ? [...card.parentElement.children].indexOf(card) + 1 : index + 1;
     namePreview.textContent = nameInput.value.trim() || `Request ${position}`;
-    const summaryMethod = protocol.value === 'grpc' ? 'gRPC' : method.value;
-    methodPreview.textContent = summaryMethod;
+    methodPreview.textContent = protocol.value === 'grpc' ? 'gRPC' : method.value;
     methodPreview.className = `method-badge request-method-preview m-${protocol.value === 'grpc' ? 'POST' : method.value}`;
     preview.textContent = url.value.trim() || 'No URL yet';
     preview.classList.toggle('empty', !url.value.trim());
@@ -800,9 +747,6 @@ export function reqCard(index, context, requestId = '') {
   nameInput.addEventListener('input', syncPreview);
   url.addEventListener('input', syncPreview);
   enabled.addEventListener('change', syncEnabled);
-  groupSelect.addEventListener('change', () => {
-    window.dispatchEvent(new CustomEvent('k6ui:request-group-changed'));
-  });
   kind.addEventListener('change', () => {
     const toGrpc = kind.value === 'grpc';
     if (!toGrpc) method.value = kind.value;
@@ -811,16 +755,6 @@ export function reqCard(index, context, requestId = '') {
       protocol.dispatchEvent(new Event('change', { bubbles: true }));
     }
     if (!toGrpc) method.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-  moreButton.addEventListener('click', event => {
-    event.stopPropagation();
-    setMorePanelOpen(card, morePanel.hidden, { focusFirst: true });
-  });
-  morePanel.addEventListener('keydown', event => handleMoreKeydown(card, event));
-  curl.addEventListener('click', event => {
-    event.stopPropagation();
-    setMorePanelOpen(card, false, { focusButton: true });
-    openCurlImport(card);
   });
   expand.addEventListener('click', event => {
     event.stopPropagation();
@@ -831,6 +765,27 @@ export function reqCard(index, context, requestId = '') {
     // Advanced always shows the selected request's editor.
     if (document.documentElement.dataset.uiMode === 'advanced' || card.classList.contains('expanded')) return;
     if (!event.target.closest('button, input, select, label, .req-drag-handle, .req-more')) setRequestExpanded(card, true);
+  });
+  syncProtocol();
+  syncPreview();
+  syncEnabled();
+}
+
+// The ⋯ menu: Replace from cURL, Move up / down, Group, Duplicate, Delete.
+function wireMoreMenu(card, menu, context) {
+  const { moreButton, morePanel, duplicate, curl, moveUp, moveDown, remove, groupSelect } = menu;
+  groupSelect.addEventListener('change', () => {
+    window.dispatchEvent(new CustomEvent('k6ui:request-group-changed'));
+  });
+  moreButton.addEventListener('click', event => {
+    event.stopPropagation();
+    setMorePanelOpen(card, morePanel.hidden, { focusFirst: true });
+  });
+  morePanel.addEventListener('keydown', event => handleMoreKeydown(card, event));
+  curl.addEventListener('click', event => {
+    event.stopPropagation();
+    setMorePanelOpen(card, false, { focusButton: true });
+    openCurlImport(card);
   });
   // Moving keeps the panel open and focus on the same item, so a keyboard user can
   // press it again.
@@ -877,8 +832,23 @@ export function reqCard(index, context, requestId = '') {
     notifyFlowChanged();
     focusAfterRemoval(hadFocus, neighbours, '.request-expand', '#view-flow .add-req-btn');
   });
-  syncProtocol();
-  syncPreview();
-  syncEnabled();
+}
+
+export function reqCard(index, context, requestId = '') {
+  const card = el('article', 'req-card collapsed');
+  card.dataset.context = context;
+  card.dataset.requestId = requestId || createRequestId();
+
+  const fields = buildCardHead(card, index);
+  const grpcRow = buildGrpcRow();
+  // {{variables}} this request sends but cannot use yet (components/variables-panel.js fills it).
+  const varWarnings = el('ul', 'req-var-warnings');
+  varWarnings.setAttribute('aria-label', 'Variable warnings');
+  varWarnings.hidden = true;
+  card.append(fields.head, varWarnings, grpcRow, el('div', 'req-card-body'));
+  card.ensureRequestPanel = panelId => ensureRequestPanel(card, panelId);
+
+  wireCardHead(card, fields, grpcRow, index);
+  wireMoreMenu(card, fields.menu, context);
   return card;
 }
