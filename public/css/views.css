@@ -1,22 +1,34 @@
-/* ── Data & Rules (Simple step 2) ────────────────────────────── */
-.data-rule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.data-rule-card {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3);
-  padding: var(--space-4); text-align: left; cursor: pointer;
-  background: var(--surface-2); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  transition: border-color .13s, background-color .13s;
+/* ── Page blocks: Test data (Simple step 2) and Load & goals ──
+   Simple shows every block of the page; Advanced one block per category (nav.js). */
+.view-block { display: flex; flex-direction: column; gap: var(--space-4); }
+.view-block.hidden { display: none !important; }
+#load-block-load { gap: var(--space-5); }
+#view-data > .view-block {
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
 }
-.data-rule-card:hover { border-color: var(--accent-line); background: var(--surface-3); }
-.data-rule-card strong, .data-rule-card small { display: block; }
-.data-rule-card strong { font-size: 14px; font-weight: 600; }
-.data-rule-card small { margin-top: 2px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-muted); }
-.data-rule-icon {
-  display: grid; place-items: center; width: 36px; height: 36px;
-  border-radius: 9px; background: var(--accent-lite); color: var(--accent-text);
+.view-block-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.view-block-title { margin: 0; font-size: 15px; font-weight: 600; }
+.view-block-toggle {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  margin-left: calc(-1 * var(--space-1)); padding: 2px var(--space-1);
+  background: none; border: 0; border-radius: var(--radius-sm);
+  color: var(--text); font: inherit; cursor: pointer;
 }
-.data-rule-icon::before { width: 18px; height: 18px; }
-.data-rule-go { display: grid; color: var(--text-faint); }
+.view-block-toggle:hover { background: var(--surface-3); }
+.view-block-toggle::after {
+  content: ""; width: 7px; height: 7px; margin: 0 4px 3px;
+  border-right: 1.5px solid var(--text-muted); border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(45deg); transition: transform .13s;
+}
+.view-block-toggle[aria-expanded="false"]::after { transform: rotate(-45deg); margin-bottom: 0; }
+.view-block-sum { margin-left: auto; font-size: var(--text-sm); color: var(--text-muted); }
+.view-block-body { display: flex; flex-direction: column; gap: var(--space-3); }
+.view-block-body[hidden] { display: none; }
+/* Advanced: one block per category, always open (the fold toggle is Simple only). */
+html[data-ui-mode="advanced"] .view-block-body[hidden] { display: flex; }
+.view-block-body > .btn { align-self: flex-start; }
+.view-block-body > .note, .view-block > .view-hint { margin: 0; }
 
 /* ── Load profile ────────────────────────────────────────────── */
 .preset-strip {
@@ -357,7 +369,8 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 .outcome-target-row .outcome-target-value { flex: 1 1 140px; min-width: 0; font-family: var(--font-mono); font-size: 13px; }
 
 /* ── Data files (CSV) ────────────────────────────────────────── */
-.data-files-warning { margin-bottom: var(--space-4); }
+.data-files-warning { margin: 0; }
+#data-files-list:empty { display: none; }
 .data-file-card {
   display: flex; flex-direction: column; gap: var(--space-3);
   margin-bottom: var(--space-3); padding: var(--space-4);
@@ -387,11 +400,30 @@ html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-c
 }
 .df-preview th { color: var(--accent-text); font-weight: 600; }
 .df-preview th.df-unused, .df-preview td.df-unused { color: var(--text-faint); }
-.df-preview-wrap.hidden, #data-files-empty.hidden { display: none; }
-#data-files-empty { margin: 0 0 var(--space-3); }
+.df-preview-wrap.hidden { display: none; }
+.df-sentences { display: flex; flex-direction: column; gap: var(--space-2); }
+.df-sentence { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); font-size: 13px; }
+.df-sentence label { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; max-width: 100%; }
+/* A long option never pushes the select out of a narrow card. */
+.df-sentence select { flex: 0 1 auto; width: auto; max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+.df-options summary { font-size: var(--text-sm); font-weight: 500; color: var(--accent-text); cursor: pointer; }
+.df-options[open] summary { margin-bottom: var(--space-3); }
+/* Drop zone: drag one or more files, or choose / paste. A card takes a drop too. */
+.df-drop {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+  padding: var(--space-5) var(--space-4); text-align: center; color: var(--text-muted);
+  border: 1.5px dashed var(--border-2); border-radius: var(--radius);
+  transition: border-color .13s, background-color .13s;
+}
+.df-drop.drop-over, .data-file-card.drop-over { border-color: var(--accent-line); background: var(--accent-lite); }
+.df-drop-title { margin: 0; font-weight: 600; color: var(--text); }
+.df-drop-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.df-drop .note { margin: 0; max-width: 60ch; }
+.df-drop-status { margin: 0; font-size: var(--text-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+.df-drop-status:empty { display: none; }
+.df-drop-status.df-error { color: var(--danger); }
 
 @media (max-width: 960px) {
-  .data-rule-grid { grid-template-columns: minmax(0, 1fr); }
   html[data-ui-mode="simple"] .page-cols:has(> #load-custom-editor.hidden) .page-col-stack { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 700px) {

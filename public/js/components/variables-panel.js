@@ -11,7 +11,9 @@ import { helpButton } from './help-tips.js';
 import { dataFileColumns } from '../data-files.js';
 import { hasOutcomeRules } from '../outcomes.js';
 import { navigate } from '../nav.js';
-import { describeIssue, variableCatalog, variableIssues } from '../variables.js';
+import {
+  VARIABLE_NAME, describeIssue, globalVariableName, variableCatalog, variableIssues, variableUsage,
+} from '../variables.js';
 
 function node(tag, className, text) {
   const element = document.createElement(tag);
@@ -73,6 +75,24 @@ export function readFlowVariables() {
   };
 }
 
+// "Used in" beside each global variable on the Test data page.
+function usageText(key, usage) {
+  const name = globalVariableName(key);
+  if (!name) return '';
+  if (!VARIABLE_NAME.test(name)) return 'Not a usable name';
+  const count = usage.get(name) ?? 0;
+  return count ? `Used in ${count} request${count === 1 ? '' : 's'}` : 'Not used yet';
+}
+
+function renderUsage(flow) {
+  const usage = variableUsage(flow);
+  for (const row of document.querySelectorAll('#global-vars-list .var-row')) {
+    const slot = row.querySelector('.var-used');
+    const value = usageText(row.querySelector('.var-key').value, usage);
+    if (slot && slot.textContent !== value) slot.textContent = value;
+  }
+}
+
 // ── Panel ──────────────────────────────────────────────────────
 function viewLink(text, view) {
   const link = node('button', 'flow-vars-link', text);
@@ -109,7 +129,7 @@ export function createVariablesPanel() {
   const status = node('p', 'flow-vars-status');
   status.setAttribute('role', 'status');
   const foot = node('p', 'flow-vars-foot');
-  foot.append('Edit: ', viewLink('Global variables', 'vars'), ' · ', viewLink('Data files', 'datafiles'));
+  foot.append('Edit: ', viewLink('Variables', 'vars'), ' · ', viewLink('CSV data files', 'datafiles'));
   body.append(hint, groups, empty, status, foot);
   panel.append(head, body);
 
@@ -282,6 +302,7 @@ export function initVariablesPanel() {
     const flow = readFlowVariables();
     if (panel) renderPanel(panel, variableCatalog(flow));
     renderWarnings(variableIssues(flow));
+    renderUsage(flow);
   }
   function schedule() {
     if (pending) return;
@@ -289,7 +310,7 @@ export function initVariablesPanel() {
     queueMicrotask(render);
   }
   // Clicks cover removed rows and template buttons, which fire no input event.
-  for (const selector of ['#view-flow', '#view-vars', '#view-headers']) {
+  for (const selector of ['#view-flow', '#view-data']) {
     const view = document.querySelector(selector);
     for (const type of ['input', 'change', 'click']) view?.addEventListener(type, schedule);
   }

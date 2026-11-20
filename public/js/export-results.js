@@ -59,8 +59,8 @@ function download(file) {
 function useAsData(file, status) {
   const result = useAsDataFile(file, store.csv(file));
   status.textContent = {
-    created: `Added as the data file "${result.name}" (Data & Rules, Data files).`,
-    replaced: `The rows of the data file "${result.name}" were replaced (Data & Rules, Data files).`,
+    created: `Added as the data file "${result.name}" (Test data, CSV data files).`,
+    replaced: `The rows of the data file "${result.name}" were replaced (Test data, CSV data files).`,
     kept: 'The data file was left as it was.',
     'too-big': 'These rows are larger than a data file can hold.',
   }[result.result] || '';

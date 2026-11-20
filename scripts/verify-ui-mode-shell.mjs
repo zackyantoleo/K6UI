@@ -38,9 +38,17 @@ try {
   async function ready(target = page) {
     await target.waitForFunction(() => document.querySelector('#reqs-main'));
   }
+  // Categories that are one block of a shared page (stage 5): Simple shows the page, Advanced the block.
+  const PAGE_OF = { vars: 'data', headers: 'data', datafiles: 'data', sla: 'load' };
+  const BLOCK_OF = { vars: 'vars', headers: 'headers', datafiles: 'datafiles', sla: 'sla', load: 'load' };
   async function active(mode, view, current) {
     assert.equal(await page.locator('html').getAttribute('data-ui-mode'), mode);
-    assert.equal(await page.locator(`#view-${view}`).isVisible(), true);
+    const pageView = `#view-${PAGE_OF[view] || view}`;
+    assert.equal(await page.locator(pageView).isVisible(), true);
+    if (mode === 'advanced' && BLOCK_OF[view]) {
+      assert.equal(await page.locator(`${pageView} > .view-block[data-block="${BLOCK_OF[view]}"]`).isVisible(), true);
+      assert.equal(await page.locator(`${pageView} > .view-block:visible`).count(), 1);
+    }
     assert.equal(await page.locator('[data-ui-nav]:not([hidden])').count(), 1);
     assert.equal(await page.locator('.nav-link[aria-current]').count(), 1);
     assert.equal(await page.locator('.nav-link[aria-current]').getAttribute('aria-current'), mode === 'simple' ? 'step' : 'page');
@@ -118,7 +126,7 @@ try {
     await nav(view).click();
     await active('advanced', view, view);
     await radio('simple').check();
-    await active('simple', view, ['vars', 'headers', 'sla'].includes(view) ? 'data' : view);
+    await active('simple', view, { vars: 'data', headers: 'data', sla: 'load' }[view] || view);
     await radio('advanced').check();
     await active('advanced', view, view);
   }
@@ -601,7 +609,6 @@ try {
     assert.equal(await body.inputValue(), '{"t":"{{token}}');
     // A global header goes with every request: offered without marks.
     await page.locator('#simple-nav [data-view="data"]').click();
-    await page.locator('.data-rule-card[data-view="headers"]').click();
     if (!(await page.locator('#global-headers-list .h-val').count())) await page.locator('#add-global-header').click();
     const shared = page.locator('#global-headers-list .h-val').first();
     await shared.fill('');
@@ -670,6 +677,133 @@ try {
     await page.setViewportSize({ width: 1440, height: 900 });
   }
   checks.push('Variables: panel lists globals, data file columns and extracted values (beside the list in wide Simple, above it when narrow, above the editor in Advanced, folds away); chips one Tab stop with arrows, click copies, drag inserts; {{ in a URL, body or global header opens suggestions (aria-controls/activedescendant), filter, arrows wrap, Enter/Tab/click insert and close, Escape closes only that list, a value the request takes itself is marked; warnings for a later value and spaces, cleared by moving the request, "not available" when its source is off, reason written out in an open card');
+
+  // Test data page, goals in Load & goals, step summaries (stage 5).
+  {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await radio('simple').check();
+    const project = {
+      schemaVersion: 2,
+      scenario: {
+        groups: [{ id: 'grp_a', name: 'Checkout', enabled: true }],
+        requests: [
+          { id: 'req_login', name: 'Log in', type: 'http', method: 'POST', url: '{{base_url}}/login', body: '{"e":"{{email}}"}' },
+          { id: 'req_buy', name: 'Buy', type: 'http', method: 'GET', url: '{{base_url}}/buy', groupId: 'grp_a' },
+          { id: 'req_off', name: 'Off', type: 'http', method: 'GET', url: '{{base_url}}/off', enabled: false },
+        ],
+      },
+      variables: [{ key: 'base_url', value: 'https://fixture.test' }, { key: 'unused', value: 'x' }],
+      globalHeaders: [{ key: 'Accept', value: 'application/json' }],
+      dataSets: [],
+      load: { mode: 'simple', vus: '3', duration: '20s' },
+      thresholds: { p95: '500', errorRate: '' },
+    };
+    await page.evaluate(async config => (await import('/js/project-io.js')).applyConfig(config), project);
+    const summaries = () => page.locator('#simple-nav .nav-link small').allTextContents();
+    await page.waitForFunction(() => document.querySelector('#step-summary-flow').textContent.startsWith('3 requests'));
+    assert.deepEqual(await summaries(), [
+      '3 requests · 1 group · 1 off', '2 variables · 1 shared header', '3 users · 20s · 1 goal', 'Not run yet',
+    ]);
+    assert.equal(await page.locator('#simple-nav [data-view="data"] .step-optional').textContent(), 'Optional');
+
+    // One page, three folding blocks; "Used in" counts requests that run.
+    await page.locator('#simple-nav [data-view="data"]').click();
+    assert.equal(await page.locator('#page-title').textContent(), 'Test data');
+    for (const id of ['#data-block-vars', '#data-block-headers', '#data-block-datafiles']) {
+      assert.equal(await page.locator(id).isVisible(), true, id);
+    }
+    assert.deepEqual(await page.locator('#global-vars-list .var-used').allTextContents(), ['Used in 2 requests', 'Not used yet']);
+    assert.deepEqual(await page.locator('#view-data .view-block-sum').allTextContents(),
+      ['2 variables', '1 header, sent with every request', 'None yet']);
+    const foldVars = page.locator('#data-block-vars .view-block-toggle');
+    await foldVars.click();
+    assert.equal(await foldVars.getAttribute('aria-expanded'), 'false');
+    assert.equal(await page.locator('#data-block-vars-body').isVisible(), false);
+    await page.locator('#global-headers-list .h-key').first().focus();
+    assert.equal(await page.locator('#data-block-headers-body').isVisible(), true, 'folding one block leaves the others');
+
+    // Advanced: one block per category, always open; a folded Simple block stays folded.
+    await radio('advanced').check();
+    await nav('vars').click();
+    assert.equal(await page.locator('#data-block-vars-body').isVisible(), true, 'Advanced never shows a folded block');
+    assert.equal(await page.locator('#view-data > .view-block:visible').count(), 1);
+    assert.equal(await page.locator('#data-block-vars .view-block-toggle').isVisible(), false);
+    await nav('sla').click();
+    assert.equal(await page.locator('#page-title').textContent(), 'Thresholds / SLA');
+    assert.equal(await page.locator('#load-block-goals').isVisible(), true);
+    assert.equal(await page.locator('#load-block-load').isVisible(), false);
+    await nav('load').click();
+    assert.equal(await page.locator('#load-block-goals').isVisible(), false);
+    await radio('simple').check();
+    assert.equal(await page.locator('#page-title').textContent(), 'Load & goals');
+    assert.equal(await page.locator('#load-block-load').isVisible(), true);
+    assert.equal(await page.locator('#load-block-goals').isVisible(), true, 'Simple: load and goals on one page');
+    assert.equal(await page.locator('#load-goals-sum').textContent(), '1 goal');
+    await page.locator('#errorRate').fill('1');
+    // An opened project's load counts as custom: the preset asks before replacing it.
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('.preset-btn[data-preset="smoke"]').click();
+    await page.waitForFunction(() => document.querySelector('#step-summary-load').textContent === 'Smoke · 1 user · 30s · 2 goals');
+
+    // A link to one block opens the page there and unfolds it.
+    await page.locator('#simple-nav [data-view="flow"]').click();
+    await page.locator('.flow-vars-link', { hasText: 'Variables' }).click();
+    assert.equal(await foldVars.getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('#data-block-vars-body').isVisible(), true);
+
+    // CSV files: dropped on the zone (one card each, a non-CSV refused), on a card (asks first),
+    // chosen with the picker; share and end of rows as sentences, File options folded.
+    const drop = async (selector, files) => page.locator(selector).evaluate((zone, list) => {
+      const transfer = new DataTransfer();
+      for (const { name, type, text } of list) transfer.items.add(new File([text], name, { type }));
+      for (const type of ['dragenter', 'dragover', 'drop']) {
+        zone.dispatchEvent(new DragEvent(type, { dataTransfer: transfer, bubbles: true, cancelable: true }));
+      }
+    }, files);
+    await drop('#data-files-drop', [
+      { name: 'users.csv', type: 'text/csv', text: 'email,password\nu1@x.test,p1\nu2@x.test,p2\n' },
+      { name: 'photo.png', type: 'image/png', text: 'x' },
+    ]);
+    const firstCard = page.locator('#data-files-list .data-file-card').first();
+    await page.waitForFunction(() => document.querySelectorAll('#data-files-list .data-file-card').length === 1
+      && document.querySelector('.data-file-card .df-status').textContent.startsWith('2 rows'));
+    assert.match(await page.locator('#data-files-drop-status').textContent(), /Added "users\.csv"\. "photo\.png" is not a CSV file/);
+    assert.equal(await page.locator('#data-files-drop-title').textContent(), 'Drag another .csv file here');
+    assert.equal(await firstCard.locator('.df-options').getAttribute('open'), null, 'File options start folded');
+    assert.equal(await firstCard.locator('.df-share option:checked').textContent(), 'the next row (no two iterations share one)');
+    assert.equal(await firstCard.locator('.df-pick').textContent(), 'Replace file…');
+    assert.equal(await firstCard.locator('.help-btn[data-help="dataFileShare"]').count(), 1);
+    assert.equal(await page.locator('#data-block-datafiles-sum').textContent(), '1 file · one row per iteration');
+    assert.deepEqual(await page.locator('#global-vars-list .var-used').allTextContents(), ['Used in 2 requests', 'Not used yet']);
+    let asked = '';
+    page.once('dialog', dialog => { asked = dialog.message(); dialog.dismiss(); });
+    await drop('#data-files-list .data-file-card', [{ name: 'other.csv', type: 'text/csv', text: 'a\n1\n' }]);
+    assert.match(asked, /Replace the rows of "users\.csv" with "other\.csv"\?/);
+    assert.match(await firstCard.locator('.df-status').textContent(), /^2 rows/, 'Cancel keeps the rows');
+    // A file without a header row: no column, so File options open themselves.
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#choose-data-file').click()]);
+    await chooser.setFiles({ name: 'ids.csv', mimeType: 'text/csv', buffer: Buffer.from('1\n2\n') });
+    const second = page.locator('#data-files-list .data-file-card').nth(1);
+    await second.locator('.df-skip-header').waitFor({ state: 'attached' });
+    await second.locator('.df-skip-header').uncheck();
+    assert.equal(await second.locator('.df-options').getAttribute('open'), '', 'rows without a usable column open File options');
+    // A file dropped outside a drop zone does not leave the page.
+    const prevented = await page.locator('#view-data').evaluate(view => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(['x'], 'stray.csv', { type: 'text/csv' }));
+      const event = new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true });
+      view.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    assert.equal(prevented, true);
+    assert.equal(await page.locator('#data-files-list .data-file-card').count(), 2);
+    assert.match((await summaries())[1], /2 CSV files/);
+    await page.screenshot({ path: resolve(output, 'stage5-test-data-1440.png'), fullPage: true });
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.screenshot({ path: resolve(output, 'stage5-test-data-375.png'), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+  checks.push('Test data: one page with Variables, Shared headers and CSV data files (folding in Simple, one open block per category in Advanced); "Used in" per variable; CSV dropped on the zone (one card each, non-CSV refused with a reason), on a card (asks first, Cancel keeps rows), or chosen; share and end of rows as sentences, File options folded until a file has no usable column; a stray file drop is caught. Pass/fail goals inside Load & goals (Thresholds / SLA in Advanced). Each Simple step says what it holds and updates as values change');
 
   assert.deepEqual(forbidden, []);
   assert.deepEqual(errors, []);

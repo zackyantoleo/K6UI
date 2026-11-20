@@ -53,25 +53,25 @@
         <li>
           <button type="button" class="nav-link active" data-step="1" data-view="flow" aria-current="step">
             <span class="step-number" aria-hidden="true">1</span>
-            <span><strong>Build Flow</strong><small>Add and order requests</small></span>
+            <span><strong>Build Flow</strong><small id="step-summary-flow">Add what a user does</small></span>
           </button>
         </li>
         <li>
           <button type="button" class="nav-link" data-step="2" data-view="data">
             <span class="step-number" aria-hidden="true">2</span>
-            <span><strong>Data &amp; Rules</strong><small>Variables, headers, targets</small></span>
+            <span><strong>Test data <span class="step-optional">Optional</span></strong><small id="step-summary-data">Variables, headers, CSV files</small></span>
           </button>
         </li>
         <li>
           <button type="button" class="nav-link" data-step="3" data-view="load">
             <span class="step-number" aria-hidden="true">3</span>
-            <span><strong>Load</strong><small>Users and duration</small></span>
+            <span><strong>Load &amp; goals</strong><small id="step-summary-load">Users, duration, pass/fail goals</small></span>
           </button>
         </li>
         <li>
           <button type="button" class="nav-link" data-step="4" data-view="results">
             <span class="step-number" aria-hidden="true">4</span>
-            <span><strong>Run &amp; Results</strong><small>Execute and inspect</small></span>
+            <span><strong>Run &amp; Results</strong><small id="step-summary-results">Not run yet</small></span>
             <span class="run-dot hidden" id="nav-run-dot" aria-hidden="true"></span>
           </button>
         </li>
@@ -93,7 +93,7 @@
           </ul>
         </div>
         <div class="nav-section">
-          <p class="nav-heading" id="nav-heading-load">Load &amp; targets</p>
+          <p class="nav-heading" id="nav-heading-load">Load &amp; goals</p>
           <ul class="category-list" aria-labelledby="nav-heading-load">
             <li><button type="button" class="nav-link" data-icon="ramp" data-view="load">Load Profile</button></li>
             <li><button type="button" class="nav-link" data-icon="target" data-view="sla">Thresholds / SLA</button></li>
@@ -148,35 +148,76 @@
           <!-- Populated by app.js -->
         </section>
 
-        <!-- VIEW: Data & Rules -->
+        <!-- VIEW: Test data. One page in Simple (step 2); in Advanced each block is
+             its own category (Variables, Headers, Data files), see nav.js. -->
         <section id="view-data" class="view hidden">
-          <p class="view-hint">Configure reusable test data and pass/fail targets. Request-specific headers, checks, extraction, scripts, and pacing stay inside each request.</p>
-          <div class="data-rule-grid">
-            <button type="button" class="data-rule-card" data-view="vars">
-              <span class="data-rule-icon" data-icon="braces" aria-hidden="true"></span>
-              <span><strong>Global Variables</strong><small>Reuse base URLs, tokens, and environment values.</small></span>
-              <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="data-rule-card" data-view="headers">
-              <span class="data-rule-icon" data-icon="list" aria-hidden="true"></span>
-              <span><strong>Global Headers</strong><small>Apply common headers to every HTTP request.</small></span>
-              <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="data-rule-card" data-view="datafiles">
-              <span class="data-rule-icon" data-icon="table" aria-hidden="true"></span>
-              <span><strong>Data Files</strong><small>Give each user a row from a CSV file, such as a login per user.</small></span>
-              <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="data-rule-card" data-view="sla">
-              <span class="data-rule-icon" data-icon="target" aria-hidden="true"></span>
-              <span><strong>Performance Targets</strong><small>Set p95 response-time, error-rate and outcome limits.</small></span>
-              <span class="data-rule-go" data-icon="arrow" aria-hidden="true"></span>
-            </button>
-          </div>
+          <p class="view-hint" data-ui-only="simple">Values your requests reuse. Change one here and every request that uses it follows. Everything on this page is optional.</p>
+
+          <section class="view-block" id="data-block-vars" data-block="vars" aria-labelledby="data-block-vars-title">
+            <div class="view-block-head">
+              <h3 class="view-block-title" id="data-block-vars-title">
+                <button type="button" class="view-block-toggle" data-ui-only="simple" aria-expanded="true" aria-controls="data-block-vars-body">Variables</button>
+                <span data-ui-only="advanced">Variables</span>
+              </h3>
+              <button data-help="variable"></button>
+              <span class="view-block-sum" id="data-block-vars-sum"></span>
+            </div>
+            <div class="view-block-body" id="data-block-vars-body">
+              <div id="global-vars-list"></div>
+              <button type="button" id="add-global-var" class="btn ghost sm" data-icon="plus">Add Variable</button>
+              <p class="note">Use one as <code>{{name}}</code> in a URL, header, or body. Tip: put the server address in <code>{{base_url}}</code>, so moving to another environment is one change. Names use letters, digits, and underscores, and do not start with a digit.</p>
+            </div>
+          </section>
+
+          <section class="view-block" id="data-block-headers" data-block="headers" aria-labelledby="data-block-headers-title">
+            <div class="view-block-head">
+              <h3 class="view-block-title" id="data-block-headers-title">
+                <button type="button" class="view-block-toggle" data-ui-only="simple" aria-expanded="true" aria-controls="data-block-headers-body">Shared headers</button>
+                <span data-ui-only="advanced">Shared headers</span>
+              </h3>
+              <button data-help="globalHeaders"></button>
+              <span class="view-block-sum" id="data-block-headers-sum"></span>
+            </div>
+            <div class="view-block-body" id="data-block-headers-body">
+              <div id="global-headers-list"></div>
+              <button type="button" id="add-global-header" class="btn ghost sm" data-icon="plus">Add Header</button>
+              <p class="note">Sent with every request, such as <code>Accept</code> or <code>Authorization: Bearer {{token}}</code>. A request's own header with the same name wins (names are not case-sensitive).</p>
+            </div>
+          </section>
+
+          <section class="view-block" id="data-block-datafiles" data-block="datafiles" aria-labelledby="data-block-datafiles-title">
+            <div class="view-block-head">
+              <h3 class="view-block-title" id="data-block-datafiles-title">
+                <button type="button" class="view-block-toggle" data-ui-only="simple" aria-expanded="true" aria-controls="data-block-datafiles-body">CSV data files</button>
+                <span data-ui-only="advanced">CSV data files</span>
+              </h3>
+              <button data-help="dataFile"></button>
+              <span class="view-block-sum" id="data-block-datafiles-sum"></span>
+            </div>
+            <div class="view-block-body" id="data-block-datafiles-body">
+              <p class="data-files-warning" role="note">
+                The rows are saved inside the project file and written into the generated script.
+                If a file holds passwords or tokens, treat both of them as secrets.
+              </p>
+              <div id="data-files-list"></div>
+              <div class="df-drop" id="data-files-drop">
+                <p class="df-drop-title" id="data-files-drop-title">Drag a .csv file here</p>
+                <div class="df-drop-actions">
+                  <button type="button" class="btn ghost sm" id="choose-data-file">Choose a file…</button>
+                  <button type="button" class="btn ghost sm" id="add-data-file">Paste CSV text</button>
+                  <input type="file" id="data-file-input" accept=".csv,.tsv,.txt,text/csv,text/plain" multiple hidden />
+                </div>
+                <p class="note">Each iteration reads one row, so users do not all log in as the same person. A column becomes <code>{{column_name}}</code>. Up to 5 MB per file, 10 MB in total.</p>
+                <p class="df-drop-status" id="data-files-drop-status" role="status"></p>
+              </div>
+              <p class="note">A value taken from a response with the same name as a column replaces the file's value for the requests after it.</p>
+            </div>
+          </section>
         </section>
 
         <!-- VIEW: Load Profile -->
         <section id="view-load" class="view hidden">
+          <div class="view-block" id="load-block-load" data-block="load">
           <p class="view-hint" data-ui-only="simple">Choose a safe starter pattern, then customize it only when you need finer control.</p>
           <p class="view-hint" data-ui-only="advanced">Edit VUs, duration, stages, or iterations directly. Presets are optional starting points and ask before replacing custom values.</p>
           <div class="preset-strip" aria-label="Starter load presets">
@@ -339,15 +380,19 @@
             </div>
             </div>
           </div>
-        </section>
+          </div>
 
-        <!-- VIEW: Thresholds / SLA -->
-        <section id="view-sla" class="view hidden">
-          <p class="view-hint">The test is considered failed (exit code ≠ 0) if these performance targets are not met — useful for CI/CD pipelines.</p>
+          <section class="view-block" id="load-block-goals" data-block="sla" aria-labelledby="load-goals-title">
+            <div class="view-block-head">
+              <h3 class="view-block-title" id="load-goals-title">Pass/fail goals</h3>
+              <button data-help="threshold"></button>
+              <span class="view-block-sum" id="load-goals-sum"></span>
+            </div>
+            <p class="view-hint">If a goal is missed the test is marked Failed and k6 exits with code 99, so a CI pipeline can stop a release. Every goal is optional.</p>
           <div class="page-cols">
             <div class="page-col-stack">
               <div class="form-card">
-                <div class="label-row"><h3>Performance Targets</h3><button data-help="threshold"></button></div>
+                <h3>Performance Targets</h3>
                 <div class="field">
                   <div class="label-row"><label for="p95">Max p95 response time <span class="muted-label">(ms)</span></label><button data-help="p95"></button></div>
                   <input type="number" id="p95" min="0" placeholder="e.g. 500" />
@@ -362,8 +407,8 @@
 
               <div class="form-card outcome-targets" id="outcome-targets">
                 <div class="label-row"><h3 id="outcome-targets-title">Outcome Targets</h3><button data-help="outcomeTarget"></button></div>
-                <p class="field-note">How many responses of a request may get one label of its outcome rules (Request › Outcomes). The count is a number or a global variable such as <code>{{QUOTA}}</code>.</p>
-                <p class="outcome-targets-empty note" id="outcome-targets-empty">No request has outcome rules yet. Add them under Request › Outcomes, then set targets on their labels here.</p>
+                <p class="field-note">How many responses of a request may get one label of its outcome rules (a request's "Label each response" part). The count is a number or a global variable such as <code>{{QUOTA}}</code>.</p>
+                <p class="outcome-targets-empty note" id="outcome-targets-empty">No request has outcome rules yet. Add them to a request with "+ Add to this request" → Label each response, then set targets on their labels here.</p>
                 <div id="outcome-targets-list" class="outcome-targets-list" role="list" aria-labelledby="outcome-targets-title"></div>
                 <button type="button" class="add-row-btn" id="add-outcome-target">+ Add outcome target</button>
               </div>
@@ -376,6 +421,7 @@
               <p class="note">Outcome targets check the labels of a request's outcome rules, for example <strong>success at most {{QUOTA}}</strong> in a race test: no more redeems than the quota allows. A target on a request that does not run (turned off, or in a turned-off group) is not checked, and the results say so.</p>
             </div>
           </div>
+          </section>
         </section>
 
         <!-- VIEW: k6 Script -->
@@ -552,78 +598,6 @@
           </div>
         </section>
 
-        <!-- VIEW: Global Variables -->
-        <section id="view-vars" class="view hidden">
-          <p class="view-hint">
-            Define values once and reuse them in any request with
-            <code>{{variable_name}}</code> — great for base URLs, API keys, or environment values.
-          </p>
-          <div class="page-cols">
-            <div class="form-card">
-              <div class="label-row"><h3>Variables</h3><button data-help="variable"></button></div>
-              <div id="global-vars-list"></div>
-              <button type="button" id="add-global-var" class="btn ghost sm" data-icon="plus">Add Variable</button>
-            </div>
-
-            <div class="form-card info-card">
-              <h3>How it works</h3>
-              <p class="note">Reference a variable as <code>{{name}}</code> in a URL, header, or body — e.g. <code>{{base_url}}/users</code>.</p>
-              <p class="note">Names must start with a letter or underscore and contain only letters, digits, and underscores.</p>
-              <p class="note">If a request <strong>extracts</strong> a variable with the same name, the extracted value overrides the global one for the requests that follow.</p>
-            </div>
-          </div>
-        </section>
-
-        <!-- VIEW: Global Headers -->
-        <section id="view-headers" class="view hidden">
-          <p class="view-hint">
-            Headers automatically added to <strong>every</strong> request —
-            e.g. <code>Content-Type</code>, <code>Accept</code>, or an <code>Authorization</code> token.
-          </p>
-          <div class="page-cols">
-            <div class="form-card">
-              <div class="label-row"><h3>Headers</h3><button data-help="globalHeaders"></button></div>
-              <div id="global-headers-list"></div>
-              <button type="button" id="add-global-header" class="btn ghost sm" data-icon="plus">Add Header</button>
-            </div>
-
-            <div class="form-card info-card">
-              <h3>How it works</h3>
-              <p class="note">These headers are sent with every request in the scenario, including <em>Before</em> and <em>After</em> sub-requests.</p>
-              <p class="note">Values can use <code>{{name}}</code> variables — e.g. <code>Bearer {{token}}</code> with a global or extracted variable.</p>
-              <p class="note">If a request defines a header with the same name, the request's value <strong>overrides</strong> the global one (names are case-insensitive).</p>
-            </div>
-          </div>
-        </section>
-
-        <!-- VIEW: Data files (CSV) -->
-        <section id="view-datafiles" class="view hidden">
-          <p class="view-hint">
-            Give every iteration its own row from a CSV file — for example one login per user.
-            Use a column name as <code>{{column_name}}</code> in any URL, header, or body.
-          </p>
-          <div class="page-cols">
-            <div class="form-card">
-              <div class="label-row"><h3>Data files</h3><button data-help="dataFile"></button><button data-help="dataFileShare"></button></div>
-              <p class="data-files-warning" role="note">
-                The rows are saved inside the project file and written into the generated script.
-                If a file holds passwords or tokens, treat both of them as secrets.
-              </p>
-              <div id="data-files-list"></div>
-              <p id="data-files-empty" class="note">No data files yet.</p>
-              <button type="button" id="add-data-file" class="btn ghost sm" data-icon="plus">Add Data File</button>
-            </div>
-
-            <div class="form-card info-card">
-              <h3>How it works</h3>
-              <p class="note">Each iteration reads one row. <strong>Next row for every iteration</strong> shares the file between all users, so no two iterations get the same row; <strong>One row per user</strong> gives user n the n-th row.</p>
-              <p class="note">Column names follow the variable rules: letters, digits, and underscores, not starting with a digit. Other columns are ignored.</p>
-              <p class="note">If a request <strong>extracts</strong> a variable with the same name as a column, {{name}} reads the file until that request has run, and the extracted value after it. Both override a global variable of that name.</p>
-              <p class="note">Files up to 5 MB each (10 MB in total). A file with no rows or no usable column is ignored, and its {{placeholders}} stay as text.</p>
-            </div>
-          </div>
-        </section>
-
       </div>
     </div>
   </div>
@@ -663,38 +637,6 @@
       <textarea class="df-paste-text" spellcheck="false" aria-label="Pasted CSV text" placeholder="email,password&#10;user1@example.com,pass1"></textarea>
       <button type="button" class="btn ghost sm df-paste-apply">Use this text</button>
     </details>
-    <div class="data-file-options">
-      <label>Delimiter
-        <select class="df-delimiter">
-          <option value=",">Comma ( , )</option>
-          <option value=";">Semicolon ( ; )</option>
-          <option value="&#9;">Tab</option>
-          <option value="|">Pipe ( | )</option>
-        </select>
-      </label>
-      <label class="df-check"><input type="checkbox" class="df-skip-header" /> First row is a header</label>
-      <label class="df-check"><input type="checkbox" class="df-trim" /> Trim leading/trailing spaces</label>
-      <label class="df-wide">Column names
-        <input class="df-columns" placeholder="email, password" />
-      </label>
-      <label>Row for each iteration
-        <select class="df-share">
-          <option value="next-row">Next row (shared by all users)</option>
-          <option value="per-vu">One row per user</option>
-        </select>
-      </label>
-      <label>When the rows run out
-        <select class="df-end">
-          <option value="recycle">Start over from the first row</option>
-          <option value="stop">Stop the iteration</option>
-        </select>
-      </label>
-      <label class="df-wide">Read the row
-        <select class="df-group">
-          <option value="">At the start of every iteration</option>
-        </select>
-      </label>
-    </div>
     <p class="df-status" role="status"></p>
     <div class="df-preview-wrap hidden">
       <table class="df-preview">
@@ -703,6 +645,41 @@
         <tbody></tbody>
       </table>
     </div>
+    <div class="df-sentences">
+      <div class="df-sentence"><label>Each iteration gets
+        <select class="df-share">
+          <option value="next-row">the next row (no two iterations share one)</option>
+          <option value="per-vu">its user's own row (user 1 reads row 1)</option>
+        </select></label><button data-help="dataFileShare"></button></div>
+      <div class="df-sentence"><label>When the rows run out,
+        <select class="df-end">
+          <option value="recycle">start again from the first row</option>
+          <option value="stop">stop that iteration</option>
+        </select></label></div>
+    </div>
+    <details class="df-options">
+      <summary>File options</summary>
+      <div class="data-file-options">
+        <label>Separator
+          <select class="df-delimiter">
+            <option value=",">Comma ( , )</option>
+            <option value=";">Semicolon ( ; )</option>
+            <option value="&#9;">Tab</option>
+            <option value="|">Pipe ( | )</option>
+          </select>
+        </label>
+        <label class="df-check"><input type="checkbox" class="df-skip-header" /> First row has the column names</label>
+        <label class="df-check"><input type="checkbox" class="df-trim" /> Trim spaces around values</label>
+        <label class="df-wide">Column names
+          <input class="df-columns" placeholder="email, password" />
+        </label>
+        <label class="df-wide">Read the row
+          <select class="df-group">
+            <option value="">At the start of every iteration</option>
+          </select>
+        </label>
+      </div>
+    </details>
   </article>
 </template>
 

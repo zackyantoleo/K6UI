@@ -176,8 +176,7 @@ export function restoreOutcomeTargetRows(targets) {
 // Called once at startup.
 export function initOutcomeTargets() {
   const list = $('#outcome-targets-list');
-  const view = $('#view-sla');
-  if (!list || !view) return;
+  if (!list) return;
   $('#add-outcome-target')?.addEventListener('click', () => {
     const requests = flowRequests();
     // With one request that has rules there is nothing to choose.
@@ -189,10 +188,11 @@ export function initOutcomeTargets() {
     refreshEmptyState(requests);
     row.querySelector(withRules.length === 1 ? '.outcome-target-label' : '.outcome-target-request').focus();
   });
-  // The lists follow the flow: refreshed when the view is shown and after structural edits.
-  new MutationObserver(() => {
-    if (!view.classList.contains('hidden')) refreshOutcomeTargetRows();
-  }).observe(view, { attributes: true, attributeFilter: ['class'] });
+  // The lists follow the flow: refreshed when the goals are shown (Load & goals in
+  // Simple, Thresholds / SLA in Advanced) and after structural edits.
+  window.addEventListener('k6ui:view-shown', event => {
+    if (event.detail?.page === 'load') refreshOutcomeTargetRows();
+  });
   for (const name of ['k6ui:flow-changed', 'k6ui:request-group-changed', 'k6ui:project-applied']) {
     window.addEventListener(name, refreshOutcomeTargetRows);
   }
