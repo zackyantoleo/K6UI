@@ -56,3 +56,9 @@ export function buildRegex(selector) {
 const LINE_SEPARATORS = new RegExp(`[${String.fromCharCode(0x2028, 0x2029)}]`, "g");
 export const jsLiteral = (value) =>
   JSON.stringify(String(value)).replace(LINE_SEPARATORS, (c) => `\\u${c.charCodeAt(0).toString(16)}`);
+
+// Any text → one line, safe inside a `//` comment of the script. \r, \n, U+2028 and
+// U+2029 all end a JavaScript line, so a URL or a name holding one would otherwise
+// turn the rest of it into code.
+const LINE_BREAKS = new RegExp(`[${String.fromCharCode(10, 13, 0x2028, 0x2029)}]+`, "g");
+export const oneLine = (value) => String(value ?? "").replace(LINE_BREAKS, " ").trim();

@@ -45,7 +45,7 @@ npm install
 npm start
 ```
 
-Open http://localhost:3000 in your browser.
+Open http://localhost:3000 in your browser. `PORT=8080 npm start` picks another port.
 
 1. Enter the URL and request details in **Request Flow** (add requests, extractions, or assertions as needed).
 2. (Optional) under **Data & Rules → Data Files** (Advanced: **Data files**), add a CSV file and use its columns as `{{column}}`.
@@ -87,3 +87,15 @@ Architecture notes, the configuration schema, and API details are in [CLAUDE.md]
 | `GET /api/k6-status` | Check whether the k6 binary is available |
 | `POST /api/generate` | Generate a k6 script from a configuration (up to 24 MB, so it can carry CSV data files) |
 | `POST /api/run` | Run a test, results streamed via SSE |
+
+## Security
+
+K6UI runs load tests and sends requests from the machine it runs on, and the pre/post-processor scripts of a project are JavaScript that k6 runs there. So by default it is reachable from that machine only:
+
+- It listens on `127.0.0.1`, and it answers only requests addressed to `localhost` / `127.0.0.1` (any other `Host` gets a 403). That second check stops a web page from reaching it through DNS rebinding.
+- To share it on your network on purpose, start it with `HOST=0.0.0.0 npm start`. Then anyone who can open the page can run tests and send requests from your machine, including to services on your internal network. Only do this on a network you trust, behind your own authentication.
+- Project files, the browser copy of a project, generated scripts and run reports hold variable values, headers and bodies as typed or recorded, tokens and passwords included. Treat them like the credentials they contain.
+
+## License
+
+[MIT](LICENSE)

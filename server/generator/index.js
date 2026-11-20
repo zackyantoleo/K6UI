@@ -15,8 +15,8 @@ import { buildOptions } from "./options.js";
 import { buildRequestCode } from "./request.js";
 import { buildGrpcRequestCode, validateGrpcRequest } from "./grpc-request.js";
 import { buildAssertionsCode } from "./assertions.js";
-import { EXTRACT_OR_SOURCE, extractionDefault, isExtractable } from "./extract.js";
-import { jsLiteral } from "./helpers.js";
+import { EXTRACT_OR_SOURCE, extractionDefault, isExtractable, validateExtractionNames } from "./extract.js";
+import { jsLiteral, oneLine } from "./helpers.js";
 import {
   buildDataDeclarations, buildDataHoists, buildDataImports, buildDataRowCode, buildGroupDataRowCode,
   dataColumns, prepareDataSets,
@@ -327,6 +327,7 @@ export function generateScript(config, meta = null, { logBodyLimit } = {}) {
   // Outcome rules: checked up front (400 before any code is built); each label
   // gets an always-passing threshold so k6 reports its count. Outcome targets add
   // their expressions to those thresholds (same request numbers: the requests that run).
+  validateExtractionNames(mainReqs);
   validateOutcomes(mainReqs);
   validateExpectedStatuses(mainReqs);
   const outcomes = outcomeTargets(mainReqs);
@@ -489,7 +490,7 @@ export function generateScript(config, meta = null, { logBodyLimit } = {}) {
     }
 
     if (req._groupName) {
-      out += `\n  // Group: ${String(req._groupName).replace(/[\r\n]+/g, " ")}\n`;
+      out += `\n  // Group: ${oneLine(req._groupName)}\n`;
     }
 
     // ── Race burst: warm-up + wait, before the pre-processor ─

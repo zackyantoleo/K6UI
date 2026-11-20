@@ -13,7 +13,7 @@ import {
   outcomeRegexParts, outcomesProblem, parseOutcomeStatus, OUTCOME_METRIC, OUTCOME_VARIABLE,
 } from "../../public/js/outcomes.js";
 import { planOutcomeThresholds } from "../../public/js/outcome-thresholds.js";
-import { buildGjsonPath, jsLiteral } from "./helpers.js";
+import { buildGjsonPath, jsLiteral, oneLine } from "./helpers.js";
 
 // Written once, above the default function, when a request that runs has rules.
 export const OUTCOME_HELPER_SOURCE = `// Outcome rules (Request → Outcomes): every response of a request with rules gets one
@@ -121,7 +121,7 @@ export function buildOutcomeThresholdsSource(outcomeThresholds) {
     out += `];\n`;
   }
   for (const item of outcomeThresholds.filter((entry) => entry.skipped)) {
-    const what = `${item.label} ${item.op} ${item.value}`.replace(/[\r\n\u2028\u2029]+/g, " ");
+    const what = oneLine(`${item.label} ${item.op} ${item.value}`);
     out += `// Outcome target ${item.number} (${what}) is not checked: ${item.skipped}\n`;
   }
   return out;

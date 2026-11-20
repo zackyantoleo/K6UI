@@ -4,6 +4,7 @@
 // "package.Service/Method", body = request message JSON, headers = metadata.
 import { interpolate } from "./interpolate.js";
 import { buildExtractionLines } from "./extract.js";
+import { oneLine } from "./helpers.js";
 
 export function validateGrpcRequest(req, label) {
   const method = String(req.grpcMethod || "").trim();
@@ -46,7 +47,7 @@ export function buildGrpcRequestCode(req, index, prefix, ctx, logRequests) {
   const resVar = `res_${prefix}_${index}`;
   const lines = [];
 
-  lines.push(`  // Request ${index + 1}: gRPC ${req.grpcMethod} @ ${req.url}`);
+  lines.push(`  // Request ${index + 1}: ${oneLine(`gRPC ${req.grpcMethod} @ ${req.url}`)}`);
   lines.push(`  ${clientVar}.connect(${addrCode}, { ${connectOpts.join(", ")} });`);
   lines.push(`  const ${msgVar} = ${body ? `JSON.parse(${interpolate(body, ctx)})` : "{}"};`);
   if (logRequests) lines.push(`  const t_${prefix}_${index} = Date.now();`);

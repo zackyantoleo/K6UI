@@ -17,6 +17,7 @@
 // The CSV reader lives in public/js/csv-parse.js: the Data files panel uses
 // it for its preview, so the UI and the generator always count the same rows.
 import { CsvError, MAX_DATA_BYTES, MAX_DATA_SET_BYTES, readDataSet } from "../../public/js/csv-parse.js";
+import { oneLine } from "./helpers.js";
 
 export { MAX_DATA_BYTES, MAX_DATA_SET_BYTES };
 
@@ -30,7 +31,6 @@ export class DataSetError extends Error {
 
 // Rounded up, so a file over the limit never reads as exactly the limit.
 const megabytes = (bytes) => `${(Math.ceil(bytes / 104857.6) / 10).toFixed(1)} MB`;
-const oneLine = (text) => String(text ?? "").replace(/[\r\n\u2028\u2029]+/g, " ").trim();
 
 // JSON is almost JavaScript: U+2028/U+2029 are the one difference that older
 // engines reject inside a string literal.
