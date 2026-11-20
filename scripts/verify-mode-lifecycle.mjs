@@ -84,7 +84,7 @@ try {
   })).json()).script, config);
   const openProject = fixture => page.evaluate(async project =>
     (await import('/js/project-io.js')).applyConfig(project), fixture);
-  const hydratedPanels = () => page.$$eval('.req-tab-panel[data-panel-ready="true"]', nodes => nodes.length);
+  const hydratedPanels = () => page.$$eval('.req-panel[data-panel-ready="true"]', nodes => nodes.length);
   const notice = () => page.locator('#advanced-notice');
   const noticeState = async () => {
     await settle();
@@ -118,7 +118,7 @@ try {
     extractions: 'Response extraction: 1 request',
     checks: 'Custom checks: 1 request',
     scripts: 'Pre/post scripts: 1 request',
-    pacing: 'Custom pause after request: 1 request',
+    pacing: 'Custom wait after request: 1 request',
     groupHeaders: 'Group header defaults: 1 group',
   });
   assert.match(state.skipped, /2 skipped requests and 1 turned-off group/);
@@ -132,17 +132,15 @@ try {
   });
   assert.ok(storeBefore);
   assert.equal(await login.evaluate(node => node.classList.contains('expanded')), true, 'Opening a project expands the first card');
-  await login.locator('.req-tab[data-tab="scripts"]').click();
+  assert.equal(await login.locator('.req-section-scripts').isVisible(), true, 'A part the request uses opens with it');
   assert.equal(await login.locator('.pre-script').inputValue(), 'vars.ts = "pre-secret";');
   await login.locator('.pre-script').fill('  \n\t ');
   state = await noticeState();
   assert.equal(state.items.scripts, undefined, 'Live whitespace-only script beats the saved snapshot');
   await login.locator('.pre-script').fill('vars.ts = 2;');
   assert.equal((await noticeState()).items.scripts, 'Pre/post scripts: 1 request');
-  await login.locator('.req-tab[data-tab="options"]').click();
   await login.locator('.sleep').fill('1');
   assert.equal((await noticeState()).items.pacing, undefined, 'Live default pause beats the saved 0.5 s');
-  await login.locator('.req-tab[data-tab="assertions"]').click();
   await login.locator('.assertions-list .row-remove').click();
   assert.equal((await noticeState()).items.checks, undefined, 'Removing the only check (a click) refreshes the notice');
   assert.equal(await page.evaluate(async () => window.storeBeforeTyping

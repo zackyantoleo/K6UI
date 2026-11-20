@@ -78,30 +78,27 @@
   border: 1px dashed var(--border-2); border-radius: var(--radius);
 }
 
-/* ── Tabs (request editor, results) ──────────────────────────── */
-.req-tabs, .results-tabs {
+/* ── Tabs (results) ──────────────────────────────────────────── */
+.results-tabs {
   display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border);
 }
-.req-tab, .results-tab {
+.results-tab {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 9px 12px; margin-bottom: -1px;
   background: none; border: 0; border-bottom: 2px solid transparent;
   color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap;
   cursor: pointer; transition: color .13s, border-color .13s;
 }
-.req-tab:hover, .results-tab:hover { color: var(--text); }
-.req-tab.active, .results-tab.active {
+.results-tab:hover { color: var(--text); }
+.results-tab.active {
   color: var(--text); border-bottom-color: var(--accent-text); font-weight: 600;
 }
-.req-tab:focus-visible, .results-tab:focus-visible { outline-offset: -2px; }
+.results-tab:focus-visible { outline-offset: -2px; }
 .tab-count {
   min-width: 18px; padding: 0 5px; border-radius: 999px;
   background: var(--surface-4); color: var(--text);
   font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums;
 }
-/* A request tab shows its count only when there is something to count. */
-.req-tab .tab-count:not(.visible) { display: none; }
-.req-tab .tab-count.visible { background: var(--accent); color: #fff; }
 
 /* ── Badges ──────────────────────────────────────────────────── */
 .method-badge {

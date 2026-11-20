@@ -339,8 +339,8 @@ test('the report keeps each record\'s outcome and lists expected statuses with t
   assert.doesNotMatch(plain, /Success statuses/, 'no column when no request has a list');
 });
 
-test('expected statuses travel with the request: Advanced tab, collected, validated before Run, lazy panel, duplicate, store', () => {
-  const advanced = read('../public/js/components/request-editor/advanced.js');
+test('expected statuses travel with the request: Success statuses section, collected, validated before Run, lazy panel, duplicate, store', () => {
+  const advanced = read('../public/js/components/request-editor/statuses.js');
   const reqCard = read('../public/js/components/req-card.js');
   const configSource = read('../public/js/config.js');
   const store = read('../public/js/project-store.js');
@@ -352,10 +352,10 @@ test('expected statuses travel with the request: Advanced tab, collected, valida
   assert.match(configSource, /const expectedStatuses = card\.querySelector\('\.expected-statuses'\)\.value\.trim\(\);/);
   assert.match(configSource, /\.\.\.\(expectedStatuses \? \{ expectedStatuses \} : \{\}\)/);
   assert.match(configSource, /expectedStatusesListProblem\(runnable\.map/);
-  assert.match(reqCard, /panel\.querySelector\('\.expected-statuses'\)\.value = request\.expectedStatuses \|\| '';/, 'lazy Advanced panel');
+  assert.match(reqCard, /panel\.querySelector\('\.expected-statuses'\)\.value = request\.expectedStatuses \|\| '';/, 'lazy Success statuses section');
   assert.match(reqCard, /'\.check-status', '\.expected-statuses', '\.sleep'/, 'duplicate copies it');
-  assert.match(reqCard, /'\.expected-statuses': 'options',/);
-  assert.match(reqCard, /options: \(\{ readOutcomes \}\) => createAdvancedPanel\(readOutcomes\)/);
+  assert.match(reqCard, /'\.expected-statuses': 'statuses',/);
+  assert.match(reqCard, /statuses: \(\{ readOutcomes \}\) => createStatusesPanel\(readOutcomes\)/);
   assert.match(store, /request\.expectedStatuses = statuses;/);
-  assert.match(notice, /expectedStatuses: optionsReady \? field\('\.expected-statuses'\)\.value : saved\.expectedStatuses,/);
+  assert.match(notice, /expectedStatuses: statusesReady \? field\('\.expected-statuses'\)\.value : saved\.expectedStatuses,/);
 });

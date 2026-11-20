@@ -149,7 +149,7 @@ function auditPage() {
   };
   const layer = element => {
     for (let node = element; node; node = node.parentElement) {
-      if (/^(fixed|sticky)$/.test(getComputedStyle(node).position)) return node;
+      if (/^(fixed|sticky)$/.test(getComputedStyle(node).position) || node.matches('.menu')) return node;
     }
     return null;
   };
@@ -337,8 +337,7 @@ try {
     await radio('advanced').check();
     await outlineItem('req_cart').click();
     const cart = page.locator('#reqs-main > .req-card[data-request-id="req_cart"]');
-    await cart.locator('.req-tab[data-tab="body"]').click();
-    const body = cart.locator('.req-tab-panel textarea').first();
+    const body = cart.locator('.req-section-body textarea.body');
     await body.click();
     await page.keyboard.type(' \n  ');
     const raw = await body.inputValue();
@@ -633,11 +632,15 @@ try {
           }
           await target.locator('#flow-outline .outline-item[data-id="req_login"]').click();
         } else {
-          // Every editor tab of an open card, with its saved rows.
-          for (const tab of ['body', 'extractions', 'assertions', 'scripts', 'options']) {
-            await target.locator(`#reqs-main > .req-card[data-request-id="req_login"] .req-tab[data-tab="${tab}"]`).click();
-            await audit(`${label} simple flow ${tab} tab`, target);
-          }
+          // The open editor shows every part the request uses, with its saved rows; then
+          // its "+ Add to this request" menu, open (a popup is its own layer).
+          const login = target.locator('#reqs-main > .req-card[data-request-id="req_login"]');
+          assert.deepEqual(await login.locator('.req-extra-sections > .req-section:not([hidden]) .req-panel')
+            .evaluateAll(nodes => nodes.map(node => node.dataset.panel)), ['assertions', 'extractions', 'scripts']);
+          await audit(`${label} simple flow editor`, target);
+          await login.locator('.req-add-btn').click();
+          await audit(`${label} simple flow add menu`, target);
+          await target.keyboard.press('Escape');
         }
         await settle(target);
         await target.screenshot({ path: resolve(output, `${mode}-flow-${label}.png`), fullPage: true });

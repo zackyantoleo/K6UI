@@ -1,10 +1,8 @@
-import { helpButton } from '../help-tips.js';
-
 export function createScriptsPanel(onCountChange = () => {}) {
   const panel = document.createElement('div');
   const hint = document.createElement('p');
   hint.className = 'ext-hint';
-  hint.append('Custom JavaScript can run before or after this request. Values assigned to vars.name can be reused as {{name}}. ', helpButton('scripts'));
+  hint.textContent = 'Custom JavaScript can run before or after this request. Values assigned to vars.name can be reused as {{name}}.';
   const preLabel = document.createElement('label');
   preLabel.className = 'script-label';
   preLabel.textContent = 'Pre-processor — runs before the request';

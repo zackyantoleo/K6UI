@@ -1,11 +1,10 @@
-// Outcomes tab of a request (see public/js/outcomes.js): rules that give every
+// "Label each response" section of a request (see public/js/outcomes.js): rules that give every
 // response one label, top to bottom, first match wins; a response no rule
 // matches gets the fallback label. One DOM for Simple and Advanced; values are
 // DOM properties, never markup.
 import {
   DEFAULT_OUTCOME_FALLBACK, OUTCOME_OPERATORS, OUTCOME_SOURCES, OUTCOME_VARIABLE, isBlankOutcomeRule, normalizeOutcomeRule,
 } from '../../outcomes.js';
-import { helpButton } from '../help-tips.js';
 
 const SELECTOR_HINTS = { json: 'JSON path, e.g. code or error.code', header: 'Header name, e.g. X-Error-Code' };
 const VALUE_HINTS = { equals: 'Value, e.g. PROM-422001', contains: 'Text, e.g. quota', matches: 'Regex, e.g. /quota/i' };
@@ -132,7 +131,7 @@ export function createOutcomesPanel(onCountChange = () => {}) {
   const variable = document.createElement('code');
   variable.textContent = `{{${OUTCOME_VARIABLE}}}`;
   hint.append(variable, ' holds it for Save to CSV and later requests. An expected rejection (a 400 that is the right answer) '
-    + 'still counts as a failed request until its status is listed under Advanced → Expected statuses. ', helpButton('outcomes'));
+    + 'still counts as a failed request until its status is listed under Success statuses.');
   const templates = document.createElement('div');
   templates.className = 'check-template-list';
   templates.setAttribute('aria-label', 'Outcome templates');

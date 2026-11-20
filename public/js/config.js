@@ -41,7 +41,7 @@ function readAssertionRows(scope) {
 // ── Per card ───────────────────────────────────────────────────
 function collectReqList(containerId) {
   return $$(`#${containerId} .req-card`).map(card => {
-    for (const panelId of ['headers', 'body', 'extractions', 'assertions', 'outcomes', 'scripts', 'options']) {
+    for (const panelId of ['headers', 'body', 'assertions', 'extractions', 'exports', 'statuses', 'outcomes', 'scripts']) {
       card.ensureRequestPanel?.(panelId);
     }
     const body = card.querySelector('.req-card-body');

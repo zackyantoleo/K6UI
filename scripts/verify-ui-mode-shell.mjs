@@ -56,7 +56,7 @@ try {
   await active('advanced', 'flow', 'flow');
   await page.locator('#empty-add-request').click();
   await page.locator('.req-card .url').fill('https://fixture.test/unsaved');
-  await page.locator('.req-tab[data-tab="body"]').click();
+  await page.locator('.req-card .request-kind').selectOption('POST');
   await page.locator('.req-card textarea.body').fill('  unsaved body\nwith trailing spaces  ');
   await page.evaluate(async () => {
     window.originalCard = document.querySelector('.req-card');
@@ -90,9 +90,9 @@ try {
     window.originalBody === document.querySelector('.req-card textarea.body') &&
     window.originalStore === (await import('/js/project-store.js')).projectStore.getState() &&
     window.originalPanelCount === document.querySelectorAll('[data-panel-ready="true"]').length), true);
-  assert.equal(await page.locator('.req-tab[aria-selected="true"]').getAttribute('data-tab'), 'body');
+  assert.equal(await page.locator('.req-card .req-section-body').isVisible(), true, 'Body still shown');
   assert.equal(generated, 0, 'Switching/navigation do not collect or generate');
-  checks.push('Raw unsaved inputs, DOM identity, tab, lazy panels and stale store survive repeated switch/direct navigation');
+  checks.push('Raw unsaved inputs, DOM identity, Body section, lazy panels and stale store survive repeated switch/direct navigation');
 
   // Native radio keyboard behavior and visible focus, then ordinary button navigation.
   await radio('advanced').focus();
@@ -303,8 +303,10 @@ try {
     await page.locator('#curl-input').fill("curl 'https://fixture.test/from-menu' -H 'Accept: application/json'");
     await page.locator('#curl-apply').click();
     assert.equal(await page.locator('.req-card').last().locator('.url').inputValue(), 'https://fixture.test/from-menu');
-    await page.locator('.req-card').last().locator('.req-tab[data-tab="extractions"]').click();
-    assert.equal(await page.locator('.req-card').last().locator('[data-help="extraction"]').getAttribute('aria-label'), 'About Extraction');
+    const imported = page.locator('.req-card').last();
+    await imported.locator('.req-add-btn').click();
+    await imported.locator('.req-add-item[data-panel="extractions"]').click();
+    assert.equal(await imported.locator('.req-section-extractions [data-help="extraction"]').getAttribute('aria-label'), 'About Extraction');
   }
   checks.push('Help: one tooltip on hover/focus (aria-describedby), click keeps it, Escape closes; help in a radio card does not pick it; Glossary lists, filters, returns focus; Import menu by keyboard and mouse, cURL adds a request');
 
@@ -343,6 +345,9 @@ try {
     assert.equal(await cardOf('req_c').locator('.req-group-band').count(), 0, 'one band per run');
     assert.equal(await cardOf('req_c').getAttribute('data-group-run'), 'end');
 
+    // The first request opened with the project; its editor (Headers + Body) is taller than a
+    // 900 px window leaves for dragging the last card above it, so close it first.
+    await cardOf('req_a').locator('.request-expand').click();
     // Drag Profile into the band (top half of Create order): it moves and joins the group.
     await cardOf('req_d').locator('.req-drag-handle').dragTo(cardOf('req_b'), { targetPosition: { x: 60, y: 6 } });
     await settleBands();
@@ -401,6 +406,91 @@ try {
     await cardOf('req_d').locator('.request-enabled').check();
   }
   checks.push('Request cards: drag into a group band joins it, outside leaves it, announced; ⋯ panel keyboard/click-outside, Move keeps it open; one method list drives protocol + method; switch = the enabled checkbox');
+
+  // Request editor: Headers and Body always, other parts from "+ Add to this request", "Wait after" below.
+  {
+    const project = {
+      schemaVersion: 2,
+      scenario: {
+        groups: [],
+        requests: [
+          { id: 'req_e', name: 'Redeem', type: 'http', method: 'POST', url: 'https://fixture.test/redeem',
+            assertions: [{ type: 'status-eq', value: '200', value2: '' }], sleepAfter: '0.5' },
+          { id: 'req_f', name: 'Status', type: 'http', method: 'GET', url: 'https://fixture.test/status', checkStatus: false },
+        ],
+      },
+      variables: [],
+      load: { mode: 'simple', vus: '1', duration: '5s' },
+      thresholds: { p95: '', errorRate: '' },
+    };
+    await page.evaluate(async config => (await import('/js/project-io.js')).applyConfig(config), project);
+    const cardOf = id => page.locator(`#reqs-main > .req-card[data-request-id="${id}"]`);
+    const parts = id => cardOf(id).locator('.req-extra-sections > .req-section:not([hidden]) .req-panel')
+      .evaluateAll(nodes => nodes.map(node => node.dataset.panel));
+    const focused = () => page.evaluate(() => ({ panel: document.activeElement?.dataset.panel || '', className: document.activeElement?.className || '' }));
+    const redeem = cardOf('req_e');
+    const menu = redeem.locator('.req-add-menu');
+    const addButton = redeem.locator('.req-add-btn');
+    assert.equal(await redeem.locator('.req-tab, [role="tab"]').count(), 0, 'no editor tabs');
+    assert.deepEqual(await parts('req_e'), ['assertions'], 'a part the request uses is shown, the others are not');
+    assert.equal(await redeem.locator('.req-section-headers').isVisible(), true);
+    assert.equal(await redeem.locator('.req-section-body').isVisible(), true, 'POST shows Body');
+    assert.equal(await redeem.locator('.req-editor-foot .sleep').inputValue(), '0.5', '"Wait after" holds the saved pause');
+    assert.equal(await redeem.locator('.req-wait label [data-help]').count(), 0, 'help sits beside the label');
+    assert.equal(await redeem.locator('.req-wait [data-help="pause"]').count(), 1);
+
+    // The menu by keyboard: Arrow Down opens it on the first item, End goes to the last, Escape returns.
+    await addButton.focus();
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await menu.isVisible(), true);
+    assert.equal(await addButton.getAttribute('aria-expanded'), 'true');
+    assert.equal((await focused()).panel, 'assertions');
+    assert.equal(await redeem.locator('.req-add-item[data-panel="assertions"] .req-add-added').isVisible(), true, 'a shown part says Added');
+    assert.equal(await redeem.locator('.req-add-item[data-panel="extractions"] .req-add-added').isVisible(), false);
+    await page.keyboard.press('End');
+    assert.equal((await focused()).panel, 'scripts');
+    assert.match(await redeem.locator('.req-add-item[data-panel="scripts"]').innerText(), /Advanced/i);
+    await page.keyboard.press('Escape');
+    assert.equal(await menu.isVisible(), false);
+    assert.match((await focused()).className, /req-add-btn/);
+    await addButton.click();
+    await page.locator('.zone-title').click();
+    assert.equal(await menu.isVisible(), false, 'a click outside closes it');
+
+    // Enter on an item adds that part and puts the cursor in it.
+    await addButton.focus();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    assert.match((await focused()).className, /ext-name/);
+    assert.deepEqual(await parts('req_e'), ['assertions', 'extractions']);
+    // Choosing a part that is already there takes the cursor to it.
+    await addButton.click();
+    await redeem.locator('.req-add-item[data-panel="assertions"]').click();
+    assert.match((await focused()).className, /check-template-btn/);
+
+    // Removing an empty part asks nothing; one that holds something asks first.
+    await redeem.locator('.req-section-extractions .req-section-remove').click();
+    assert.deepEqual(await parts('req_e'), ['assertions']);
+    assert.match((await focused()).className, /req-add-btn/, 'focus goes back to the menu button');
+    let asked = '';
+    page.once('dialog', dialog => { asked = dialog.message(); return dialog.dismiss(); });
+    await redeem.locator('.req-section-assertions .req-section-remove').click();
+    assert.match(asked, /^Remove "Check the response" from this request\?/);
+    assert.deepEqual(await parts('req_e'), ['assertions'], 'Cancel keeps it');
+    page.once('dialog', dialog => dialog.accept());
+    await redeem.locator('.req-section-assertions .req-section-remove').click();
+    assert.deepEqual(await parts('req_e'), []);
+    const removed = await page.evaluate(async () => (await import('/js/config.js')).collectConfig());
+    assert.deepEqual(removed.scenario.requests[0].assertions, [], 'the checks are gone from the project');
+
+    // A request with the automatic status check off opens with "Success statuses"; a GET with no body has no Body.
+    await cardOf('req_f').locator('.req-card-head').click();
+    assert.deepEqual(await parts('req_f'), ['statuses']);
+    assert.equal(await cardOf('req_f').locator('.check-status').isChecked(), false);
+    assert.equal(await cardOf('req_f').locator('.req-section-body').isVisible(), false);
+  }
+  checks.push('Request editor: no tabs; Headers + Body (by method) + the parts in use; "+ Add to this request" by keyboard (Arrow Down, End, Escape, Enter) and click-outside, marks added parts, puts the cursor in the part; removing an empty part asks nothing, a filled one asks (Cancel keeps it); "Wait after" beside its help');
 
   assert.deepEqual(forbidden, []);
   assert.deepEqual(errors, []);
