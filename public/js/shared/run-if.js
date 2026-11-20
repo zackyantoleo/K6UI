@@ -5,13 +5,13 @@
 // project store, the group editor, the outline, the JMeter importer and the
 // generator (server/generator/run-if.js) all use it, so they agree on what a
 // valid condition is.
+import { NAME_PATTERN } from './basics.js';
 
 export const RUN_IF_OPERATORS = Object.freeze(['equals', 'not-equals', 'one-of']);
 
-const VARIABLE_NAME = /^[A-Za-z_]\w*$/;
 const OPERATOR_TEXT = Object.freeze({ equals: 'is', 'not-equals': 'is not', 'one-of': 'is one of' });
 
-export const isRunIfVariable = name => typeof name === 'string' && VARIABLE_NAME.test(name);
+export const isRunIfVariable = name => typeof name === 'string' && NAME_PATTERN.test(name);
 
 // Trimmed, non-empty, unique strings in the order they were given.
 export function cleanRunIfValues(values) {

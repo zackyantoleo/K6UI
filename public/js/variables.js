@@ -24,8 +24,9 @@
 // }
 import { OUTCOME_VARIABLE, hasOutcomeRules } from './shared/outcomes.js';
 import { readDataSet } from './shared/csv-parse.js';
+import { NAME_PATTERN, text } from './shared/basics.js';
 
-export const VARIABLE_NAME = /^[A-Za-z_]\w*$/;
+export const VARIABLE_NAME = NAME_PATTERN;
 // What interpolate.js replaces; anything else between braces is sent as text.
 const PLACEHOLDER = /\{\{(\$?\w+)\}\}/g;
 const SPACED_PLACEHOLDER = /\{\{(\s*)(\$?\w+)(\s*)\}\}/g;
@@ -33,7 +34,6 @@ const SPACED_PLACEHOLDER = /\{\{(\s*)(\$?\w+)(\s*)\}\}/g;
 const ASSIGNED_VAR = /\bvars\.([A-Za-z_]\w*)\s*(?:=(?!=)|[+\-*/%]=|\*\*=|&&=|\|\|=|\?\?=|\+\+|--)/g;
 const BODY_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
-const text = value => (value == null ? '' : String(value));
 const unique = list => [...new Set(list)];
 
 // "{{a}}/{{$outcome}}" → ['a', '$outcome'] (each name once, in order).

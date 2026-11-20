@@ -15,16 +15,15 @@ import { validateExpectedStatuses } from "./expected-statuses.js";
 import { planRaceScript } from "./race.js";
 import { expandSubRequests } from "../../public/js/shared/sub-requests.js";
 import { normalizeRequestLog } from "../../public/js/shared/request-log.js";
+import { NAME_PATTERN } from "../../public/js/shared/basics.js";
 
 // Global variables must be valid JS identifiers: they are emitted as object
 // keys on GLOBALS and referenced via dot access ({{name}} → GLOBALS.name).
-const VALID_VAR_NAME = /^[A-Za-z_]\w*$/;
-
 function collectGlobalVars(variables) {
   const map = new Map();
   if (!Array.isArray(variables)) return map;
   for (const v of variables) {
-    if (!v || !v.key || !VALID_VAR_NAME.test(v.key)) continue;
+    if (!v || !v.key || !NAME_PATTERN.test(v.key)) continue;
     map.set(v.key, String(v.value == null ? "" : v.value));
   }
   return map;

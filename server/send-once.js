@@ -15,14 +15,10 @@
 // k6 output are read; k6 is killed after `timeoutMs` (504); at most `concurrent`
 // sends at a time (429). The result is JSON and the browser renders every value
 // as text (public/js/components/send-once.js).
-import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { generateScript } from "./generator/index.js";
-import { createLineSplitter } from "./line-splitter.js";
+import { K6_NOT_FOUND, createScriptFolder, spawnK6 } from "./k6-process.js";
 import { expandSubRequests } from "../public/js/shared/sub-requests.js";
+import { isObject } from "../public/js/shared/basics.js";
 
 export const SEND_ONCE_LIMITS = Object.freeze({
   bodyChars: 256 * 1024,
@@ -41,7 +37,6 @@ export class SendOnceError extends Error {
   }
 }
 
-const isObject = value => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 // The project → a project with only that request: on, in its group (on, without its
 // "Run only if"), no pause, nothing read from or saved after the response (checks,
@@ -174,19 +169,23 @@ export async function sendOnce(config, requestId, { signal, limits = SEND_ONCE_L
 }
 
 async function runOnce(script, { signal, limits, k6 }) {
-  const workDir = await mkdtemp(join(tmpdir(), "k6ui-send-once-"));
+  const folder = await createScriptFolder("k6ui-send-once-", "script.js", script);
   try {
-    await writeFile(join(workDir, "script.js"), script, "utf8");
     return await new Promise((resolve, reject) => {
-      const child = spawn(k6, ["run", "--quiet", "--no-usage-report", "--no-thresholds", "--log-format", "json", "script.js"], {
-        cwd: workDir,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
       let record = null;
-      let readBytes = 0;
       let timedOut = false;
       let settled = false;
       const log = [];
+      const onLine = line => {
+        const read = readOutputLine(line, limits);
+        if (read?.record && !record) record = read.record;
+        else if (read?.message && log.length < limits.messages) log.push(read.message);
+      };
+      // Past `outputBytes` nothing more is read; a line cut there does not parse and is skipped.
+      const { child, flushOutput } = spawnK6(
+        ["run", "--quiet", "--no-usage-report", "--no-thresholds", "--log-format", "json", "script.js"],
+        { cwd: folder.dir, onLine, maxBytes: limits.outputBytes, command: k6 },
+      );
       const finish = (fn, value) => {
         if (settled) return;
         settled = true;
@@ -199,28 +198,13 @@ async function runOnce(script, { signal, limits, k6 }) {
       const abort = () => kill();
       signal?.addEventListener("abort", abort, { once: true });
 
-      const onLine = line => {
-        const read = readOutputLine(line, limits);
-        if (read?.record && !record) record = read.record;
-        else if (read?.message && log.length < limits.messages) log.push(read.message);
-      };
-      // Past `outputBytes` nothing more is read; a line cut there does not parse and is skipped.
-      const outputs = [child.stdout, child.stderr].map(stream => {
-        const lines = createLineSplitter(onLine);
-        stream.on("data", chunk => {
-          if (readBytes >= limits.outputBytes) return;
-          readBytes += chunk.length;
-          lines.push(chunk);
-        });
-        return lines;
-      });
       child.on("error", err => {
         finish(reject, err.code === "ENOENT"
-          ? new SendOnceError("k6 was not found on the server. Make sure k6 is installed (https://k6.io/docs/get-started/installation/).", 503)
+          ? new SendOnceError(K6_NOT_FOUND, 503)
           : new SendOnceError(`Could not start k6: ${err.message}`, 500));
       });
       child.on("close", () => {
-        for (const lines of outputs) lines.end();
+        flushOutput();
         if (timedOut) {
           finish(reject, new SendOnceError(`No answer within ${Math.round(limits.timeoutMs / 1000)} s, so the request was stopped.`, 504));
         } else if (record) {
@@ -232,6 +216,6 @@ async function runOnce(script, { signal, limits, k6 }) {
       });
     });
   } finally {
-    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+    await folder.remove();
   }
 }

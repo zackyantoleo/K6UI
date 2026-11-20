@@ -3,10 +3,11 @@
 // values (options, headers, JSON bodies), and textOf() renders an expression as
 // K6UI text, turning variable references into {{name}} placeholders.
 import { OUTCOME_VARIABLE } from "../../public/js/shared/outcomes.js";
+import { NAME_PATTERN } from "../../public/js/shared/basics.js";
 
 export class Unresolvable extends Error {}
 
-export const VALID_VAR_NAME = /^[A-Za-z_]\w*$/;
+export const VALID_VAR_NAME = NAME_PATTERN;
 const MAX_DEPTH = 24;
 
 export function unwrap(node) {

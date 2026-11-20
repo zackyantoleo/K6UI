@@ -8,6 +8,7 @@
 // file. Nothing is written to disk. Pure and DOM-free: shared by the store, the
 // request editor, the results panel and server/generator/csv-export.js.
 import { MAX_DATA_BYTES, MAX_DATA_SET_BYTES, VALID_COLUMN_NAME } from './csv-parse.js';
+import { isObject, text } from './basics.js';
 
 // One exported file always fits in a data file, and all of them in a project.
 export const MAX_EXPORT_FILE_BYTES = MAX_DATA_SET_BYTES;
@@ -17,8 +18,6 @@ export const MAX_EXPORT_FILE_NAME = 120;
 // The marker the generated script puts first in each logged row.
 export const EXPORT_MARKER = 'k6uiExport';
 
-const text = value => (typeof value === 'string' ? value : value == null ? '' : String(value));
-const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 // The canonical shape (unknown fields pass through), or null for a value that is not an export.
 export function normalizeExport(raw) {

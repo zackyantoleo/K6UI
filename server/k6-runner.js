@@ -25,88 +25,31 @@
 // taken), and the runner polls `GET /v1/metrics` there until k6 exits or stop() is
 // called. A poll that fails is skipped and never affects the run. Without a free port
 // k6 starts as before (its own default address) and no metrics events are sent.
-import { spawn } from "node:child_process";
-import { writeFile, readFile, mkdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { K6_NOT_FOUND, createScriptFolder, spawnK6 } from "./k6-process.js";
 import { consoleMessageOf } from "./k6-console.js";
 import { createExportCollector } from "./export-collector.js";
-import { createLineSplitter } from "./line-splitter.js";
 import { createRaceCollector } from "./race-collector.js";
 import { createRequestLogThrottle } from "./request-log-throttle.js";
 import { METRICS_INTERVAL_MS, freePort, startMetricsPoller } from "./live-metrics.js";
 
 export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = METRICS_INTERVAL_MS }) {
-  const workDir = join(tmpdir(), `k6ui-${randomUUID()}`);
-  const scriptPath = join(workDir, "test.js");
-  const summaryPath = join(workDir, "summary.json");
-
-  async function cleanup() {
-    try {
-      await rm(workDir, { recursive: true, force: true });
-    } catch {
-      // ignore cleanup failures
-    }
-  }
-
+  let folder;
   try {
-    await mkdir(workDir, { recursive: true });
-    await writeFile(scriptPath, script, "utf8");
+    folder = await createScriptFolder("k6ui-run-", "test.js", script);
   } catch (err) {
     onEvent("error", { message: `Failed to prepare the test file: ${err.message}` });
     onEnd();
     return { stop() {} };
   }
+  const summaryPath = join(folder.dir, "summary.json");
 
   onEvent("status", { message: "Starting k6..." });
-
-  const apiPort = await freePort().catch(() => null);
-  const args = ["run", "--summary-export", summaryPath];
-  if (apiPort) args.push("--address", `127.0.0.1:${apiPort}`);
-  args.push(scriptPath);
-  const child = spawn("k6", args, { cwd: workDir });
-  const poller = apiPort
-    ? startMetricsPoller({
-      url: `http://127.0.0.1:${apiPort}/v1/metrics`,
-      intervalMs: metricsIntervalMs,
-      onMetrics: (metrics) => onEvent("metrics", metrics),
-    })
-    : null;
 
   const requestLogs = createRequestLogThrottle(onEvent);
   const exportRows = createExportCollector(onEvent);
   const raceRecords = createRaceCollector();
-
-  // The run ends exactly once: after `close`, or after an `error` that means k6 never
-  // started (a spawn failure is followed by a `close` too, which is then ignored).
-  // A failure while the results are read or handed over becomes an `error` event, not
-  // an unhandled rejection (that would stop the server); the folder is removed and
-  // onEnd() runs either way.
-  let finished = false;
-  async function finish(readResults) {
-    if (finished) return;
-    finished = true;
-    poller?.stop();
-    try {
-      if (readResults) onEvent("done", await readResults());
-    } catch (err) {
-      onEvent("error", { message: `Failed to read the results: ${err.message}` });
-    } finally {
-      await cleanup();
-      onEnd();
-    }
-  }
-
-  child.on("error", (err) => {
-    if (err.code === "ENOENT") {
-      onEvent("error", { message: "k6 was not found on the server. Make sure k6 is installed (https://k6.io/docs/get-started/installation/)." });
-    } else {
-      onEvent("error", { message: `Failed to run k6: ${err.message}` });
-    }
-    // Without a pid k6 never started; otherwise (a failed kill) `close` still follows.
-    if (child.pid === undefined) finish(null);
-  });
 
   // K6UI's own console lines (Save to CSV rows, race records, request records) never
   // reach the live log, not even a broken one, since it may hold a token.
@@ -125,14 +68,47 @@ export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = M
     onEvent("log", { line: line + "\n" });
   }
 
-  const outputs = [child.stdout, child.stderr].map((stream) => {
-    const lines = createLineSplitter(handleOutputLine);
-    stream.on("data", (chunk) => lines.push(chunk));
-    return lines;
+  const apiPort = await freePort().catch(() => null);
+  const args = ["run", "--summary-export", summaryPath];
+  if (apiPort) args.push("--address", `127.0.0.1:${apiPort}`);
+  args.push(folder.path);
+  const { child, flushOutput } = spawnK6(args, { cwd: folder.dir, onLine: handleOutputLine });
+  const poller = apiPort
+    ? startMetricsPoller({
+      url: `http://127.0.0.1:${apiPort}/v1/metrics`,
+      intervalMs: metricsIntervalMs,
+      onMetrics: (metrics) => onEvent("metrics", metrics),
+    })
+    : null;
+
+  // The run ends exactly once: after `close`, or after an `error` that means k6 never
+  // started (a spawn failure is followed by a `close` too, which is then ignored).
+  // A failure while the results are read or handed over becomes an `error` event, not
+  // an unhandled rejection (that would stop the server); the folder is removed and
+  // onEnd() runs either way.
+  let finished = false;
+  async function finish(readResults) {
+    if (finished) return;
+    finished = true;
+    poller?.stop();
+    try {
+      if (readResults) onEvent("done", await readResults());
+    } catch (err) {
+      onEvent("error", { message: `Failed to read the results: ${err.message}` });
+    } finally {
+      await folder.remove();
+      onEnd();
+    }
+  }
+
+  child.on("error", (err) => {
+    onEvent("error", { message: err.code === "ENOENT" ? K6_NOT_FOUND : `Failed to run k6: ${err.message}` });
+    // Without a pid k6 never started; otherwise (a failed kill) `close` still follows.
+    if (child.pid === undefined) finish(null);
   });
 
   child.on("close", (code) => finish(async () => {
-    for (const lines of outputs) lines.end();
+    flushOutput();
     let summary = null;
     try {
       summary = JSON.parse(await readFile(summaryPath, "utf8"));

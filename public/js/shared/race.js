@@ -28,6 +28,7 @@ import {
   THRESHOLD_NUMBER, THRESHOLD_VARIABLE, dataColumnNames, globalValues, requestTitle, runtimeNames,
   thresholdRequests,
 } from './outcome-thresholds.js';
+import { isObject, oneLine, text } from './basics.js';
 
 export const RACE_MODE = 'race';
 export const RACE_TIMINGS = [
@@ -59,9 +60,6 @@ const TIMING_VALUES = new Set(RACE_TIMINGS.map(timing => timing.value));
 const WHOLE = /^[1-9]\d*$/;
 const WARMUP_PATH = /^\/\S*$/;
 
-const text = value => (typeof value === 'string' ? value : value == null ? '' : String(value));
-const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const oneLine = value => text(value).replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 // Offsets as one text: "0, 1000 ,1000" → "0,1000,1000" (a list is joined). Entries

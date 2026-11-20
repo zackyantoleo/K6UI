@@ -1,5 +1,6 @@
 // Codegen for extracting variables from a response (JSON path / header / regex).
 import { buildGjsonPath, buildJsonAccessor, buildRegex, jsLiteral, oneLine } from "./helpers.js";
+import { NAME_PATTERN } from "../../public/js/shared/basics.js";
 
 const SOURCES = new Set(["json", "header", "regex"]);
 
@@ -9,10 +10,9 @@ export const isExtractable = (e) => Boolean(e && e.varName && SOURCES.has(e.sour
 // The name becomes a `let` in the script, so it must be a plain identifier (the
 // [A-Za-z_]\w* rule of the UI and the importers) that strict-mode JavaScript accepts
 // as a variable: not `class`, `let`, `eval`, ... `await` is reserved in a module.
-const VARIABLE_NAME = /^[A-Za-z_]\w*$/;
 
 function isUsableName(name) {
-  if (typeof name !== "string" || !VARIABLE_NAME.test(name) || name === "await") return false;
+  if (typeof name !== "string" || !NAME_PATTERN.test(name) || name === "await") return false;
   try {
     new Function(`"use strict"; let ${name};`); // compiled, never run; `name` is \w only
     return true;

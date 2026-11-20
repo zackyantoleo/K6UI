@@ -16,6 +16,7 @@ import { DEFAULT_EXPECTED_STATUSES, normalizeExpectedStatuses } from './shared/e
 import { RACE_RECORD_COLUMNS, raceFigures, raceRecordCells, raceResultText, raceResultWarns } from './shared/race.js';
 import { raceGantt } from './race-gantt.js';
 import { curlFromRecord } from './curl-export.js';
+import { isObject } from './shared/basics.js';
 
 export const REPORT_FORMAT = 'k6ui-run-report';
 export const REPORT_VERSION = 1;
@@ -27,7 +28,6 @@ const STATUS_LABELS = {
 
 const TREND_KEYS = ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'];
 
-const isObject = value => value != null && typeof value === 'object' && !Array.isArray(value);
 const numberOrNull = value => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 
 // k6 --summary-export metric → its kind, from the keys it carries.
