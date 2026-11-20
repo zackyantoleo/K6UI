@@ -35,6 +35,50 @@ test('outline keeps the global execution order with group labels, not grouped or
   ]);
 });
 
+test('outline tree: each run of one group is a section, as the generated script runs it', () => {
+  const model = outlineModel([
+    request('req_login', 'grp_auth'),
+    request('req_token', 'grp_auth'),
+    request('req_cart', 'grp_checkout'),
+    request('req_free', ''),
+    request('req_orphan', 'grp_missing'),
+    request('req_profile', 'grp_auth'),
+  ], [
+    { id: 'grp_auth', name: 'Auth', enabled: true, collapsed: true },
+    { id: 'grp_checkout', name: 'Checkout', enabled: true },
+    { id: 'grp_empty', name: 'Later', enabled: true },
+  ]);
+
+  assert.deepEqual(model.sections.map(section => [section.key, section.groupId, section.part, section.parts, section.requestIds]), [
+    ['grp_auth:1', 'grp_auth', 1, 2, ['req_login', 'req_token']],
+    ['grp_checkout:1', 'grp_checkout', 1, 1, ['req_cart']],
+    [':1', '', 1, 1, ['req_free', 'req_orphan']],
+    ['grp_auth:2', 'grp_auth', 2, 2, ['req_profile']],
+    ['grp_empty:1', 'grp_empty', 1, 1, []],
+  ], 'requests keep execution order; an unknown group counts as no group; a group without requests comes last');
+  assert.deepEqual(model.groups.map(group => [group.id, group.collapsed, group.count]), [
+    ['grp_auth', true, 3],
+    ['grp_checkout', false, 1],
+    ['grp_empty', false, 0],
+  ]);
+  assert.deepEqual(outlineModel([], []).sections, []);
+});
+
+test('outline folds a group with its own collapsed flag and keeps the selection reachable', async () => {
+  const [outline, groupsSource, counts] = await Promise.all([
+    read('public/js/components/flow-outline.js'),
+    read('public/js/components/request-groups.js'),
+    read('public/js/components/counts.js'),
+  ]);
+  assert.match(groupsSource, /collapse\.addEventListener\('click', \(\) => setRequestGroupCollapsed\(/);
+  assert.match(outline, /querySelector\('\.request-group-collapse'\)\?\.click\(\)/,
+    'the outline folds with the group\'s own button, so both modes share one flag');
+  assert.doesNotMatch(outline, /from '\.\/request-groups\.js'/, 'request-groups.js needs a window; the outline model is tested in Node');
+  assert.match(outline, /aria-expanded/);
+  assert.match(outline, /aria-controls/);
+  assert.match(counts, /closest\('\.outline-section'\)/, 'a removed request whose neighbour is folded away focuses its group head');
+});
+
 test('outline marks skipped requests honestly and falls back for blank names', () => {
   const model = outlineModel([
     request('req_off', 'grp_auth', { enabled: false }),

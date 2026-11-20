@@ -114,6 +114,18 @@ export function applyRequestGroupVisibility() {
   });
 }
 
+// Fold or unfold a group: Simple hides its cards, the Advanced outline (which
+// presses this button) its requests. Saved with the project (`collapsed`).
+function setRequestGroupCollapsed(wrapper, collapsed) {
+  wrapper.classList.toggle('collapsed', collapsed);
+  const control = wrapper.querySelector('.request-group-collapse');
+  const label = collapsed ? 'Expand request group' : 'Collapse request group';
+  control.setAttribute('aria-expanded', String(!collapsed));
+  control.setAttribute('aria-label', label);
+  control.title = label;
+  applyRequestGroupVisibility();
+}
+
 export function refreshRequestGroupOptions(preferredGroups = new Map()) {
   const groups = groupRecords();
   document.querySelectorAll('#reqs-main .request-group-select').forEach(select => {
@@ -143,7 +155,7 @@ export function createRequestGroup(group = {}) {
 
   const head = document.createElement('div');
   head.className = 'request-group-head';
-  const collapse = button('Collapse request group', 'request-group-collapse', '▾');
+  const collapse = button(group.collapsed === true ? 'Expand request group' : 'Collapse request group', 'request-group-collapse', '▾');
   collapse.setAttribute('aria-expanded', String(group.collapsed !== true));
   const name = document.createElement('input');
   name.className = 'request-group-name';
@@ -182,12 +194,7 @@ export function createRequestGroup(group = {}) {
     body.querySelector('.group-run-if').addEventListener(type, () => updateRunIfSummary(wrapper));
   }
 
-  collapse.addEventListener('click', () => {
-    const collapsed = wrapper.classList.toggle('collapsed');
-    collapse.setAttribute('aria-expanded', String(!collapsed));
-    collapse.setAttribute('aria-label', collapsed ? 'Expand request group' : 'Collapse request group');
-    applyRequestGroupVisibility();
-  });
+  collapse.addEventListener('click', () => setRequestGroupCollapsed(wrapper, !wrapper.classList.contains('collapsed')));
   // Wrapped: passing the listener directly would hand the Event in as `preferredGroups`.
   name.addEventListener('input', () => refreshRequestGroupOptions());
   enabled.addEventListener('change', () => wrapper.classList.toggle('request-group-disabled', !enabled.checked));

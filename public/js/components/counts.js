@@ -56,13 +56,15 @@ export function notifyFlowChanged(select) {
 
 // Removing the focused card or group would drop keyboard focus on <body>.
 // Advanced keeps the user in the outline, whose selection already moved to a
-// neighbour; Simple moves to the first visible neighbour's control, else to
-// the matching Add button. Call after notifyFlowChanged().
+// neighbour (or, when that neighbour sits in a folded group, on that group's
+// head); Simple moves to the first visible neighbour's control, else to the
+// matching Add button. Call after notifyFlowChanged().
 export function focusAfterRemoval(hadFocus, neighbours, controlSelector, fallbackSelector) {
   if (!hadFocus) return;
   const shown = element => Boolean(element?.getClientRects().length);
+  const current = document.querySelector('#flow-outline .outline-item[aria-current="true"]');
   const target = document.documentElement.dataset.uiMode === 'advanced'
-    ? document.querySelector('#flow-outline .outline-item[aria-current="true"]')
+    ? (shown(current) ? current : current?.closest('.outline-section')?.querySelector('.outline-group'))
       || document.querySelector('#outline-add-request')
     : neighbours.map(item => item?.querySelector(controlSelector)).find(shown)
       || document.querySelector(fallbackSelector);
