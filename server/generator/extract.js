@@ -1,5 +1,5 @@
 // Codegen for extracting variables from a response (JSON path / header / regex).
-import { buildGjsonPath, buildJsonAccessor, buildRegex, jsLiteral, oneLine } from "./helpers.js";
+import { buildGjsonPath, buildJsonAccessor, buildRegex, canonicalHeaderName, jsLiteral, oneLine, regexProblem } from "./helpers.js";
 import { NAME_PATTERN } from "../../public/js/shared/basics.js";
 
 const SOURCES = new Set(["json", "header", "regex"]);
@@ -21,12 +21,55 @@ function isUsableName(name) {
   }
 }
 
-// 400 naming the request when an extraction's name cannot be a variable.
-export function validateExtractionNames(requests) {
+// Names the default function of the script uses itself. An extraction's `let` with one
+// of them would declare it twice (a SyntaxError: res_main_0, DATA_1_ROW, ...) or hide
+// the module's, k6's or JavaScript's one in the whole function, so the first request
+// already fails with "Cannot access a variable before initialization" (http, check,
+// JSON, ...). Kept in step with the generator by test/generator-script-safety.test.js,
+// which collects every name a full-featured script uses there. Names at the top of the
+// module only (options, RACE, Counter, ...) are never read inside it, so they are free.
+const SCRIPT_NAMES = new Set([
+  "http", "check", "sleep", "grpc", "crypto", "encoding", "exec",
+  "GLOBALS", "OUTCOME", "extractOr", "logHttpRequest", "logHttpOutcome", "logGrpcRequest",
+  "k6uiRaceWait", "k6uiRaceWarmup", "k6uiRaceRecord",
+  "JSON", "String", "Date", "console", "undefined", "__VU", "__ITER", "__ENV",
+]);
+const SCRIPT_NAME_PATTERN = /^(?:(?:res|body|d|msg|t|outcome)_main_\d+|race_(?:at|sent)_\d+|DATA_\d+(?:_ROW|_ENDED)?|EXPECTED_STATUSES_\d+|OUTCOME_(?:TAGS|RULES|PATTERNS)_\d+|outcomeOf_\d+|grpc_client_\d+)$/;
+
+// True for a name the script always uses itself (also read by the JMeter importer,
+// which renames such variables). `vars` (with processor scripts) and `data` (race
+// burst) are only taken when the script has them: see validateExtractionNames.
+export const isScriptName = (name) => SCRIPT_NAMES.has(name) || SCRIPT_NAME_PATTERN.test(name);
+
+// 400 naming the request when an extraction's name cannot be a variable of the
+// script. `processors` = a request that runs has a pre/post-processor (`const vars`),
+// `race` = race burst mode (`export default function(data)`).
+export function validateExtractionNames(requests, { processors = false, race = false } = {}) {
   requests.forEach((req, i) => {
     for (const e of req.extractions || []) {
-      if (!isExtractable(e) || isUsableName(e.varName)) continue;
-      throw new Error(`Request ${i + 1}: "${oneLine(e.varName)}" cannot be the name of an extracted value. Use letters, digits and _ (not starting with a digit), and not a JavaScript word such as "class".`);
+      if (!isExtractable(e)) continue;
+      const name = e.varName;
+      if (!isUsableName(name)) {
+        throw new Error(`Request ${i + 1}: "${oneLine(name)}" cannot be the name of an extracted value. Use letters, digits and _ (not starting with a digit), and not a JavaScript word such as "class".`);
+      }
+      const taken = isScriptName(name)
+        || (name === "vars" && processors && "the pre/post-processor scripts keep their values in it")
+        || (name === "data" && race && "a race burst passes its start time in it");
+      if (taken) {
+        throw new Error(`Request ${i + 1}: the script already uses the name "${name}"${typeof taken === "string" ? ` (${taken})` : ""}, so an extracted value cannot have it. Choose another name, such as "${name}_value".`);
+      }
+    }
+  });
+}
+
+// 400 naming the request when a regex extraction cannot be written into the script
+// (see helpers.js regexProblem).
+export function validateExtractionRegexes(requests) {
+  requests.forEach((req, i) => {
+    for (const e of req.extractions || []) {
+      if (!isExtractable(e) || e.source !== "regex") continue;
+      const problem = regexProblem(e.selector);
+      if (problem) throw new Error(`Request ${i + 1}: extraction "${oneLine(e.varName)}": "${oneLine(String(e.selector))}" is not a regular expression: ${problem}.`);
     }
   });
 }
@@ -55,7 +98,8 @@ function extractOr(read, fallback) {
   }
 }`;
 
-// mode = 'http' → JSON source reads res.json(<gjson path>); regex matches res.body.
+// mode = 'http' → JSON source reads res.json(<gjson path>); regex matches res.body
+//                 ("" when there is none); a header name is written as k6 keys it.
 // mode = 'grpc' → JSON source reads the already-decoded res.message; regex
 //                 matches JSON.stringify(res.message).
 // declared = names already declared with `let` (each new one is added), so a name is
@@ -81,10 +125,12 @@ export function buildExtractionLines(extractions, resVar, { mode = "http", decla
         : `${resVar}.json(${path ? jsLiteral(path) : ""})`;
       rhs = read;
     } else if (e.source === "header") {
-      read = `${resVar}.headers[${JSON.stringify(sel)}]`;
+      // HTTP: k6 keys headers in Go's canonical form (X-Request-Id), whatever was typed.
+      read = `${resVar}.headers[${JSON.stringify(mode === "grpc" ? sel : canonicalHeaderName(sel))}]`;
       rhs = read;
     } else if (e.source === "regex") {
-      const subject = mode === "grpc" ? `JSON.stringify(${resVar}.message || {})` : `${resVar}.body`;
+      // HTTP: a response without a body (timeout, refused connection) has body null.
+      const subject = mode === "grpc" ? `JSON.stringify(${resVar}.message || {})` : `(${resVar}.body ?? "")`;
       read = `(${subject}.match(${buildRegex(sel)}) || [])[1]`;
       rhs = `${read} || ""`;
     } else {

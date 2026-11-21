@@ -7,9 +7,10 @@
 // that are (a group's condition, a processor script, a gRPC call, the race wait) stay
 // with that request's code in flow.js, in request order.
 import { buildOptions } from "./options.js";
-import { extractionDefault, isExtractable, validateExtractionNames } from "./extract.js";
+import { extractionDefault, isExtractable, validateExtractionNames, validateExtractionRegexes } from "./extract.js";
+import { validateAssertions } from "./assertions.js";
 import { prepareDataSets } from "./data.js";
-import { extractionDefaultsByName, validateExports } from "./csv-export.js";
+import { validateExports } from "./csv-export.js";
 import { addOutcomeThresholds, outcomeTargets, planThresholds, usesOutcomeVariable, validateOutcomes } from "./outcomes.js";
 import { validateExpectedStatuses } from "./expected-statuses.js";
 import { planRaceScript } from "./race.js";
@@ -87,7 +88,10 @@ export function planScript(config) {
   // Checked up front, so a broken request is a 400 before any code is built. Each
   // outcome label gets an always-passing threshold so k6 reports its count; outcome
   // targets add their expressions to those thresholds (same request numbers).
-  validateExtractionNames(requests);
+  const hasProcessors = requests.some((r) => hasText(r.preScript) || hasText(r.postScript));
+  validateExtractionNames(requests, { processors: hasProcessors, race: Boolean(race) });
+  validateExtractionRegexes(requests);
+  validateAssertions(requests);
   validateOutcomes(requests);
   validateExpectedStatuses(requests);
   const outcomes = outcomeTargets(requests);
@@ -112,7 +116,6 @@ export function planScript(config) {
     outcomes,
     outcomeByIndex: new Map(outcomes.map((target) => [target.index, target])),
     outcomeThresholds,
-    exportDefaults: extractionDefaultsByName(requests),
     imports: {
       crypto: /\bcrypto\./.test(processorSource),
       encoding: /\bencoding\./.test(processorSource),
@@ -122,6 +125,6 @@ export function planScript(config) {
     // {{$outcome}} reads the label of the latest request with outcome rules that ran in
     // this iteration: kept in one variable, only when a request uses it.
     keepOutcome: outcomes.length > 0 && requests.some(usesOutcomeVariable),
-    hasProcessors: requests.some((r) => hasText(r.preScript) || hasText(r.postScript)),
+    hasProcessors,
   };
 }

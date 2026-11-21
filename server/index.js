@@ -3,6 +3,7 @@ import express from "express";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { apiGuard } from "./api-guard.js";
 import { isLoopbackAddress, localHostOnly } from "./host-check.js";
 import { apiRouter } from "./routes.js";
 
@@ -22,6 +23,8 @@ const DEFAULT_BODY_LIMIT = "1mb";
 export function createApp({ localOnly = true } = {}) {
   const app = express();
   if (localOnly) app.use(localHostOnly);
+  // Only K6UI's own page may call the API (see api-guard.js); checked before a body is read.
+  app.use("/api", apiGuard);
   app.use(["/api/generate", "/api/run", "/api/send-once"], express.json({ limit: CONFIG_BODY_LIMIT }));
   app.use(express.json({ limit: DEFAULT_BODY_LIMIT }));
   app.use(express.static(join(__dirname, "..", "public")));

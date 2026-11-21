@@ -18,7 +18,8 @@
 //   done    — process finished: { code, outcome, summary } (summary from --summary-export),
 //             plus raceRecords: { records, dropped } when the script logged race records
 // onEnd() is called once the process ends. Return value: { stop() } to
-// terminate k6 (e.g. when the client closes the connection).
+// terminate k6 (e.g. when the client closes the connection): SIGTERM, then SIGKILL
+// after `stopGraceMs` if k6 is still running.
 //
 // k6 gets `--address 127.0.0.1:<port>` with a port the OS reports free, so its REST
 // API never clashes with another run (k6 exits with code 106 when the port is
@@ -34,7 +35,12 @@ import { createRaceCollector } from "./race-collector.js";
 import { createRequestLogThrottle } from "./request-log-throttle.js";
 import { METRICS_INTERVAL_MS, freePort, startMetricsPoller } from "./live-metrics.js";
 
-export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = METRICS_INTERVAL_MS }) {
+// stop() sends SIGTERM, which k6 answers by ending the test; a k6 still running
+// STOP_GRACE_MS later gets SIGKILL, so its run (and its place, see routes.js MAX_RUNS)
+// always ends.
+export const STOP_GRACE_MS = 5000;
+
+export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = METRICS_INTERVAL_MS, stopGraceMs = STOP_GRACE_MS }) {
   let folder;
   try {
     folder = await createScriptFolder("k6ui-run-", "test.js", script);
@@ -87,9 +93,11 @@ export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = M
   // an unhandled rejection (that would stop the server); the folder is removed and
   // onEnd() runs either way.
   let finished = false;
+  let killTimer = null;
   async function finish(readResults) {
     if (finished) return;
     finished = true;
+    clearTimeout(killTimer);
     poller?.stop();
     try {
       if (readResults) onEvent("done", await readResults());
@@ -121,10 +129,17 @@ export async function startK6Run(script, { onEvent, onEnd, metricsIntervalMs = M
     return { code, outcome, summary, ...raceRecords.result() };
   }));
 
+  // `child.killed` only says a signal was sent, not that k6 has exited.
+  const running = () => !finished && child.exitCode === null && child.signalCode === null;
   return {
     stop() {
       poller?.stop();
-      if (!child.killed) child.kill("SIGTERM");
+      if (!running() || killTimer) return;
+      child.kill("SIGTERM");
+      killTimer = setTimeout(() => {
+        if (running()) child.kill("SIGKILL");
+      }, stopGraceMs);
+      killTimer.unref?.();
     },
   };
 }

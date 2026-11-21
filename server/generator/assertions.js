@@ -1,25 +1,40 @@
 // Per-request assertion codegen → k6 check() block with descriptive labels.
-import { buildRegex } from "./helpers.js";
+import { buildRegex, canonicalHeaderName } from "./helpers.js";
+import { assertionsProblem } from "../../public/js/shared/assertions.js";
+
+// 400 naming the request for a check whose value cannot work (see
+// public/js/shared/assertions.js); `requests` = the requests that run.
+export function validateAssertions(requests) {
+  const problem = assertionsProblem(requests.map((req, i) => ({ label: `Request ${i + 1}`, type: req.type, assertions: req.assertions })));
+  if (problem) throw new Error(problem);
+}
 
 // mode = 'grpc' adapts the predicates to a k6 gRPC response: statuses are
 // gRPC status codes (0 = OK), "body" is JSON.stringify(r.message), and
 // duration-lt is skipped (gRPC responses carry no timings).
+// An HTTP response without a body (a timeout, a refused connection) has `r.body`
+// null: it is read as "", so a check fails or passes instead of throwing a TypeError
+// that ends the iteration (and a regex never matches the text "null").
 function buildAssertionFn(type, val, val2, mode) {
-  const num  = Number(val);
+  const num  = Number(String(val).trim());
   const sv   = JSON.stringify(val);
   const sv2  = JSON.stringify(val2);
-  const body = mode === 'grpc' ? 'JSON.stringify(r.message || {})' : 'r.body';
+  const grpcMode = mode === 'grpc';
+  const body = grpcMode ? 'JSON.stringify(r.message || {})' : '(r.body ?? "")';
+  const bodyArg = grpcMode ? body : 'r.body ?? ""';
+  // k6 keeps HTTP header names as Go writes them (X-Request-Id), whatever was typed.
+  const header = JSON.stringify(grpcMode ? val : canonicalHeaderName(val));
   switch (type) {
     case 'status-2xx':
-      return mode === 'grpc' ? `r.status === grpc.StatusOK` : `r.status >= 200 && r.status < 300`;
+      return grpcMode ? `r.status === grpc.StatusOK` : `r.status >= 200 && r.status < 300`;
     case 'status-eq':         return `r.status === ${num}`;
     case 'status-ne':         return `r.status !== ${num}`;
     case 'status-lt':         return `r.status < ${num}`;
     case 'body-contains':     return `${body}.includes(${sv})`;
     case 'body-not-contains': return `!${body}.includes(${sv})`;
-    case 'body-matches':      return `${buildRegex(val)}.test(${body})`;
-    case 'header-exists':     return `r.headers[${sv}] != null`;
-    case 'header-eq':         return mode === 'grpc' ? `String(r.headers[${sv}]) === ${sv2}` : `r.headers[${sv}] === ${sv2}`;
+    case 'body-matches':      return `${buildRegex(val)}.test(${bodyArg})`;
+    case 'header-exists':     return `r.headers[${header}] != null`;
+    case 'header-eq':         return grpcMode ? `String(r.headers[${header}]) === ${sv2}` : `r.headers[${header}] === ${sv2}`;
     case 'duration-lt':       return mode === 'grpc' ? '' : `r.timings.duration < ${num}`;
     default:                  return '';
   }

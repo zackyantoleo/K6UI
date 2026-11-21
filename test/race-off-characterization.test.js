@@ -75,7 +75,7 @@ export const RACE_OFF_PROJECTS = {
 };
 
 const EXPECTED = {
-  'fixed VUs, processors, extraction, assertions': 'c7e3c59da09c0766ba097468676be99e59b5d04cbba9cf6667b12554f412da1d',
+  'fixed VUs, processors, extraction, assertions': 'f663a2c06623a4aada7cbfd2c76e04db7033cf962bf975cb90c879c68d13b25c',
   'iterations, outcome rules, expected statuses, targets, request log': '3d550b718857d5c8fe8f701e44d5dc078ab20a9b502895347b6245a7fe2bd0e7',
   'stages, conditional group, data file': 'ad9ddf875100508975506c5db996d390706e8b59bc16159e63482b6850fdf14c',
   'gRPC request': '8b6cbee8e63b9d8b302ae8af57066a370f93d1a972f5258117cb72075bc02dcb',

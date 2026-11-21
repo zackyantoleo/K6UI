@@ -94,6 +94,8 @@ Architecture notes, the configuration schema, and API details are in [CLAUDE.md]
 K6UI runs load tests and sends requests from the machine it runs on, and the pre/post-processor scripts of a project are JavaScript that k6 runs there. So by default it is reachable from that machine only:
 
 - It listens on `127.0.0.1`, and it answers only requests addressed to `localhost` / `127.0.0.1` (any other `Host` gets a 403). That second check stops a web page from reaching it through DNS rebinding.
+- Its API answers only K6UI's own page: a request a page on another site makes the browser send to `localhost` gets a 403 (`Sec-Fetch-Site` / `Origin`), and a POST that is not JSON (XML for a .jmx) gets a 415, so another site cannot start a run, even in a browser without `Sec-Fetch-Site`. At most 2 tests run at once.
+- Text from a project (URLs, headers, checks, regexes, extraction names) is written into the script as data and never becomes code; only the pre/post-processor scripts are code (a .jmx never brings any). Open a project file from someone else only after reading its scripts.
 - To share it on your network on purpose, start it with `HOST=0.0.0.0 npm start`. Then anyone who can open the page can run tests and send requests from your machine, including to services on your internal network. Only do this on a network you trust, behind your own authentication.
 - Project files, the browser copy of a project, generated scripts and run reports hold variable values, headers and bodies as typed or recorded, tokens and passwords included. Treat them like the credentials they contain.
 

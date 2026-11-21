@@ -1,5 +1,6 @@
 // JMeter property readers, variable names, and ${...} → {{...}} text.
 //   <stringProp name="HTTPSampler.path">/login</stringProp>  → str(el, "HTTPSampler.path")
+import { isScriptName } from "../../generator/extract.js";
 
 export const prop = (el, name) => el?.children.find((child) => child.attrs.name === name) ?? null;
 export const str = (el, name) => prop(el, name)?.text ?? "";
@@ -28,7 +29,8 @@ const GENERATED = /^(?:(?:res|body|d|grpc_client)_|DATA_\d)/;
 export function k6Name(name, ctx, el) {
   if (ctx.names.has(name)) return ctx.names.get(name);
   let base = name.replace(/\W+/g, "_").replace(/^(?=\d)/, "_") || "var";
-  if (RESERVED.has(base) || GENERATED.test(base)) base += "_";
+  // Also every name the generated script uses itself (extract.js isScriptName).
+  if (RESERVED.has(base) || GENERATED.test(base) || isScriptName(base)) base += "_";
   const used = new Set(ctx.names.values());
   let out = base;
   for (let i = 2; used.has(out); i++) out = `${base}_${i}`;

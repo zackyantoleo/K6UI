@@ -52,6 +52,14 @@ export function sendOnceConfig(config, requestId, { maxDurationS = SEND_ONCE_LIM
   if (!String(request.url || "").trim()) throw new SendOnceError("Type a URL first.");
   const groups = (Array.isArray(scenario.groups) ? scenario.groups : [])
     .map(group => (isObject(group) && group.id && group.id === request.groupId ? { ...group, enabled: true, runIf: null } : group));
+  // A data file of a group is read when that group starts, and only this request runs
+  // here: one of another group would leave its {{columns}} "" without a word. So every
+  // data file of a group that is on reads its first row up front, as if its group had
+  // run (a file of a turned-off group stays unused, as in a run).
+  const groupOn = new Map(groups.filter(group => isObject(group) && group.id).map(group => [group.id, group.enabled !== false]));
+  const dataSets = Array.isArray(config.dataSets)
+    ? config.dataSets.map(set => (isObject(set) && set.groupId && groupOn.get(set.groupId) ? { ...set, groupId: "" } : set))
+    : config.dataSets;
   const { outcomes: _outcomes, exports: _exports, ...kept } = request;
   return {
     scenario: {
@@ -59,7 +67,7 @@ export function sendOnceConfig(config, requestId, { maxDurationS = SEND_ONCE_LIM
       requests: [{ ...kept, enabled: true, sleepAfter: "0", extractions: [], assertions: [], postScript: "" }],
     },
     variables: config.variables,
-    dataSets: config.dataSets,
+    dataSets,
     globalHeaders: config.globalHeaders,
     load: { mode: "iterations", vus: "1", iterations: "1", maxDuration: `${maxDurationS}s` },
     thresholds: {},
@@ -89,10 +97,16 @@ export function unresolvedNames(record) {
   return [...new Set([...sent.matchAll(/\{\{\s*(\$?[A-Za-z_]\w*)\s*\}\}/g)].map(match => match[1]))].sort();
 }
 
-// The script's temp path means nothing to the user.
+// The script's temp path means nothing to the user. A k6 line can be megabytes long, so
+// it is cut first (with room for the temp paths it shortens) and trimmed with trimEnd():
+// the regex /\s+$/ took quadratic time on a long run of spaces followed by text (about
+// half a second for 40,000; a line of a few MB would hold the server for an hour or
+// more, unable to answer anything else meanwhile).
+const TIDY_SLACK = 4096;
 const tidy = (text, limit) => String(text ?? "")
+  .slice(0, limit + TIDY_SLACK)
   .replace(/file:\/\/\S*?\/script\.js/g, "script.js")
-  .replace(/\s+$/, "")
+  .trimEnd()
   .slice(0, limit);
 
 // One k6 output line (--log-format json) → the request record, a message, or nothing.

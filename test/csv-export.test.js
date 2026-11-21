@@ -382,3 +382,31 @@ test('results model: batches add up per file; bad rows and an 11th file are igno
   store.clear();
   assert.equal(store.files.size, 0);
 });
+
+// "Skip missing" skips a row while a value is still a default given by then: one of a
+// later request cannot be what this request found (csv-export.js addExtractionDefaults).
+test('skip missing: only defaults given by the time of the row count, in flow order', () => {
+  const generate = (scenario) => generateScript({ scenario, variables: [{ key: 'MODE', value: 'A' }], load: { mode: 'simple', vus: '1', duration: '1s' } });
+  const exportOf = (name) => ({ file: 'rows.csv', columns: [{ name: 'status', value: `{{${name}}}` }], skipMissing: true });
+  const script = generate({ requests: [
+    { method: 'GET', url: 'https://api.test/1', extractions: [{ varName: 'state', source: 'json', selector: 'state' }], exports: [exportOf('state')] },
+    { method: 'GET', url: 'https://api.test/2', extractions: [{ varName: 'state', source: 'json', selector: 'state', default: 'PENDING' }], exports: [exportOf('state')] },
+  ] });
+  const guards = script.split('\n').filter(line => line.includes('.includes(state)')).map(line => line.trim());
+  assert.deepEqual(guards, [
+    'if (![undefined, null, ""].includes(state)) {',              // request 1: a real "PENDING" is saved
+    'if (![undefined, null, "", "PENDING"].includes(state)) {',   // request 2: its own default
+  ]);
+
+  // A skipped conditional group leaves its extraction's default behind: a row after
+  // the group skips it.
+  const grouped = generate({
+    groups: [{ id: 'g', name: 'G', runIf: { variable: 'MODE', operator: 'equals', values: ['B'] } }],
+    requests: [
+      { method: 'GET', url: 'https://api.test/a', groupId: 'g', extractions: [{ varName: 'code', source: 'json', selector: 'code', default: 'NONE' }] },
+      { method: 'GET', url: 'https://api.test/b', exports: [exportOf('code')] },
+    ],
+  });
+  assert.match(grouped, /let code = "NONE";/);
+  assert.match(grouped, /if \(!\[undefined, null, "", "NONE"\]\.includes\(code\)\) \{/);
+});

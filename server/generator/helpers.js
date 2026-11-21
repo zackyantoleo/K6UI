@@ -1,5 +1,7 @@
 // Small codegen helpers: JSON selectors (JS accessor for gRPC messages, gjson path for
 // HTTP bodies) and regex literals.
+import { oneLine } from "../../public/js/shared/basics.js";
+import { regexLiteralBody, regexParts, regexProblem } from "../../public/js/shared/regex.js";
 
 // "data.token"   → ?.['data']?.['token']
 // "items[0].id"  → ?.['items']?.[0]?.['id']
@@ -42,13 +44,28 @@ export function buildGjsonPath(selector) {
 // gjson's own rule (isSafePathKeyChar): letters, digits, _ - :, spaces, control and non-ASCII characters need no escape.
 const GJSON_UNSAFE = /[^A-Za-z0-9_\-:\x00-\x20\x7f-￿]/g;
 
-// Turns user input into a JS regex literal.
-// Input already shaped like /.../flags is used as-is.
+// A regex as typed → a JS regex literal for the script. Text from the project never
+// ends the literal early (public/js/shared/regex.js regexLiteralBody), so it can never
+// become code. Throws for one that regexProblem() refuses (plan.js reports those first,
+// naming the request; config.js before Run).
 export function buildRegex(selector) {
   if (!selector) return "/(?:)/";
-  const s = String(selector);
-  if (/^\/.+\/[gimsuy]*$/.test(s)) return s;
-  return `/${s.replace(/\//g, "\\/").replace(/\n/g, "\\n")}/`;
+  const problem = regexProblem(selector);
+  if (problem) throw new Error(`"${oneLine(String(selector))}" is not a regular expression: ${problem}.`);
+  const { source, flags } = regexParts(selector);
+  return `/${regexLiteralBody(source).body}/${flags}`;
+}
+
+// An HTTP header name as k6 keys it in `res.headers`: Go's canonical form
+// (textproto.CanonicalMIMEHeaderKey), the first letter and every letter after "-" in
+// upper case, the rest in lower case, for HTTP/1.1 and HTTP/2 alike. "x-request-id"
+// (as browser DevTools show it) → "X-Request-Id". Go leaves a name with a character
+// that cannot be in one (a space, say) as it is, and so does this.
+const HEADER_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+export function canonicalHeaderName(name) {
+  const value = String(name ?? "").trim();
+  if (!HEADER_TOKEN.test(value)) return value;
+  return value.toLowerCase().replace(/(^|-)([a-z])/g, (_match, dash, letter) => dash + letter.toUpperCase());
 }
 
 // Any text → a JS string literal. U+2028 / U+2029 end a line in older JavaScript,
@@ -60,7 +77,7 @@ export const jsLiteral = (value) =>
 // Any text → one line, safe inside a `//` comment of the script. \r, \n, U+2028 and
 // U+2029 all end a JavaScript line, so a URL or a name holding one would otherwise
 // turn the rest of it into code. Every comment value goes through it.
-export { oneLine } from "../../public/js/shared/basics.js";
+export { oneLine, regexParts, regexProblem };
 
 // The variable that holds the response of request `index` (from 0) in the script.
 export const responseVar = (index) => `res_main_${index}`;

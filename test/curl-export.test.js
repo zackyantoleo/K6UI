@@ -96,3 +96,12 @@ test('the report shows the cURL command of each HTTP record, escaped', () => {
   assert.equal((html.match(/<details class="curl">/g) || []).length, 1, 'only the HTTP record');
   assert.match(html, /--data-raw &#39;&lt;b&gt;x&lt;\/b&gt;&#39;/);
 });
+
+// curl -u sends user:password as UTF-8 (curl-parse.js base64Utf8): btoa() alone took
+// Latin-1, so "é" became one byte, and anything past U+00FF threw.
+test('parseCurl: -u credentials are base64 of their UTF-8 bytes, like curl', () => {
+  const auth = command => parseCurl(command).headers.find(h => h.key === 'Authorization')?.value;
+  assert.equal(auth("curl -u 'user:pass' https://api.test/"), `Basic ${Buffer.from('user:pass').toString('base64')}`);
+  assert.equal(auth("curl -u 'üser:pässwörd' https://api.test/"), `Basic ${Buffer.from('üser:pässwörd', 'utf8').toString('base64')}`);
+  assert.equal(auth("curl -u '用户:密码' https://api.test/"), `Basic ${Buffer.from('用户:密码', 'utf8').toString('base64')}`);
+});

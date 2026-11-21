@@ -15,19 +15,20 @@ export function validateExports(requests) {
   if (problem) throw new Error(problem);
 }
 
-// Every default given to an extraction of a name, anywhere in the flow: with
-// "skip missing", a row is not saved while an extracted value is still one of them.
-export function extractionDefaultsByName(requests) {
-  const byName = new Map();
-  for (const req of requests) {
-    for (const e of req.extractions || []) {
-      if (!isExtractable(e)) continue;
-      if (!byName.has(e.varName)) byName.set(e.varName, new Set());
-      const fallback = extractionDefault(e);
-      if (fallback !== null) byName.get(e.varName).add(fallback);
-    }
+// With "skip missing", a row is not saved while an extracted value it uses is still a
+// default given to an extraction of that name by then (this request's own included; a
+// value a skipped conditional group leaves behind is the default of one of its
+// extractions, which come earlier). flow.js adds each request's defaults in generate
+// order, so a default of a later request never hides a value found earlier.
+// `byName` = name → Set of defaults.
+export function addExtractionDefaults(byName, extractions) {
+  for (const e of extractions || []) {
+    if (!isExtractable(e)) continue;
+    const fallback = extractionDefault(e);
+    if (fallback === null) continue;
+    if (!byName.has(e.varName)) byName.set(e.varName, new Set());
+    byName.get(e.varName).add(fallback);
   }
-  return byName;
 }
 
 // The code that saves this request's rows, read with the variables known right now.

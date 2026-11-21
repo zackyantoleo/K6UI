@@ -8,6 +8,7 @@ import { collectDataSets, validateDataSets } from './data-files.js';
 import { readExtractionRow } from './components/rows.js';
 import { readExportBlocks } from './components/export-rows.js';
 import { exportsProblem } from './shared/csv-export.js';
+import { assertionsProblem } from './shared/assertions.js';
 import { normalizeRequestLog } from './shared/request-log.js';
 import { outcomesProblem } from './shared/outcomes.js';
 import { expectedStatusesListProblem } from './shared/expected-statuses.js';
@@ -199,6 +200,9 @@ export function validate(config) {
   // "Save to CSV": numbered like the generator, over the requests that will run.
   const offGroups = new Set((config.scenario.groups || []).filter(group => group.enabled === false).map(group => group.id));
   const runnable = config.scenario.requests.filter(r => r.enabled !== false && !offGroups.has(r.groupId) && String(r.url || '').trim());
+  // Checks: a status or time that is a number, text to look for, a regex that can be written.
+  const checkError = assertionsProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, type: r.type, assertions: r.assertions })));
+  if (checkError) return checkError;
   const exportError = exportsProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, exports: r.exports })));
   if (exportError) return exportError;
   const outcomeError = outcomesProblem(runnable.map((r, i) => ({ label: `Request ${i + 1}`, type: r.type, outcomes: r.outcomes })));

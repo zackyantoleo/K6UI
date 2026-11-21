@@ -232,3 +232,43 @@ test('a real k6 sends the request as a run would and reads back the response', {
     target.close();
   }
 });
+
+// The message text of a k6 line is trimmed with trimEnd() after a cut: /\s+$/ took
+// quadratic time on a long run of spaces (seconds for 100,000), with the server stuck.
+test('readOutputLine: a megabyte line of spaces is cut and trimmed at once', () => {
+  const msg = `start${' '.repeat(1024 * 1024)}end   `;
+  const started = Date.now();
+  const { message } = readOutputLine(JSON.stringify({ level: 'info', msg }));
+  assert.ok(Date.now() - started < 500, `took ${Date.now() - started} ms`);
+  assert.equal(message.text, 'start');
+  assert.equal(message.text.length <= SEND_ONCE_LIMITS.messageChars, true);
+  const path = readOutputLine(JSON.stringify({ level: 'error', msg: `${'x'.repeat(400)} at file:///tmp/k6ui-send-once-abc/script.js:7:9   ` })).message.text;
+  assert.equal(path, `${'x'.repeat(400)} at script.js:7:9`);
+});
+
+// A data file of another group is read when that group starts, which Send once never
+// does: it reads the first row up front instead of sending its {{columns}} as "".
+test('sendOnceConfig: data files of groups that are on read their first row; a turned-off group stays unused', () => {
+  const config = {
+    scenario: {
+      groups: [{ id: 'grp_a', name: 'A' }, { id: 'grp_off', name: 'Off', enabled: false }, { id: 'grp_b', name: 'B', runIf: { variable: 'x', operator: 'equals', values: ['1'] } }],
+      requests: [
+        { id: 'r1', method: 'GET', url: 'http://127.0.0.1:9/a', groupId: 'grp_a' },
+        { id: 'r2', method: 'GET', url: 'http://127.0.0.1:9/{{col_a}}/{{col_b}}/{{col_off}}', groupId: 'grp_b' },
+      ],
+    },
+    dataSets: [
+      { id: 'da', name: 'A', content: 'col_a\nVALUE_A\n', skipHeader: true, columns: [], groupId: 'grp_a' },
+      { id: 'db', name: 'B', content: 'col_b\nVALUE_B\n', skipHeader: true, columns: [], groupId: 'grp_b' },
+      { id: 'doff', name: 'Off', content: 'col_off\nVALUE_OFF\n', skipHeader: true, columns: [], groupId: 'grp_off' },
+    ],
+    load: { mode: 'simple', vus: '1', duration: '1s' },
+  };
+  const once = sendOnceConfig(config, 'r2');
+  assert.deepEqual(once.dataSets.map(set => [set.id, set.groupId]), [['da', ''], ['db', ''], ['doff', 'grp_off']]);
+  assert.equal(config.dataSets[0].groupId, 'grp_a', 'the project itself is unchanged');
+  const script = generateScript(once);
+  assert.match(script, /const DATA_1_ROW = DATA_1\[/);
+  assert.match(script, /`http:\/\/127\.0\.0\.1:9\/\$\{DATA_1_ROW\.col_a\}\/\$\{DATA_2_ROW\.col_b\}\/\{\{col_off\}\}`/);
+  assert.doesNotMatch(script, /let DATA_\d_ROW = \{/, 'no row is left empty');
+});

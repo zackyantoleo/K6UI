@@ -7,6 +7,7 @@ import { ScriptImportError, importK6Script } from "./importer/index.js";
 import { importJmx } from "./importer/jmx/index.js";
 import { startK6Run } from "./k6-runner.js";
 import { SendOnceError, sendOnce } from "./send-once.js";
+import { createSseWriter } from "./sse-writer.js";
 import { readOutcomeResults } from "../public/js/shared/outcomes.js";
 import { readLiveOutcomeThresholdResults, readOutcomeThresholdResults } from "../public/js/shared/outcome-thresholds.js";
 import { readRaceResult } from "../public/js/shared/race.js";
@@ -89,6 +90,12 @@ function raceLabels(meta) {
   return target ? { labels: target.labels, fallback: target.fallback } : null;
 }
 
+// Load tests running at once (two tabs may each run one). A run takes its place before k6
+// starts and gives it back when k6 has exited (onEnd), so a stopped run still counts
+// until its process is gone. One more is a 429.
+export const MAX_RUNS = 2;
+let runningRuns = 0;
+
 // POST /api/run — run a k6 test and stream live output via Server-Sent Events.
 // Emitted events: status, log, req-log, req-log-skipped, export, metrics, error, done (see k6-runner.js);
 // `done` also has `outcomes` when a request has outcome rules (public/js/shared/outcomes.js readOutcomeResults),
@@ -96,7 +103,13 @@ function raceLabels(meta) {
 // race burst mode (public/js/shared/race.js readRaceResult: how many VUs were late, and every VU's
 // planned and actual send time from the script's records). Each live
 // `metrics` event gets the same two outcome fields from its `outcomeCounts`, with live target statuses.
+// Before the stream: 400 / 413 for the configuration, 429 while MAX_RUNS tests run. k6 output lines
+// that come faster than the browser reads them are left out and counted (sse-writer.js).
 apiRouter.post("/run", async (req, res) => {
+  if (runningRuns >= MAX_RUNS) {
+    res.status(429).json({ error: `${MAX_RUNS} tests are already running. Stop one, or wait for it to finish.` });
+    return;
+  }
   let script;
   const meta = {};
   try {
@@ -105,6 +118,16 @@ apiRouter.post("/run", async (req, res) => {
     res.status(err.status || 400).json({ error: err.message });
     return;
   }
+
+  // Taken before the first await, so two requests at once cannot both get the last place.
+  runningRuns += 1;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    runningRuns -= 1;
+  };
+  const write = createSseWriter(res);
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -122,35 +145,45 @@ apiRouter.post("/run", async (req, res) => {
     run?.stop();
   });
 
-  run = await startK6Run(script, {
-    onEvent: (event, data) => {
-      // Outcome rules: `done` also carries what each label counted (from the summary).
-      if (event === "done" && meta.outcomes?.length) {
-        data = { ...data, outcomes: readOutcomeResults(meta.outcomes, data?.summary) };
-      }
-      // Outcome targets: met, not met, or not checked, each with its label's count.
-      if (event === "done" && meta.outcomeThresholds?.length) {
-        data = { ...data, outcomeThresholds: readOutcomeThresholdResults(meta.outcomeThresholds, data?.summary) };
-      }
-      // Race burst: how many VUs were late (from the summary) and the per-VU records
-      // the script logged (k6-runner.js `raceRecords`, which is not sent as such).
-      if (event === "done" && data?.raceRecords) {
-        const { raceRecords, ...rest } = data;
-        data = meta.race ? { ...rest, race: readRaceResult(meta.race, rest.summary, raceRecords, raceLabels(meta)) } : rest;
-      } else if (event === "done" && meta.race) {
-        data = { ...data, race: readRaceResult(meta.race, data?.summary, null, raceLabels(meta)) };
-      }
-      // Live: the same two fields while k6 runs, from the counts read so far.
-      if (event === "metrics" && meta.outcomes?.length) {
-        data = { ...data, outcomes: readOutcomeResults(meta.outcomes, liveSummary(data.outcomeCounts)) };
-      }
-      if (event === "metrics" && meta.outcomeThresholds?.length) {
-        data = { ...data, outcomeThresholds: readLiveOutcomeThresholdResults(meta.outcomeThresholds, data.outcomeCounts) };
-      }
-      res.write(`event: ${event}\n`);
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-    },
-    onEnd: () => res.end(),
-  });
+  try {
+    run = await startK6Run(script, {
+      onEvent: (event, data) => {
+        // Outcome rules: `done` also carries what each label counted (from the summary).
+        if (event === "done" && meta.outcomes?.length) {
+          data = { ...data, outcomes: readOutcomeResults(meta.outcomes, data?.summary) };
+        }
+        // Outcome targets: met, not met, or not checked, each with its label's count.
+        if (event === "done" && meta.outcomeThresholds?.length) {
+          data = { ...data, outcomeThresholds: readOutcomeThresholdResults(meta.outcomeThresholds, data?.summary) };
+        }
+        // Race burst: how many VUs were late (from the summary) and the per-VU records
+        // the script logged (k6-runner.js `raceRecords`, which is not sent as such).
+        if (event === "done" && data?.raceRecords) {
+          const { raceRecords, ...rest } = data;
+          data = meta.race ? { ...rest, race: readRaceResult(meta.race, rest.summary, raceRecords, raceLabels(meta)) } : rest;
+        } else if (event === "done" && meta.race) {
+          data = { ...data, race: readRaceResult(meta.race, data?.summary, null, raceLabels(meta)) };
+        }
+        // Live: the same two fields while k6 runs, from the counts read so far.
+        if (event === "metrics" && meta.outcomes?.length) {
+          data = { ...data, outcomes: readOutcomeResults(meta.outcomes, liveSummary(data.outcomeCounts)) };
+        }
+        if (event === "metrics" && meta.outcomeThresholds?.length) {
+          data = { ...data, outcomeThresholds: readLiveOutcomeThresholdResults(meta.outcomeThresholds, data.outcomeCounts) };
+        }
+        write(event, data);
+      },
+      onEnd: () => {
+        release();
+        res.end();
+      },
+    });
+  } catch (err) {
+    // startK6Run reports its own failures as events; this is only what it cannot.
+    release();
+    write("error", { message: `Failed to start k6: ${err.message}` });
+    res.end();
+    return;
+  }
   if (clientClosed) run.stop();
 });
