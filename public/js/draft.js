@@ -61,6 +61,25 @@ export function clearDraft(storage) {
   }
 }
 
+// What a save compares to tell whether anything changed: the project (and `ui`) as
+// text without the CSV text of its data files, plus those texts themselves. A data
+// file holds up to 5 MB; stringifying it again after every click cost ~8 ms a save
+// for one of 4.5 MB. A text read back from the same card is the same string, and
+// `===` on the same string answers at once.
+export function draftFingerprint(project, ui = null) {
+  const dataSets = Array.isArray(project?.dataSets) ? project.dataSets : [];
+  const contents = dataSets.map(set => (isObject(set) ? set.content : undefined));
+  const light = isObject(project)
+    ? { ...project, dataSets: dataSets.map(set => (isObject(set) && typeof set.content === 'string' ? { ...set, content: set.content.length } : set)) }
+    : project;
+  return { text: `${JSON.stringify(light)}\n${JSON.stringify(ui)}`, contents };
+}
+
+export function sameFingerprint(a, b) {
+  return Boolean(a && b) && a.text === b.text && a.contents.length === b.contents.length
+    && a.contents.every((content, i) => content === b.contents[i]);
+}
+
 // Leaving the page loses work only while a test runs or when the draft was refused.
 export function leaveLosesWork({ running, kept }) {
   return Boolean(running) || !kept;
@@ -94,18 +113,18 @@ export function draftStatus(state) {
 // Call once at startup, after the forms exist: the fresh page is the empty project.
 export function initDraft({ read, readUi = () => ({}), apply, isRunning = () => false, storage }) {
   const status = document.querySelector('#draft-status');
-  const projectText = () => {
+  const readProject = () => {
     try {
       const project = read();
-      return { project, text: JSON.stringify(project) };
+      return { project, print: draftFingerprint(project) };
     } catch (error) {
       console.warn('K6UI: could not read the project for the browser draft.', error);
       return null;
     }
   };
 
-  const empty = projectText()?.text;
-  let lastText = empty;    // project + ui as last kept (or the empty page)
+  const empty = readProject()?.print;
+  let last = null;         // fingerprint (project + ui) of the last draft written or refused; null = none
   let kept = true;         // the project as typed is in the draft, or there is nothing to keep
   let discarding = false;  // "New": keep nothing more
   let timer = null;
@@ -125,20 +144,22 @@ export function initDraft({ read, readUi = () => ({}), apply, isRunning = () => 
     clearTimeout(timer);
     timer = null;
     if (discarding) return;
-    const current = projectText();
+    const current = readProject();
     if (!current) return;
-    if (current.text === empty) {
+    if (sameFingerprint(current.print, empty)) {
       // Nothing typed (or everything removed): no draft, nothing to lose.
-      if (lastText !== empty) clearDraft(storage);
-      lastText = empty;
+      if (last) clearDraft(storage);
+      last = null;
       kept = true;
       show('empty');
       return;
     }
     const ui = readUi();
-    const text = `${current.text}\n${JSON.stringify(ui)}`;
-    if (text === lastText && kept) return;
-    lastText = text;
+    const print = draftFingerprint(current.project, ui);
+    // Unchanged since the last write, or since the browser refused this very project
+    // (trying again on every click would only cost the same refusal).
+    if (sameFingerprint(print, last)) return;
+    last = print;
     kept = writeDraft({ project: current.project, ui }, storage);
     show(kept ? 'kept' : 'refused');
   }
@@ -153,8 +174,8 @@ export function initDraft({ read, readUi = () => ({}), apply, isRunning = () => 
   if (draft) {
     try {
       apply(draft.project, draft.ui);
-      const restored = projectText();
-      lastText = restored ? `${restored.text}\n${JSON.stringify(readUi())}` : lastText;
+      const restored = readProject();
+      if (restored) last = draftFingerprint(restored.project, readUi());
       show('restored');
     } catch (error) {
       // Left in storage: the next change replaces it.
@@ -189,8 +210,8 @@ export function initDraft({ read, readUi = () => ({}), apply, isRunning = () => 
     },
     // Something worth asking about before "New" throws it away.
     hasWork() {
-      const current = projectText();
-      return Boolean(current) && current.text !== empty;
+      const current = readProject();
+      return Boolean(current) && !sameFingerprint(current.print, empty);
     },
   };
 }

@@ -189,7 +189,7 @@ test('maps response assertion modes, extractor variants, and timers', () => {
   // The regex selectors survive code generation.
   const script = generateScript(config);
   assert.match(script, /match\(\/\(sess-\\w\+\\\/x\)\/i\)/);
-  assert.match(script, /\/\^\(\?:done\)\$\/\.test\(r\.body\)/);
+  assert.match(script, /\/\^\(\?:done\)\$\/\.test\(r\.body \?\? ""\)/);
 });
 
 test('reads loops, concurrency thread groups, nested controllers, and scoped extractors', () => {

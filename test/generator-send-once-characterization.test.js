@@ -54,11 +54,11 @@ export const EXISTING_PROJECTS = {
 };
 
 const EXPECTED = {
-  'fixed VUs, processors, extraction, assertions': 'c7e3c59da09c0766ba097468676be99e59b5d04cbba9cf6667b12554f412da1d',
+  'fixed VUs, processors, extraction, assertions': 'f663a2c06623a4aada7cbfd2c76e04db7033cf962bf975cb90c879c68d13b25c',
   'iterations, outcome rules, expected statuses, targets, request log': '3d550b718857d5c8fe8f701e44d5dc078ab20a9b502895347b6245a7fe2bd0e7',
   'stages, conditional group, data file': 'ad9ddf875100508975506c5db996d390706e8b59bc16159e63482b6850fdf14c',
   'gRPC request': '8b6cbee8e63b9d8b302ae8af57066a370f93d1a972f5258117cb72075bc02dcb',
-  'fixed VUs, processors, extraction, assertions + request log (all)': '94feb89af96030e28a74248756049e9894f4cb12592900c995a614feda482be2',
+  'fixed VUs, processors, extraction, assertions + request log (all)': '2f2c6b110ea71f021e174c388ca1d9ec3df9d86f40b4d9d35a63f8908eda3b01',
   'stages, conditional group, data file + request log (errors, hide secrets)': 'dd3f8994d77727b4690d536c4bffd0549179199c0b54013824bf07253790a966',
   'gRPC request + request log (sample)': '5a06114eccc43f047976f8b14a8bad2a9c8cab3cd8eccc2213978524ce045e38',
   'race burst, offsets, warm-up, request log': 'dd33f7e38547c3548c8987417842b39d2793856f08594b672e3cc80f0cfe64d9',

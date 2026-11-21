@@ -84,9 +84,10 @@ function extractionOf(desc) {
   return out;
 }
 
-// `<response>.body` → the response descriptor, else null
+// `<response>.body` (or K6UI's `<response>.body ?? ""`) → the response descriptor, else null
 function describeBody(node, state) {
-  const n = unwrap(node);
+  let n = unwrap(node);
+  if (n.type === "LogicalExpression" && (n.operator === "??" || n.operator === "||") && n.right.type === "Literal" && n.right.value === "") n = unwrap(n.left);
   if (!isMember(n, "body")) return null;
   const base = describe(n.object, state);
   return base?.kind === "response" ? base : null;

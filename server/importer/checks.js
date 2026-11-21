@@ -38,9 +38,13 @@ function makeMatchers(roots) {
   const isRoot = (node) => node?.type === "Identifier" && roots.has(node.name);
   const member = (node, prop) =>
     node?.type === "MemberExpression" && !node.computed && node.property.name === prop && isRoot(node.object);
+  // `r.body`, or K6UI's `r.body ?? ""` (a response without a body reads as "").
+  const isBody = (node) => member(node, "body")
+    || (node?.type === "LogicalExpression" && (node.operator === "??" || node.operator === "||")
+      && member(node.left, "body") && node.right.type === "Literal" && node.right.value === "");
   return {
     isStatus: (node) => member(node, "status"),
-    isBody: (node) => member(node, "body"),
+    isBody,
     isDuration: (node) =>
       node?.type === "MemberExpression" && !node.computed && node.property.name === "duration"
       && member(node.object, "timings"),

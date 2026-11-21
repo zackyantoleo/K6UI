@@ -161,16 +161,25 @@ function renderReqLogRow(entry) {
   return row;
 }
 
+// The filter as typed: errors only, and a piece of the URL.
+const reqFilter = () => ({
+  errorsOnly: Boolean($('#filter-errors-only')?.checked),
+  urlTerm: ($('#filter-url')?.value || '').toLowerCase(),
+});
+
+function filterRow(row, { errorsOnly, urlTerm }) {
+  const visible = (!errorsOnly || row.dataset.ok !== '1')
+    && (!urlTerm || (row.dataset.url || '').toLowerCase().includes(urlTerm));
+  row.classList.toggle('hidden', !visible);
+  const detail = row.nextElementSibling;
+  if (detail?.classList.contains('req-detail-row')) detail.classList.toggle('hidden', !visible);
+}
+
+// Every row, when the filter changes. A record that arrives is filtered on its own
+// (addRequestRecord), not the whole table again for each of up to 100 a second.
 export function applyReqFilter() {
-  const errorsOnly = $('#filter-errors-only')?.checked;
-  const urlTerm = ($('#filter-url')?.value || '').toLowerCase();
-  $$('#req-log-tbody .req-log-row').forEach(row => {
-    const visible = (!errorsOnly || row.dataset.ok !== '1')
-      && (!urlTerm || (row.dataset.url || '').toLowerCase().includes(urlTerm));
-    row.classList.toggle('hidden', !visible);
-    const detail = row.nextElementSibling;
-    if (detail?.classList.contains('req-detail-row')) detail.classList.toggle('hidden', !visible);
-  });
+  const filter = reqFilter();
+  $$('#req-log-tbody .req-log-row').forEach(row => filterRow(row, filter));
 }
 
 export function syncRequestLogFields() {
@@ -243,7 +252,7 @@ export function addRequestRecord(entry) {
   }
   setText('#req-log-count', reqLogs.length);
   setText('#run-request-total', reqLogReceived);
-  applyReqFilter();
+  filterRow(record.row, reqFilter());
 }
 
 // The records in arrival order (the report lists them), and how many arrived in all.

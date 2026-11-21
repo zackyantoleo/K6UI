@@ -76,6 +76,14 @@ function tokenize(src) {
   return tokens;
 }
 
+// curl -u sends user:password as UTF-8 bytes in base64. btoa() alone takes Latin-1
+// text: "é" became one byte instead of two, and "用户" threw InvalidCharacterError.
+function base64Utf8(text) {
+  let binary = '';
+  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
 export function parseCurl(input) {
   // cmd-style line continuations; bash ones are handled by the tokenizer
   const text = String(input || '').trim().replace(/\^\r?\n/g, ' ');
@@ -138,12 +146,7 @@ export function parseCurl(input) {
     body = '';
   }
 
-  if (user) {
-    const b64 = typeof btoa === 'function'
-      ? btoa(user)
-      : Buffer.from(user).toString('base64');
-    headers.push({ key: 'Authorization', value: `Basic ${b64}` });
-  }
+  if (user) headers.push({ key: 'Authorization', value: `Basic ${base64Utf8(user)}` });
   if (hasJsonFlag && !headers.some((h) => h.key.toLowerCase() === 'content-type'))
     headers.push({ key: 'Content-Type', value: 'application/json' });
 

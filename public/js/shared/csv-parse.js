@@ -108,13 +108,31 @@ export function parseCsv(input, { delimiter = ',' } = {}) {
 export const VALID_COLUMN_NAME = NAME_PATTERN;
 export const toColumnName = (value) => String(value ?? '').trim().replace(/\s+/g, '_');
 
+// The parsed file of one data set object, parsed once per object: generating one
+// configuration reads a file up to three times (the race timing and the outcome
+// targets look for its column names, then the generator reads its rows), about 15 ms
+// each for 4.5 MB. Kept with the object (a WeakMap, gone with the configuration) and
+// checked against its text and separator, so a changed object is parsed again.
+// Callers only read the result.
+const parsedFiles = new WeakMap();
+function parseDataSetFile(raw) {
+  const content = typeof raw?.content === 'string' ? raw.content : '';
+  const delimiter = raw?.delimiter;
+  const cacheable = raw !== null && typeof raw === 'object';
+  const cached = cacheable ? parsedFiles.get(raw) : undefined;
+  if (cached && cached.content === content && cached.delimiter === delimiter) return cached.all;
+  const all = parseCsv(content, { delimiter });
+  if (cacheable) parsedFiles.set(raw, { content, delimiter, all });
+  return all;
+}
+
 // One data file (config.dataSets item) → its rows and the columns that will be
 // used. Column i of the file is columns[i] of the data set; blank names skip a
 // file column, and invalid, repeated or "__proto__" names are ignored (listed
 // in `ignored`). With no names at all, a header row supplies them.
 // `all` is the already parsed file, for callers that parse once and read often.
 // → { header, rows, columns: [{ name, field }], ignored: [name] }; throws CsvError.
-export function readDataSet(raw, all = parseCsv(typeof raw?.content === 'string' ? raw.content : '', { delimiter: raw?.delimiter })) {
+export function readDataSet(raw, all = parseDataSetFile(raw)) {
   const skipHeader = raw?.skipHeader === true;
   const header = skipHeader ? all[0] || [] : [];
 

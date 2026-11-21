@@ -9,10 +9,11 @@ export function scanAssignedVars(code, into) {
 }
 
 // Compile (without executing) to reject broken user code with a clear
-// message instead of producing a script that k6 cannot parse.
+// message instead of producing a script that k6 cannot parse. In strict mode, as the
+// script is a module: `010`, `with`, `let eval` and the like are refused here too.
 export function validateProcessor(code, label, withRes) {
   try {
-    new Function(withRes ? `const res = 0;\n${code}` : code);
+    new Function(`"use strict";\n${withRes ? "const res = 0;\n" : ""}${code}`);
   } catch (e) {
     throw new Error(`${label} is not valid JavaScript: ${e.message}`);
   }

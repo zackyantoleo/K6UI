@@ -57,7 +57,7 @@ test('golden output: a default wraps the read in extractOr(); without one the li
   const res_main_0 = http.request("GET", "https://api.test/login", null, {});
   let token = extractOr(() => res_main_0.json("data.token"), "TOKEN_NOT_FOUND");
   let trace = extractOr(() => res_main_0.headers["X-Trace"], "none");
-  let sid = extractOr(() => (res_main_0.body.match(/sid=(\\w*)/) || [])[1], "NO_SID");
+  let sid = extractOr(() => ((res_main_0.body ?? "").match(/sid=(\\w*)/) || [])[1], "NO_SID");
   let plain = res_main_0.json("plain");
 
   // Request 2: GET https://api.test/use/{{token}}/{{trace}}/{{sid}}/{{plain}}
@@ -79,7 +79,7 @@ test('no default (absent, "" or not text): no helper, and the script is what it 
   const script = generated(configOf([request({ extractions }), USE]));
   assert.doesNotMatch(script, /extractOr/);
   assert.match(script, /let token = res_main_0\.json\("data\.token"\);/);
-  assert.match(script, /let sid = \(res_main_0\.body\.match\(\/sid=\(\\w\*\)\/\) \|\| \[\]\)\[1\] \|\| "";/);
+  assert.match(script, /let sid = \(\(res_main_0\.body \?\? ""\)\.match\(\/sid=\(\\w\*\)\/\) \|\| \[\]\)\[1\] \|\| "";/);
   assert.match(script, /let h = res_main_0\.headers\["X-H"\];/);
   assert.match(script, /let o = res_main_0\.json\("o"\);/);
 });

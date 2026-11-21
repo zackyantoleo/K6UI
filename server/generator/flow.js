@@ -13,7 +13,7 @@ import { extractionDefault, isExtractable } from "./extract.js";
 import { jsLiteral, oneLine, responseVar } from "./helpers.js";
 import { buildDataHoists, buildDataRowCode, buildGroupDataRowCode, dataColumns } from "./data.js";
 import { buildRunIfCondition, runIfComment } from "./run-if.js";
-import { buildExportCode } from "./csv-export.js";
+import { addExtractionDefaults, buildExportCode } from "./csv-export.js";
 import { buildOutcomeCode } from "./outcomes.js";
 import { buildRaceWaitCode, raceRequestCode } from "./race.js";
 import { buildProcessorBlock, scanAssignedVars, validateProcessor } from "./processors.js";
@@ -30,7 +30,8 @@ function createFlowState(plan) {
     hoistedVars: new Set(),   // extracted inside a conditional block, declared with `let` above it
     dynamicVars: new Map(),   // {{$name}}: K6UI's own variables, known from where they get a value
   };
-  return { ctx, blockOpen: false };
+  // name → the defaults it may still hold here, for "skip missing" (csv-export.js)
+  return { ctx, blockOpen: false, exportDefaults: new Map() };
 }
 
 const groupIdOf = (req) => req._groupId || "";
@@ -95,7 +96,7 @@ function endRun(state) {
 
 // One request and everything that belongs to it.
 function requestBlock(plan, state, req, i) {
-  const { race, requestLog, outcomeByIndex, keepOutcome, exportDefaults } = plan;
+  const { race, requestLog, outcomeByIndex, keepOutcome } = plan;
   const { ctx } = state;
   const preScript = String(req.preScript || "").trim();
   const postScript = String(req.postScript || "").trim();
@@ -143,8 +144,9 @@ function requestBlock(plan, state, req, i) {
     if (e && e.varName) ctx.localVars.add(e.varName);
   }
 
-  // Save to CSV, after everything of this request
-  return code + buildExportCode(req.exports, ctx, exportDefaults);
+  // Save to CSV, after everything of this request: its own extractions have run by now.
+  addExtractionDefaults(state.exportDefaults, req.extractions);
+  return code + buildExportCode(req.exports, ctx, state.exportDefaults);
 }
 
 export function buildDefaultFunction(plan) {
