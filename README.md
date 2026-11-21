@@ -101,4 +101,12 @@ K6UI runs load tests and sends requests from the machine it runs on, and the pre
 
 ## License
 
-[MIT](LICENSE)
+Copyright (c) 2026 zackyantoleo
+
+K6UI is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only). You may use, modify, share, and sell it, as long as everyone you give it to, or who uses a modified version over a network, gets the complete source code of that version under the same license.
+
+Want to use K6UI under other terms, for example in a closed-source product? Contact [zackyantoleo](https://github.com/zackyantoleo) about a commercial license.
+
+Versions published before this change remain available under the MIT License.
+
+K6UI is an independent project, not affiliated with or endorsed by Grafana Labs. k6 is a trademark of Grafana Labs.

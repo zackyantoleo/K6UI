@@ -2,7 +2,7 @@
   "name": "k6ui",
   "version": "1.0.0",
   "description": "UI for building and running k6 load tests without writing code",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "main": "server/index.js",
   "type": "module",
   "scripts": {
