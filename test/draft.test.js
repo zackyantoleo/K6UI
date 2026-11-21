@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { runnerSource } from './helpers/runner-source.js';
 
 import {
-  DRAFT_KEY, DRAFT_VERSION, clearDraft, draftStatus, leaveLosesWork, readDraft, writeDraft,
+  DRAFT_KEY, DRAFT_VERSION, clearDraft, draftFingerprint, draftStatus, leaveLosesWork, readDraft, sameFingerprint, writeDraft,
 } from '../public/js/draft.js';
 
 const read = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -128,4 +128,30 @@ test('wiring: New and the status sit with the project file actions; the draft st
   const runner = runnerSource();
   assert.match(runner, /export const isTestRunning = \(\) => Boolean\(abortCtrl\);/);
   assert.match(runner, /newProject\.disabled = running;/);
+});
+
+// A save compares the project without its CSV texts, and those texts by reference
+// (draftFingerprint): no data file is stringified again after every click.
+test('draft fingerprint: CSV texts are compared, never stringified', () => {
+  const csv = `email\n${'user@example.com\n'.repeat(50_000)}`;
+  const project = { scenario: { requests: [{ id: 'r1', url: 'https://api.test/' }] }, dataSets: [{ id: 'd1', name: 'Users', content: csv }] };
+  const print = draftFingerprint(project, { view: 'flow' });
+  assert.ok(print.text.length < 500, 'the CSV text is not in the compared text');
+  assert.ok(!print.text.includes('user@example.com'));
+
+  // Read again: the same CSV string, the same everything → no save.
+  assert.equal(sameFingerprint(draftFingerprint({ ...project, dataSets: [{ ...project.dataSets[0] }] }, { view: 'flow' }), print), true);
+  // The same text in another string (a file dropped again) is still the same.
+  assert.equal(sameFingerprint(draftFingerprint({ ...project, dataSets: [{ ...project.dataSets[0], content: csv.slice(0, 10) + csv.slice(10) }] }, { view: 'flow' }), print), true);
+
+  // Anything else that changed → a save.
+  const changed = (edit, ui = { view: 'flow' }) => !sameFingerprint(draftFingerprint(edit(structuredClone(project)), ui), print);
+  assert.equal(changed(p => { p.dataSets[0].content = `${csv}x`; return p; }), true, 'one more character');
+  assert.equal(changed(p => { p.dataSets[0].content = csv.replace('user', 'usEr'); return p; }), true, 'same length, other text');
+  assert.equal(changed(p => { p.dataSets[0].name = 'Logins'; return p; }), true, 'a data file field');
+  assert.equal(changed(p => { p.dataSets.push({ id: 'd2', content: '' }); return p; }), true, 'one more data file');
+  assert.equal(changed(p => { p.scenario.requests[0].url = 'https://api.test/x'; return p; }), true, 'a request');
+  assert.equal(changed(p => p, { view: 'load' }), true, 'where the user is');
+  assert.equal(sameFingerprint(print, null), false, 'nothing kept yet');
+  assert.equal(sameFingerprint(draftFingerprint({ scenario: { requests: [] } }), draftFingerprint({ scenario: { requests: [] } })), true, 'no data files');
 });

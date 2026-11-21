@@ -85,9 +85,11 @@ test('completed-run metadata uses k6 summary totals instead of the optional requ
 });
 
 test('live-log memory retention never exceeds the advertised cap', () => {
+  // live-log.js keeps one text node per batch: a batch over the cap keeps its newest
+  // lines, and the oldest lines on the page leave once the page holds more.
   assert.doesNotMatch(runner, /MAX_LOG_LINES\s*\+/);
-  assert.match(runner, /logLines\.length > MAX_LOG_LINES/);
-  assert.match(runner, /logLines = logLines\.slice\(-MAX_LOG_LINES\)/);
+  assert.match(runner, /lines = lines\.slice\(-MAX_LOG_LINES\)/);
+  assert.match(runner, /if \(shownLines > MAX_LOG_LINES\) \{\s*dropOldest\(shownLines - MAX_LOG_LINES\);/);
 });
 
 test('request logging redacts sensitive values from URLs as well as response samples', () => {

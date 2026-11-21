@@ -104,3 +104,23 @@ test('readDataSet trims cell whitespace by default and preserves it when trimVal
   assert.deepEqual(readDataSet(set).rows, [['1001', 'Bearer tok']]);
   assert.deepEqual(readDataSet({ ...set, trimValues: false }).rows, [[' 1001 ', ' Bearer tok ']]);
 });
+
+// Generating one configuration reads a data file up to three times (race timing,
+// outcome targets, the rows): each data set object is parsed once, again only when
+// its text or separator changed.
+test('readDataSet parses a data set object once, and again after it changed', () => {
+  const set = { content: 'id,name\n1,a\n2,b\n', skipHeader: true, columns: [] };
+  const first = readDataSet(set);
+  const second = readDataSet(set);
+  assert.equal(second.header, first.header, 'the same parsed file');
+  assert.deepEqual(second.rows, first.rows);
+  set.content = 'id,name\n3,c\n';
+  const third = readDataSet(set);
+  assert.notEqual(third.header, first.header);
+  assert.deepEqual(third.rows, [['3', 'c']]);
+  set.delimiter = ';';
+  assert.deepEqual(readDataSet(set).columns.map(c => c.name), [], '"id,name" is one column name with ";", not a valid one');
+  // Another object with the same text is parsed on its own (no shared state between projects).
+  assert.notEqual(readDataSet({ ...set }).header, readDataSet(set).header);
+  assert.throws(() => readDataSet({ content: 'a,"b\n' }), CsvError);
+});
