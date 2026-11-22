@@ -5,13 +5,14 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces, from the page canvas up to the lightest hover state */
-  --bg:          #0f1115;
-  --surface-1:   #14171d;   /* chrome: top bar, sidebar */
-  --surface-2:   #1a1e26;   /* cards and panels */
-  --surface-3:   #222732;   /* inputs and nested blocks */
-  --surface-4:   #2b3140;   /* hover and selected rows */
-  --code-bg:     #0b0d11;   /* script and log blocks */
+  /* Surfaces: a near-black graphite ground (chrome the darkest of the three
+     page steps), then lighter steps up to the hover state */
+  --bg:          #0d1013;
+  --surface-1:   #080a0d;   /* chrome: top bar, sidebar */
+  --surface-2:   #14181b;   /* cards and panels */
+  --surface-3:   #1b1f23;   /* inputs, nested blocks, quiet hover */
+  --surface-4:   #24292e;   /* hover and selected rows */
+  --code-bg:     #050709;   /* script and log blocks */
   --border:      rgba(255, 255, 255, .08);
   --border-2:    rgba(255, 255, 255, .14);
 
