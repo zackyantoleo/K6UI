@@ -129,6 +129,57 @@ pause (`sleep(0.5 + Math.random())`) gave 1.1 ms.
 `responseType: "none"` on a request whose 4 KB body is not read added about 3%;
 `K6_SYSTEM_TAGS` and `GOGC=400` stayed inside the noise.
 
+## Recheck after 20 feature PRs (November 2026)
+
+Measured on 2026-11-21 at `607a05a` (after outcome rules, expected statuses, race
+burst, the generator refactor and the security audit fixes), with the same machine,
+harness and flow as above: k6 v2.4.0, JMeter 5.6.3 (non-GUI, 1 GB heap, CSV JTL),
+Node.js v26.13.1. The variant order was rotated every round; each line is a median.
+
+50 VUs, no pause, 10 s, three rounds:
+
+| Load generator | Requests/s | vs k6 | Requests per CPU second | p95 | Max RSS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Hand-written k6 script (`raw.js`) | 40,429 | — | 6,791 | 3.59 ms | 157 MB |
+| K6UI script, run by k6 directly | 40,726 | +0.7% | 6,704 | 3.55 ms | 155 MB |
+| K6UI script without `extractOr()` (control) | 40,366 | −0.2% | 6,781 | 3.62 ms | 154 MB |
+| K6UI through `POST /api/run` (live metrics) | 39,439 | −2.4% | 6,609 | 3.59 ms | — |
+| K6UI, request details "all", k6 directly | 37,504 | −7.2% | 6,150 | 3.81 ms | 160 MB |
+| K6UI, request details "all", through `/api/run` | 36,040 | −10.9% | 5,953 | 3.90 ms | — |
+| JMeter 5.6.3 | 30,558 | −24.4% | 4,221 | 4.0 ms | 821 MB |
+
+K6UI matches the hand-written script: the server runs (39.2–40.2k) sit inside the
+range of the hand-written one (38.4–41.9k), and the Node server used 0.04 CPU s per
+run (0.35 with "all"). Against JMeter: 33% more requests per second, 59% more
+requests per CPU second, 5.3× less memory. The ratios to the hand-written script
+did not move since 2026-11-18 (K6UI 1.06 → 1.01, JMeter 0.77 → 0.76), so the 20
+PRs did not slow down a plain flow. Outcome rules, expected statuses, data files and
+race burst were not part of this flow; they cost only when used (see below).
+
+With a 1 s pause per iteration (20 s, two rounds; every VU starts at once):
+
+| VUs | Load generator | Requests/s | CPU s | Requests per CPU second | p95 | Max RSS |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 1,000 | Hand-written k6 | 2,971 | 7.7 | 7,774 | 5.0 ms | 381 MB |
+| 1,000 | K6UI, k6 directly | 2,958 | 8.1 | 7,409 | 10.5 ms | 390 MB |
+| 1,000 | JMeter | 3,004 | 22.3 | 2,657 | 1.0 ms | 1,010 MB |
+| 3,000 | Hand-written k6 | 8,649 | 25.7 | 7,017 | 36.8 ms | 1,062 MB |
+| 3,000 | K6UI, k6 directly | 8,622 | 26.9 | 6,695 | 36.8 ms | 1,068 MB |
+| 3,000 | JMeter | 8,253 | 50.2 | 3,525 | 1.0 ms | 1,395 MB |
+
+Every tool reaches the same requests per second (the pause sets it); JMeter uses
+2.8× (1,000 VUs) and 1.9× (3,000 VUs) the CPU time of K6UI. JMeter's memory
+includes the 1 GB heap it reserves at start (`-Xms1g`).
+
+The higher p95 of k6 and K6UI at 3,000 VUs is not the server and not the generated
+script (the hand-written script shows the same): k6 starts every VU in the same
+millisecond and a fixed `sleep(1)` keeps them in step, so the target gets about
+3,000 logins at once every second, while JMeter starts its threads one by one. A
+random pause (`sleep(0.5 + Math.random())`) in the hand-written script gave p95
+1.6–2.0 ms; a K6UI stages profile ramping up to 3,000 VUs in 5 s (held 15 s, fixed
+1 s pause) gave 0.57–0.62 ms against 20.9–38.6 ms with every VU starting together.
+"Wait after" in K6UI is a fixed number; a random pause is not available yet.
+
 ## Outcome rules (November 2026)
 
 Same machine and flow, 2026-11-18, 50 VUs, 8 s runs, four rounds with the order
