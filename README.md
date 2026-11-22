@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/logo.svg" width="84" height="84" alt="K6UI logo">
+<img src="docs/images/logo.svg" width="140" height="84" alt="K6UI logo">
 
 # K6UI
 
