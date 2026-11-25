@@ -5,7 +5,7 @@
     "email": "zackyanto.leo@gmail.com",
     "url": "https://github.com/zackyantoleo"
   },
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "UI for building and running k6 load tests without writing code",
   "license": "AGPL-3.0-only",
   "main": "server/index.js",
