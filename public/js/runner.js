@@ -307,9 +307,9 @@ function parseSSEChunk(raw) {
   handleSSE(eventMatch?.[1] || 'message', JSON.parse(dataLines.join('\n')));
 }
 
-function resetRunWorkspace() {
+function resetRunWorkspace(config) {
   stopElapsedTimer();
-  resetReqLog();
+  resetReqLog(config?.options?.logMaxRecords);
   resetLiveLog();
   resetErrors();
   resetExports();
@@ -354,7 +354,7 @@ export async function runTest() {
 
   const goal = chosenGoal();
   navigate('results');
-  resetRunWorkspace();
+  resetRunWorkspace(config);
   $('#prerun').open = false;
   activateResultsTab('overview');
   setVerdict({ status: 'running', ...verdictText({ status: 'running' }), mark: '…' });

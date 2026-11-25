@@ -167,6 +167,7 @@ function readConfig({ hydrate }) {
       logRequests:    $('#log-requests')?.checked ?? true,
       logFilter:      $('#log-filter')?.value,
       logSampleEvery: $('#log-sample-every')?.value,
+      logMaxRecords:  $('#log-max-records')?.value,
       logRedact:      $('#log-redact')?.checked ?? false,
     }),
   };

@@ -1,6 +1,6 @@
 // Request details (Run & Results → Requests, options.logRequests): the REQUEST_LOG
 // constant and the helper functions a script with recording on gets.
-import { LOG_BODY_LIMIT, MAX_REQUEST_RECORDS } from "../../public/js/shared/request-log.js";
+import { DEFAULT_MAX_RECORDS, LOG_BODY_LIMIT } from "../../public/js/shared/request-log.js";
 import { REQ_LOG_RATE } from "../request-log-throttle.js";
 
 // Request logging is opt-in because URLs, headers and bodies can contain
@@ -150,22 +150,25 @@ function maxVusOf(options) {
 }
 
 // Per-VU record budget (see takeLogBudget above), sized from the records the Requests
-// tab keeps (MAX_REQUEST_RECORDS): all VUs together write about twice
+// tab keeps (logMaxRecords, default DEFAULT_MAX_RECORDS): all VUs together write about twice
 // what the server forwards (REQ_LOG_RATE passed + as many failed a second), so the
 // server limit still decides what is shown, and a short run with few VUs (a race test:
 // every VU sends one burst of requests) still records all of them.
-export function requestLogBudget(options) {
+export function requestLogBudget(options, maxRecords = DEFAULT_MAX_RECORDS) {
   const vus = maxVusOf(options);
   return {
     rate: Number(((2 * REQ_LOG_RATE) / vus).toPrecision(3)),
-    burst: Math.min(10, Math.max(1, Math.ceil(MAX_REQUEST_RECORDS / vus))),
+    burst: Math.min(10, Math.max(1, Math.ceil(maxRecords / vus))),
   };
 }
 
 export function requestLogSource(settings, withGrpc, options, bodyLimit = LOG_BODY_LIMIT) {
   const config = {
     filter: settings.logFilter, every: settings.logSampleEvery, redact: settings.logRedact, bodyLimit,
-    ...requestLogBudget(options),
+    // Written only when it is not the default, so a default script stays as it was;
+    // the importer reads it back.
+    ...(settings.logMaxRecords && settings.logMaxRecords !== DEFAULT_MAX_RECORDS ? { maxRecords: settings.logMaxRecords } : {}),
+    ...requestLogBudget(options, settings.logMaxRecords || DEFAULT_MAX_RECORDS),
   };
   return `\n// Request details for K6UI (Run & Results → Requests)\nconst REQUEST_LOG = ${JSON.stringify(config)};\n`
     + REQUEST_LOG_HELPERS

@@ -169,7 +169,8 @@ function requestLogOptions(ctx) {
     try {
       const value = staticValue(entry.node, ctx);
       Object.assign(options, normalizeRequestLog({
-        ...options, logFilter: value.filter, logSampleEvery: value.every, logRedact: value.redact ?? true,
+        ...options, logFilter: value.filter, logSampleEvery: value.every, logMaxRecords: value.maxRecords,
+        logRedact: value.redact ?? true,
       }));
     } catch (e) {
       if (!(e instanceof Unresolvable)) throw e;

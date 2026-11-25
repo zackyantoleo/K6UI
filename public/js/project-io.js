@@ -126,6 +126,8 @@ export function applyConfig(cfg, { focusHeading = true } = {}) {
   if (logFilterEl) logFilterEl.value = requestLog.logFilter;
   const logEveryEl = $('#log-sample-every');
   if (logEveryEl) logEveryEl.value = String(requestLog.logSampleEvery);
+  const logMaxEl = $('#log-max-records');
+  if (logMaxEl) logMaxEl.value = String(requestLog.logMaxRecords);
   const logRedactEl = $('#log-redact');
   if (logRedactEl) logRedactEl.checked = requestLog.logRedact;
   syncRequestLogFields();

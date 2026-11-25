@@ -457,6 +457,11 @@
                     <label for="log-sample-every">Every Nth iteration of each VU</label>
                     <input type="number" id="log-sample-every" min="1" max="10000" step="1" value="10" inputmode="numeric" />
                   </span>
+                  <span class="log-max-records">
+                    <label for="log-max-records">Keep the newest</label>
+                    <input type="number" id="log-max-records" min="1" max="10000" step="1" value="500" inputmode="numeric" />
+                    <span>records</span>
+                  </span>
                   <label class="toggle-label log-redact-label">
                     <input type="checkbox" id="log-redact" />
                     Hide secrets (Authorization, cookies, tokens, passwords)
@@ -570,7 +575,7 @@
             </div>
             <div class="req-log-wrap" tabindex="0" aria-label="Scrollable request results">
               <table class="req-log-table" aria-label="Recorded request results">
-                <caption>The 500 most recent request records, added while the test runs. Select a column heading to sort (ascending, descending, then arrival order). Activate a row to inspect its request and response: headers and bodies.</caption>
+                <caption>The <span id="req-log-limit">500</span> most recent request records, added while the test runs. Select a column heading to sort (ascending, descending, then arrival order). Activate a row to inspect its request and response: headers and bodies.</caption>
                 <thead>
                   <tr>
                     <th scope="col" data-sort-key="vu"><button type="button" class="req-sort-btn" data-sort="vu">VU<span class="req-sort-mark" aria-hidden="true"></span></button></th>

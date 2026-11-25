@@ -196,6 +196,8 @@ html[data-ui-mode="advanced"] .race-advanced-body[hidden] { display: block; }
 .log-sample-every { display: inline-flex; align-items: center; gap: var(--space-2); }
 .log-sample-every[hidden] { display: none; }
 .log-sample-every input { width: 96px; }
+.log-max-records { display: inline-flex; align-items: center; gap: var(--space-2); }
+.log-max-records input { width: 96px; }
 .log-redact-label { flex-basis: 100%; }
 .live-log-toolbar, .errors-toolbar {
   display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);

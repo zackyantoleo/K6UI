@@ -45,8 +45,10 @@ test('results provide clear and filter controls with bounded request and live-lo
   assert.match(html, /id="clear-live-log"/);
   assert.match(html, /id="filter-errors-only"/);
   assert.match(html, /id="filter-url"/);
-  assert.match(runner, /MAX_REQ_LOGS = MAX_REQUEST_RECORDS/);
-  assert.match(read('../public/js/shared/request-log.js'), /MAX_REQUEST_RECORDS = 500/);
+  assert.match(runner, /let maxReqLogs = DEFAULT_MAX_RECORDS/);
+  assert.match(runner, /reqLogs\.length > maxReqLogs/);
+  assert.match(read('../public/js/shared/request-log.js'), /DEFAULT_MAX_RECORDS = 500/);
+  assert.match(html, /id="log-max-records" min="1" max="10000" step="1" value="500"/);
   assert.match(runner, /MAX_LOG_LINES\s*=\s*1500/);
   assert.match(runner, /reqLogs\.shift\(\)/);
 });
