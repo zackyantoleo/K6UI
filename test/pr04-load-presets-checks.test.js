@@ -57,10 +57,13 @@ test('load terms are explained by the glossary and a plain sentence', () => {
   assert.match(html, /<h3 id="load-shape-title">What will happen<\/h3>/);
 });
 
-test('checks expose four plain-language starter templates while advanced types remain available', () => {
-  for (const template of ['Successful response', 'Expected status', 'Response contains', 'Response time']) {
-    assert.match(checks, new RegExp(template, 'i'));
-  }
+test('checks expose plain-language starter templates (no status ones: Success statuses covers them) while every type remains available', () => {
+  const templates = checks.slice(checks.indexOf('const CHECK_TEMPLATES'), checks.indexOf('];', checks.indexOf('const CHECK_TEMPLATES')));
+  for (const template of ['Response contains', 'Response time']) assert.match(templates, new RegExp(template));
+  for (const template of ['Successful response', 'Expected status']) assert.doesNotMatch(templates, new RegExp(template));
+  for (const type of ['status-2xx', 'status-eq']) assert.match(checks, new RegExp(`value: '${type}'`), `${type} still loads from saved projects`);
+  // A blank "body contains" row would not pass validation; a 2xx row is valid as it is.
+  assert.match(checks, /assertionRow\('status-2xx', '', '', onCountChange\)/, 'a custom check starts valid');
   assert.match(checks, /CHECK_TEMPLATES/);
   assert.match(checks, /Add custom check/);
   assert.match(checks, /body-matches/);

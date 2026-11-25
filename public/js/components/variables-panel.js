@@ -118,7 +118,7 @@ export function createVariablesPanel() {
   hint.append('Type ', el('code', '', '{{'), ' in a URL, header or body to pick one, drag one into a field, or click one to copy it.');
   const groups = el('div', 'flow-vars-groups');
   const empty = el('p', 'flow-vars-empty',
-    'None yet. Add a global variable or a data file, or keep a value from a response with "+ Add to this request" → Take a value from the response.');
+    'None yet. Add a global variable or a data file, or keep a value from a response in the Extract tab of a request.');
   empty.hidden = true;
   const status = el('p', 'flow-vars-status');
   status.setAttribute('role', 'status');

@@ -222,7 +222,7 @@ function take(card, button) {
   button.classList.add('taken');
   button.closest('.send-once').querySelector('.so-live').textContent = existing
     ? `{{${name}}} already takes ${selector}.`
-    : `Took ${selector} as {{${name}}}. Later requests can use it; rename it under "Take a value from the response".`;
+    : `Took ${selector} as {{${name}}}. Later requests can use it; rename it in the Extract tab.`;
 }
 
 function moveFocus(button, key) {
