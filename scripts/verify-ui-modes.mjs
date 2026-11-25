@@ -352,6 +352,7 @@ try {
     await revealInOutline('req_cart');
     await outlineItem('req_cart').click();
     const cart = page.locator('#reqs-main > .req-card[data-request-id="req_cart"]');
+    await cart.locator('.req-tab[data-tab="body"]').click();
     const body = cart.locator('.req-section-body textarea.body');
     await body.click();
     await page.keyboard.type(' \n  ');
@@ -649,15 +650,15 @@ try {
           }
           await target.locator('#flow-outline .outline-item[data-id="req_login"]').click();
         } else {
-          // The open editor shows every part the request uses, with its saved rows; then
-          // its "+ Add to this request" menu, open (a popup is its own layer).
+          // The open editor marks every tab whose part the request uses (a count badge);
+          // then the Scripts tab, open.
           const login = target.locator('#reqs-main > .req-card[data-request-id="req_login"]');
-          assert.deepEqual(await login.locator('.req-extra-sections > .req-section:not([hidden]) .req-panel')
-            .evaluateAll(nodes => nodes.map(node => node.dataset.panel)), ['assertions', 'extractions', 'scripts']);
+          assert.deepEqual(await login.locator('.req-tab:has(.section-count.visible)')
+            .evaluateAll(nodes => nodes.map(node => node.dataset.tab)), ['checks', 'extractions', 'scripts']);
           await audit(`${label} simple flow editor`, target);
-          await login.locator('.req-add-btn').click();
-          await audit(`${label} simple flow add menu`, target);
-          await target.keyboard.press('Escape');
+          await login.locator('.req-tab[data-tab="scripts"]').click();
+          await audit(`${label} simple flow scripts tab`, target);
+          await login.locator('.req-tab[data-tab="headers"]').click();
         }
         await settle(target);
         await target.screenshot({ path: resolve(output, `${mode}-flow-${label}.png`), fullPage: true });

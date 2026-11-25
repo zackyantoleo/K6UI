@@ -56,15 +56,12 @@ await page.locator('.nav-link[data-view="flow"]').click();
 await page.locator('#empty-add-request').click();
 const card = page.locator('.req-card').first();
 await card.locator('.url').fill('https://example.test/health');
-await card.getByRole('tab', { name: 'Checks settings' }).click();
-await card.getByRole('button', { name: 'Successful response' }).click();
-await card.getByRole('button', { name: 'Expected status' }).click();
+await card.getByRole('tab', { name: 'Checks' }).click();
+assert.equal(await card.getByRole('button', { name: 'Successful response' }).count(), 0, 'Success statuses covers the status');
 await card.getByRole('button', { name: 'Response contains' }).click();
 await card.getByRole('button', { name: 'Response time' }).click();
-assert.deepEqual(await inputValues(card.locator('.assert-type')), [
-  'status-2xx', 'status-eq', 'body-contains', 'duration-lt',
-]);
-assert.deepEqual(await inputValues(card.locator('.assert-val')), ['', '200', 'expected text', '500']);
+assert.deepEqual(await inputValues(card.locator('.assert-type')), ['body-contains', 'duration-lt']);
+assert.deepEqual(await inputValues(card.locator('.assert-val')), ['expected text', '500']);
 for (const field of ['.assert-type', '.assert-val']) {
   assert.ok(await card.locator(field).first().getAttribute('aria-label'), `${field} has an accessible name`);
 }

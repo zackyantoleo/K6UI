@@ -383,14 +383,14 @@
 
               <div class="outcome-targets" id="outcome-targets">
                 <div class="label-row outcome-targets-head"><h4 id="outcome-targets-title">Response label counts</h4><span class="tag-advanced">Advanced</span><button data-help="outcomeTarget"></button></div>
-                <p class="field-note">How many responses of a request may get one label of its outcome rules (a request's "Label each response" part). The count is a number or a global variable such as <code>{{QUOTA}}</code>. A target on a request that does not run is not checked, and the results say so.</p>
+                <p class="field-note">How many responses of a request may get one label of its outcome rules (a request's Outcomes tab). The count is a number or a global variable such as <code>{{QUOTA}}</code>. A target on a request that does not run is not checked, and the results say so.</p>
                 <div id="outcome-targets-list" class="outcome-targets-list" role="list" aria-labelledby="outcome-targets-title"></div>
               </div>
 
               <div class="menu-wrap add-goal">
                 <button type="button" class="btn ghost sm menu-btn" data-icon="plus" id="add-goal-btn" aria-controls="add-goal-menu">Add goal</button>
                 <div class="menu add-goal-menu" id="add-goal-menu" role="menu" aria-label="Add goal" hidden>
-                  <button type="button" class="menu-item" role="menuitem" id="add-outcome-target"><strong>Count of a response label <span class="tag-advanced">Advanced</span></strong><span>For example "success at most 100" in a race test.</span><span class="outcome-targets-empty" id="outcome-targets-empty">No request labels its responses yet: add "Label each response" to a request first.</span></button>
+                  <button type="button" class="menu-item" role="menuitem" id="add-outcome-target"><strong>Count of a response label <span class="tag-advanced">Advanced</span></strong><span>For example "success at most 100" in a race test.</span><span class="outcome-targets-empty" id="outcome-targets-empty">No request labels its responses yet: add rules in a request's Outcomes tab first.</span></button>
                 </div>
               </div>
             </div>
@@ -456,6 +456,11 @@
                   <span class="log-sample-every" id="log-sample-every-field" hidden>
                     <label for="log-sample-every">Every Nth iteration of each VU</label>
                     <input type="number" id="log-sample-every" min="1" max="10000" step="1" value="10" inputmode="numeric" />
+                  </span>
+                  <span class="log-max-records">
+                    <label for="log-max-records">Keep the newest</label>
+                    <input type="number" id="log-max-records" min="1" max="10000" step="1" value="500" inputmode="numeric" />
+                    <span>records</span>
                   </span>
                   <label class="toggle-label log-redact-label">
                     <input type="checkbox" id="log-redact" />
@@ -570,7 +575,7 @@
             </div>
             <div class="req-log-wrap" tabindex="0" aria-label="Scrollable request results">
               <table class="req-log-table" aria-label="Recorded request results">
-                <caption>The 500 most recent request records, added while the test runs. Select a column heading to sort (ascending, descending, then arrival order). Activate a row to inspect its request and response: headers and bodies.</caption>
+                <caption>The <span id="req-log-limit">500</span> most recent request records, added while the test runs. Select a column heading to sort (ascending, descending, then arrival order). Activate a row to inspect its request and response: headers and bodies.</caption>
                 <thead>
                   <tr>
                     <th scope="col" data-sort-key="vu"><button type="button" class="req-sort-btn" data-sort="vu">VU<span class="req-sort-mark" aria-hidden="true"></span></button></th>

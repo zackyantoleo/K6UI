@@ -115,7 +115,7 @@ export function unresolvedText(names) {
 // Why the body cannot be clicked, or '' when it can.
 export function bodyNote(reason, response) {
   if (reason === 'empty') return 'The response has no body.';
-  if (reason === 'cut') return `The response is ${Number(response?.totalChars).toLocaleString('en-US')} characters long; only the start is shown, as text. To keep a value, add "Take a value from the response" and type its path.`;
-  if (reason === 'not-json') return 'The body is not JSON, so values cannot be clicked. To keep a value, add "Take a value from the response" and use a header or a regex.';
+  if (reason === 'cut') return `The response is ${Number(response?.totalChars).toLocaleString('en-US')} characters long; only the start is shown, as text. To keep a value, type its path in the Extract tab.`;
+  if (reason === 'not-json') return 'The body is not JSON, so values cannot be clicked. To keep a value, use a header or a regex in the Extract tab.';
   return 'Click a value to take it for later requests.';
 }

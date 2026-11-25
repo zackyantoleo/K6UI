@@ -22,12 +22,12 @@ const stripComments = source => source.replace(/^\s*\/\/.*$/gm, '');
 const noMarkup = /innerHTML|insertAdjacentHTML|outerHTML|document\.write/;
 const noMode = /uiMode|ui-mode|localStorage|sessionStorage|data-ui-only/;
 
-test('the request editor has one "Save values to a CSV file" section, built once in JS for Simple and Advanced', () => {
+test('the request editor has one "Save CSV" tab, built once in JS for Simple and Advanced', () => {
   assert.match(exportsPanel, /exportsSection\.className = 'exports-section'/);
   assert.match(exportsPanel, /textContent = '\+ Save to CSV'/);
   assert.match(exportsPanel, /'add-row-btn add-export'/);
   assert.match(reqCard, /exports: \(\) => createExportsPanel\(\)/, 'a lazy part of its own');
-  assert.match(reqCard, /title: 'Save values to a CSV file'/);
+  assert.match(reqCard, /id: 'exports', label: 'Save CSV'/);
   for (const cls of ['export-block', 'export-file', 'export-skip-missing', 'export-column-row', 'export-col-name', 'export-col-value', 'export-add-column', 'export-remove']) {
     assert.match(exportRows, new RegExp(`['\` ]${cls}['\`]`), cls);
   }

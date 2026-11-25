@@ -20,23 +20,24 @@ test('request body and script editors expose programmatic labels', () => {
   assert.match(scripts, /setAttribute\('aria-label', 'Post-request processor script'\)/);
 });
 
-test('request editor: headed sections, an "+ Add to this request" menu with keyboard support, "Wait after" below', () => {
-  assert.doesNotMatch(reqCard, /role', 'tab(list|panel)?'/, 'no tabs left');
-  assert.match(reqCard, /heading = document\.createElement\('h3'\)/, 'every section has a heading');
-  assert.match(reqCard, /sectionShell\('headers', 'Headers'/);
-  assert.match(reqCard, /sectionShell\('body', 'Body'/);
-  for (const id of ['assertions', 'extractions', 'exports', 'statuses', 'outcomes', 'scripts']) {
-    assert.match(reqCard, new RegExp(`id: '${id}', title: '`), `${id} can be added from the menu`);
+test('request editor: Postman-style tabs with keyboard support, "Wait after" in Settings', () => {
+  assert.match(reqCard, /setAttribute\('role', 'tablist'\)/);
+  assert.match(reqCard, /setAttribute\('role', 'tab'\)/);
+  assert.match(reqCard, /setAttribute\('role', 'tabpanel'\)/);
+  assert.match(reqCard, /setAttribute\('aria-controls', `\$\{idBase\}-panel`\)/);
+  assert.match(reqCard, /setAttribute\('aria-labelledby', `\$\{idBase\}-tab`\)/);
+  for (const [id, label] of [['headers', 'Headers'], ['body', 'Body'], ['checks', 'Checks'], ['extractions', 'Extract'],
+    ['exports', 'Save CSV'], ['outcomes', 'Outcomes'], ['scripts', 'Scripts'], ['settings', 'Settings']]) {
+    assert.match(reqCard, new RegExp(`id: '${id}', label: '${label}'`), `${id} has a tab`);
   }
-  assert.match(reqCard, /setAttribute\('role', 'menu'\)/);
-  assert.match(reqCard, /setAttribute\('role', 'menuitem'\)/);
-  assert.match(reqCard, /initMenuButton\(toggle, menu, \{ closeOnOutsideClick: false \}\)/, 'one shared outside-click listener');
-  assert.match(reqCard, /\.req-add-menu:not\(\[hidden\]\)/);
-  for (const key of ['ArrowDown', 'ArrowUp', 'Home', 'End', 'Escape']) assert.match(menuButton, new RegExp(key));
-  assert.match(reqCard, /setAttribute\('aria-label', `Remove "\$\{title\}" from this request`\)/);
-  assert.match(reqCard, /window\.confirm\(`Remove "\$\{definition\.title\}" from this request\?/, 'removing a part that holds something asks first');
+  assert.doesNotMatch(reqCard, /label: 'Statuses'/, 'success statuses live in the Checks tab');
+  assert.match(reqCard, /\{ id: 'statuses', title: 'Success statuses'/);
+  assert.match(reqCard, /\{ id: 'assertions', title: 'Response checks'/);
+  for (const key of ['ArrowRight', 'ArrowLeft', 'Home', 'End']) assert.match(reqCard, new RegExp(key));
+  assert.match(reqCard, /tab\.tabIndex = active \? 0 : -1/, 'roving tabindex');
+  assert.doesNotMatch(reqCard, /req-add-menu|role', 'menuitem'/, 'no "+ Add to this request" menu left');
   assert.match(reqCard, /sleep\.className = 'sleep'/);
-  assert.match(reqCard, /waitLabel\.append\('Wait after ', sleep, unit\);\n {2}wait\.append\(waitLabel, helpButton\('pause'\)\);/, 'help beside the label, not inside');
+  assert.match(reqCard, /panels\.querySelector\('\.req-panel\[data-panel="settings"\]'\)\.appendChild\(settings\)/);
 });
 
 test('request duplication retains its fresh ID; the editor has no Before/After sub-requests', () => {

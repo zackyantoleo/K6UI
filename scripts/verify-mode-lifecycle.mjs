@@ -132,15 +132,18 @@ try {
   });
   assert.ok(storeBefore);
   assert.equal(await login.evaluate(node => node.classList.contains('expanded')), true, 'Opening a project expands the first card');
-  assert.equal(await login.locator('.req-section-scripts').isVisible(), true, 'A part the request uses opens with it');
+  assert.equal(await login.locator('.req-tab[data-tab="scripts"] .section-count').innerText(), '1', 'A part the request uses marks its tab');
+  await login.locator('.req-tab[data-tab="scripts"]').click();
   assert.equal(await login.locator('.pre-script').inputValue(), 'vars.ts = "pre-secret";');
   await login.locator('.pre-script').fill('  \n\t ');
   state = await noticeState();
   assert.equal(state.items.scripts, undefined, 'Live whitespace-only script beats the saved snapshot');
   await login.locator('.pre-script').fill('vars.ts = 2;');
   assert.equal((await noticeState()).items.scripts, 'Pre/post scripts: 1 request');
+  await login.locator('.req-tab[data-tab="settings"]').click();
   await login.locator('.sleep').fill('1');
   assert.equal((await noticeState()).items.pacing, undefined, 'Live default pause beats the saved 0.5 s');
+  await login.locator('.req-tab[data-tab="checks"]').click();
   await login.locator('.assertions-list .row-remove').click();
   assert.equal((await noticeState()).items.checks, undefined, 'Removing the only check (a click) refreshes the notice');
   assert.equal(await page.evaluate(async () => window.storeBeforeTyping

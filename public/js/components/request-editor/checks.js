@@ -11,9 +11,9 @@ const ASSERT_TYPES = [
   { value: 'duration-lt', label: 'Response time under (ms)', hasVal: true, numVal: true, ph: '500' },
 ];
 
+// Status templates are left out: "Success statuses" above them in the Checks tab
+// already checks the status. The status types stay in the list for saved projects.
 const CHECK_TEMPLATES = [
-  { label: 'Successful response', description: 'Status is between 200 and 299', type: 'status-2xx', value: '' },
-  { label: 'Expected status', description: 'Status matches a specific code', type: 'status-eq', value: '200' },
   { label: 'Response contains', description: 'Body includes expected text', type: 'body-contains', value: 'expected text' },
   { label: 'Response time', description: 'Request finishes under a limit', type: 'duration-lt', value: '500' },
 ];

@@ -82,6 +82,7 @@ try {
   await page.locator('#empty-add-request').click();
   await page.locator('.req-card .url').fill('https://fixture.test/unsaved');
   await page.locator('.req-card .request-kind').selectOption('POST');
+  await page.locator('.req-card .req-tab[data-tab="body"]').click();
   await page.locator('.req-card textarea.body').fill('  unsaved body\nwith trailing spaces  ');
   await page.evaluate(async () => {
     window.originalCard = document.querySelector('.req-card');
@@ -340,8 +341,7 @@ try {
     await page.locator('#curl-apply').click();
     assert.equal(await page.locator('.req-card').last().locator('.url').inputValue(), 'https://fixture.test/from-menu');
     const imported = page.locator('.req-card').last();
-    await imported.locator('.req-add-btn').click();
-    await imported.locator('.req-add-item[data-panel="extractions"]').click();
+    await imported.locator('.req-tab[data-tab="extractions"]').click();
     assert.equal(await imported.locator('.req-section-extractions [data-help="extraction"]').getAttribute('aria-label'), 'About Extraction');
   }
   checks.push('Help: one tooltip on hover/focus (aria-describedby), click keeps it, Escape closes; help in a radio card does not pick it; Glossary lists, filters, returns focus; Import menu by keyboard and mouse, cURL adds a request');
@@ -443,7 +443,7 @@ try {
   }
   checks.push('Request cards: drag into a group band joins it, outside leaves it, announced; ⋯ panel keyboard/click-outside, Move keeps it open; one method list drives protocol + method; switch = the enabled checkbox');
 
-  // Request editor: Headers and Body always, other parts from "+ Add to this request", "Wait after" below.
+  // Request editor: a Postman-style tab bar, one part at a time, "Wait after" in Settings.
   {
     const project = {
       schemaVersion: 2,
@@ -461,72 +461,52 @@ try {
     };
     await page.evaluate(async config => (await import('/js/project-io.js')).applyConfig(config), project);
     const cardOf = id => page.locator(`#reqs-main > .req-card[data-request-id="${id}"]`);
-    const parts = id => cardOf(id).locator('.req-extra-sections > .req-section:not([hidden]) .req-panel')
-      .evaluateAll(nodes => nodes.map(node => node.dataset.panel));
-    const focused = () => page.evaluate(() => ({ panel: document.activeElement?.dataset.panel || '', className: document.activeElement?.className || '' }));
+    const shownTab = id => cardOf(id).locator('.req-section:not([hidden])').evaluateAll(nodes => nodes.map(node => node.dataset.tab));
+    const marked = id => cardOf(id).locator('.req-tab:is(:has(.section-count.visible), :has(.req-tab-dot:not([hidden])))')
+      .evaluateAll(nodes => nodes.map(node => node.dataset.tab));
+    const focusedTab = () => page.evaluate(() => document.activeElement?.dataset.tab || '');
     const redeem = cardOf('req_e');
-    const menu = redeem.locator('.req-add-menu');
-    const addButton = redeem.locator('.req-add-btn');
-    assert.equal(await redeem.locator('.req-tab, [role="tab"]').count(), 0, 'no editor tabs');
-    assert.deepEqual(await parts('req_e'), ['assertions'], 'a part the request uses is shown, the others are not');
-    assert.equal(await redeem.locator('.req-section-headers').isVisible(), true);
-    assert.equal(await redeem.locator('.req-section-body').isVisible(), true, 'POST shows Body');
-    assert.equal(await redeem.locator('.req-editor-foot .sleep').inputValue(), '0.5', '"Wait after" holds the saved pause');
-    assert.equal(await redeem.locator('.req-wait label [data-help]').count(), 0, 'help sits beside the label');
-    assert.equal(await redeem.locator('.req-wait [data-help="pause"]').count(), 1);
+    assert.equal(await redeem.locator('[role="tablist"]').count(), 1, 'one tab bar');
+    assert.deepEqual(await redeem.locator('[role="tab"]').evaluateAll(nodes => nodes.map(node => node.textContent.trim())),
+      ['Headers', 'Body', 'Checks1', 'Extract', 'Save CSV', 'Outcomes', 'Scripts', 'Settings']);
+    assert.deepEqual(await shownTab('req_e'), ['body'], 'a POST opens on Body');
+    assert.ok((await marked('req_e')).includes('checks'), 'a part the request uses marks its tab');
+    assert.equal(await redeem.locator('[role="tab"][aria-selected="true"]').getAttribute('data-tab'), 'body');
+    assert.equal(await redeem.locator('.req-tab[data-tab="body"]').getAttribute('aria-controls'),
+      await redeem.locator('.req-section-body').getAttribute('id'), 'tab and panel point at each other');
 
-    // The menu by keyboard: Arrow Down opens it on the first item, End goes to the last, Escape returns.
-    await addButton.focus();
-    await page.keyboard.press('ArrowDown');
-    assert.equal(await menu.isVisible(), true);
-    assert.equal(await addButton.getAttribute('aria-expanded'), 'true');
-    assert.equal((await focused()).panel, 'assertions');
-    assert.equal(await redeem.locator('.req-add-item[data-panel="assertions"] .req-add-added').isVisible(), true, 'a shown part says Added');
-    assert.equal(await redeem.locator('.req-add-item[data-panel="extractions"] .req-add-added').isVisible(), false);
+    // Tabs by keyboard: Arrow Right / Left, Home and End move and select (roving tabindex).
+    await redeem.locator('.req-tab[data-tab="body"]').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await focusedTab(), 'checks');
+    assert.deepEqual(await shownTab('req_e'), ['checks']);
+    assert.equal(await redeem.locator('.req-tab[tabindex="0"]').count(), 1);
     await page.keyboard.press('End');
-    assert.equal((await focused()).panel, 'scripts');
-    assert.match(await redeem.locator('.req-add-item[data-panel="scripts"]').innerText(), /Advanced/i);
-    await page.keyboard.press('Escape');
-    assert.equal(await menu.isVisible(), false);
-    assert.match((await focused()).className, /req-add-btn/);
-    await addButton.click();
-    await page.locator('.zone-title').click();
-    assert.equal(await menu.isVisible(), false, 'a click outside closes it');
+    assert.equal(await focusedTab(), 'settings');
+    assert.equal(await redeem.locator('.sleep').inputValue(), '0.5', '"Wait after" holds the saved pause');
+    assert.equal(await redeem.locator('.req-wait label [data-help]').count(), 0, 'help sits beside the label, not inside');
+    assert.equal(await redeem.locator('.req-section-settings [data-help="pause"]').count(), 1);
+    await page.keyboard.press('Home');
+    assert.equal(await focusedTab(), 'headers');
+    await page.keyboard.press('ArrowLeft');
+    assert.equal(await focusedTab(), 'settings', 'Arrow Left wraps to the last tab');
 
-    // Enter on an item adds that part and puts the cursor in it.
-    await addButton.focus();
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('Enter');
-    assert.match((await focused()).className, /ext-name/);
-    assert.deepEqual(await parts('req_e'), ['assertions', 'extractions']);
-    // Choosing a part that is already there takes the cursor to it.
-    await addButton.click();
-    await redeem.locator('.req-add-item[data-panel="assertions"]').click();
-    assert.match((await focused()).className, /check-template-btn/);
+    // Checks: Success statuses above the response checks; no status templates.
+    await redeem.locator('.req-tab[data-tab="checks"]').click();
+    assert.deepEqual(await redeem.locator('.req-section-checks .req-part-title').allInnerTexts(), ['Success statuses', 'Response checks']);
+    assert.deepEqual(await redeem.locator('.req-panel[data-panel="assertions"] .check-template-btn strong').allInnerTexts(), ['Response contains', 'Response time']);
+    assert.match(await redeem.locator('.req-section-scripts .tag-advanced').textContent(), /Advanced/i);
 
-    // Removing an empty part asks nothing; one that holds something asks first.
-    await redeem.locator('.req-section-extractions .req-section-remove').click();
-    assert.deepEqual(await parts('req_e'), ['assertions']);
-    assert.match((await focused()).className, /req-add-btn/, 'focus goes back to the menu button');
-    let asked = '';
-    page.once('dialog', dialog => { asked = dialog.message(); return dialog.dismiss(); });
-    await redeem.locator('.req-section-assertions .req-section-remove').click();
-    assert.match(asked, /^Remove "Check the response" from this request\?/);
-    assert.deepEqual(await parts('req_e'), ['assertions'], 'Cancel keeps it');
-    page.once('dialog', dialog => dialog.accept());
-    await redeem.locator('.req-section-assertions .req-section-remove').click();
-    assert.deepEqual(await parts('req_e'), []);
-    const removed = await page.evaluate(async () => (await import('/js/config.js')).collectConfig());
-    assert.deepEqual(removed.scenario.requests[0].assertions, [], 'the checks are gone from the project');
-
-    // A request with the automatic status check off opens with "Success statuses"; a GET with no body has no Body.
+    // A GET with the automatic status check off: opens on Headers, the Checks tab has a dot.
     await cardOf('req_f').locator('.req-card-head').click();
-    assert.deepEqual(await parts('req_f'), ['statuses']);
+    assert.deepEqual(await shownTab('req_f'), ['headers']);
+    assert.ok((await marked('req_f')).includes('checks'));
+    await cardOf('req_f').locator('.req-tab[data-tab="checks"]').click();
     assert.equal(await cardOf('req_f').locator('.check-status').isChecked(), false);
-    assert.equal(await cardOf('req_f').locator('.req-section-body').isVisible(), false);
+    await cardOf('req_f').locator('.req-tab[data-tab="body"]').click();
+    assert.match(await cardOf('req_f').locator('.req-body-note').innerText(), /A GET request sends no body/);
   }
-  checks.push('Request editor: no tabs; Headers + Body (by method) + the parts in use; "+ Add to this request" by keyboard (Arrow Down, End, Escape, Enter) and click-outside, marks added parts, puts the cursor in the part; removing an empty part asks nothing, a filled one asks (Cancel keeps it); "Wait after" beside its help');
+  checks.push('Request editor: one tab bar (tab/tabpanel roles linked), POST opens on Body and GET on Headers, Arrow/Home/End by keyboard with a roving tabindex, tabs in use show a count or a dot, Checks holds Success statuses then the response checks (no status templates), "Wait after" in Settings beside its help');
 
   // Variables: the panel, {{ suggestions and the "not available yet" warnings.
   {
@@ -1315,14 +1295,14 @@ try {
       ]);
       after.scenario.requests[0].extractions = before.scenario.requests[0].extractions;
       assert.deepEqual(after, before, 'Send once and taking values change nothing else');
-      assert.equal(await login.locator('.req-section-extractions').isVisible(), true);
+      assert.equal(await login.locator('.req-tab[data-tab="extractions"] .section-count').innerText(), '3', 'the Extract tab counts the taken values');
       assert.match(await first.locator('#flow-vars').textContent(), /\{\{id\}\}/, 'the variables panel lists the taken value');
       await login.screenshot({ path: resolve(output, 'stage8-send-once-1440.png') });
       await first.setViewportSize({ width: 375, height: 812 });
       assert.equal(await first.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, '375 px: Send once response without sideways scroll');
       await login.locator('.send-once').screenshot({ path: resolve(output, 'stage8-send-once-375.png') });
       await first.setViewportSize({ width: 1440, height: 900 });
-      checks.push('Send once (real k6, local target only): the open request is sent once with Test data values, the response is shown as text (markup never becomes an element), JSON values are buttons with one Tab stop and arrow keys; clicking one adds "Take a value from the response" rows (an existing path is reused, names never clash), the variables panel follows, and nothing else in the project changes; 1440 + 375 px without sideways scroll');
+      checks.push('Send once (real k6, local target only): the open request is sent once with Test data values, the response is shown as text (markup never becomes an element), JSON values are buttons with one Tab stop and arrow keys; clicking one adds rows in the Extract tab (an existing path is reused, names never clash), the variables panel follows, and nothing else in the project changes; 1440 + 375 px without sideways scroll');
 
       // The second request sends {{token}} as typed (no earlier request ran) and says so.
       const profile = first.locator('#reqs-main .req-card').nth(1);

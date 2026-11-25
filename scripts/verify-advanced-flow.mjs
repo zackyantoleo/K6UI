@@ -157,42 +157,38 @@ try {
   checks.push('Summary click selects the same card element; no reparent, clone, or reorder');
 
   // 3. Unsaved values in every lazy part survive selection changes and two switches.
-  // The editor shows Headers (and Body when the method sends one); every other part
-  // is added from "+ Add to this request".
+  // The editor is a tab bar: one part shown at a time, Headers first for a GET.
   await outlineRequest('req_cart').click();
   const cart = card('req_cart');
-  const addPart = async id => {
-    await cart.locator('.req-add-btn').click();
-    await cart.locator(`.req-add-item[data-panel="${id}"]`).click();
-  };
-  const shownParts = () => cart.locator('.req-extra-sections > .req-section:not([hidden]) .req-panel')
-    .evaluateAll(nodes => nodes.map(node => node.dataset.panel));
-  assert.equal(await cart.locator('.req-section-headers').isVisible(), true, 'Headers always shown');
-  assert.equal(await cart.locator('.req-section-body').isVisible(), false, 'A GET request with no body shows no Body section');
-  assert.deepEqual(await shownParts(), [], 'No other part until one is added');
+  const openTab = id => cart.locator(`.req-tab[data-tab="${id}"]`).click();
+  const shownTabs = () => cart.locator('.req-section:not([hidden])').evaluateAll(nodes => nodes.map(node => node.dataset.tab));
+  assert.deepEqual(await cart.locator('.req-tab').evaluateAll(nodes => nodes.map(node => node.dataset.tab)),
+    ['headers', 'body', 'checks', 'extractions', 'exports', 'outcomes', 'scripts', 'settings'], 'Every part has a tab');
+  assert.deepEqual(await shownTabs(), ['headers'], 'A GET request opens on Headers, one panel at a time');
   await cart.locator('.req-panel[data-panel="headers"] .add-row-btn').click();
   await cart.locator('.headers-list .h-key').fill('X-Unsaved');
   await cart.locator('.headers-list .h-val').fill('  header value  ');
   await cart.locator('.request-kind').selectOption('POST');
-  assert.equal(await cart.locator('.req-section-body').isVisible(), true, 'POST shows Body');
+  await openTab('body');
+  assert.equal(await cart.locator('.req-body-note').isVisible(), false, 'POST sends its body');
   await cart.locator('textarea.body').fill('  {"draft": true}  ');
   await cart.locator('.request-kind').selectOption('GET');
-  assert.equal(await cart.locator('.req-section-body').isVisible(), true, 'Typed body text stays in sight on GET');
   assert.match(await cart.locator('.req-body-note').innerText(), /A GET request sends no body/);
-  await addPart('extractions');
-  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('ext-name')), true, 'Adding a part puts the cursor in it');
+  await openTab('extractions');
+  await cart.locator('.req-panel[data-panel="extractions"] .add-row-btn').click();
   await cart.locator('.extractions-list .ext-name').fill('cart_id');
   await cart.locator('.extractions-list .ext-selector').fill('data.id');
-  await addPart('assertions');
+  await openTab('checks');
   await cart.locator('.req-panel[data-panel="assertions"] .add-row-btn').click();
-  await addPart('scripts');
+  await cart.locator('.check-status').uncheck();
+  await openTab('scripts');
   await cart.locator('.pre-script').fill('vars.cart = 1;');
   await cart.locator('.post-script').fill('   ');
-  await cart.locator('.req-editor-foot .sleep').fill('2.5');
-  await addPart('statuses');
-  await cart.locator('.check-status').uncheck();
-  assert.deepEqual(await cart.locator('.req-add-item:has(.req-add-added:not([hidden]))').evaluateAll(nodes => nodes.map(node => node.dataset.panel)),
-    ['assertions', 'extractions', 'statuses', 'scripts'], 'The menu marks the parts already added');
+  await openTab('settings');
+  await cart.locator('.sleep').fill('2.5');
+  const marked = () => cart.locator('.req-tab:is(:has(.section-count.visible), :has(.req-tab-dot:not([hidden])))')
+    .evaluateAll(nodes => nodes.map(node => node.dataset.tab));
+  assert.deepEqual(await marked(), ['headers', 'body', 'checks', 'extractions', 'scripts'], 'Tabs in use show a count or a dot');
   const unsaved = await collect();
   await outlineRequest('req_login').click();
   await outlineGroup('grp_checkout').click();
@@ -201,7 +197,8 @@ try {
     await radio('advanced').check();
   }
   await outlineRequest('req_cart').click();
-  assert.deepEqual(await shownParts(), ['assertions', 'extractions', 'statuses', 'scripts'], 'Added parts stay shown, in menu order');
+  assert.deepEqual(await shownTabs(), ['settings'], 'The tab last shown stays selected');
+  assert.deepEqual(await marked(), ['headers', 'body', 'checks', 'extractions', 'scripts']);
   assert.equal(await cart.locator('textarea.body').inputValue(), '  {"draft": true}  ');
   assert.equal(await cart.locator('.post-script').inputValue(), '   ');
   assert.deepEqual(await collect(), unsaved);
@@ -210,7 +207,7 @@ try {
   assert.equal(cartConfig.sleepAfter, '2.5');
   assert.equal(cartConfig.checkStatus, false);
   assert.equal(cartConfig.assertions.length, 1);
-  checks.push('Editor shows Headers (+ Body by method, or while it holds text); parts added from "+ Add to this request" get the cursor and stay; unsaved Headers/Body/Extract/Checks/Scripts/Wait after/Success statuses survive selection and two switches');
+  checks.push('Editor is a tab bar (GET opens on Headers, the last tab stays selected); tabs in use show a count or a dot; unsaved Headers/Body/Extract/Checks/Scripts/Wait after/Success statuses survive selection and two switches');
 
   // 4. Existing request handlers keep the outline and selection in sync.
   await cart.locator('.request-name').fill('Cart <renamed>');

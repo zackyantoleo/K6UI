@@ -12,7 +12,7 @@ export function createExportsPanel() {
   exportsHint.append('After this request, add a row to a CSV file. Download it from Run & Results, or use it as a data file in a later run. ');
   const outcomeCode = document.createElement('code');
   outcomeCode.textContent = `{{${OUTCOME_VARIABLE}}}`;
-  exportsHint.append(outcomeCode, ' is the outcome label of this request (Label each response).');
+  exportsHint.append(outcomeCode, ' is the outcome label of this request (Outcomes tab).');
   const exportsList = document.createElement('div');
   exportsList.className = 'exports-list';
   const addExport = document.createElement('button');

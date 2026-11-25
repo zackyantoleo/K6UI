@@ -131,7 +131,7 @@ export function createOutcomesPanel(onCountChange = () => {}) {
   const variable = document.createElement('code');
   variable.textContent = `{{${OUTCOME_VARIABLE}}}`;
   hint.append(variable, ' holds it for Save to CSV and later requests. An expected rejection (a 400 that is the right answer) '
-    + 'still counts as a failed request until its status is listed under Success statuses.');
+    + 'still counts as a failed request until its status is listed under Checks → Success statuses.');
   const templates = document.createElement('div');
   templates.className = 'check-template-list';
   templates.setAttribute('aria-label', 'Outcome templates');

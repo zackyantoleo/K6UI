@@ -9,7 +9,9 @@ import { requestLogBudget } from '../server/generator/request-log.js';
 import { buildOptions } from '../server/generator/options.js';
 import { importK6Script } from '../server/importer/index.js';
 import { createRequestLogThrottle } from '../server/request-log-throttle.js';
-import { normalizeRequestLog, DEFAULT_SAMPLE_EVERY, MAX_SAMPLE_EVERY } from '../public/js/shared/request-log.js';
+import {
+  normalizeRequestLog, DEFAULT_SAMPLE_EVERY, MAX_SAMPLE_EVERY, DEFAULT_MAX_RECORDS, MAX_RECORDS_LIMIT,
+} from '../public/js/shared/request-log.js';
 import { loadScript } from './helpers/load-script.js';
 
 const configOf = (requests, options) => ({
@@ -44,15 +46,33 @@ const records = (script) => script.logs.map(line => JSON.parse(line));
 
 test('settings: unknown filter → all, sample interval is a whole number in range', () => {
   assert.deepEqual(normalizeRequestLog(undefined),
-    { logRequests: false, logFilter: 'all', logSampleEvery: DEFAULT_SAMPLE_EVERY, logRedact: false });
-  assert.deepEqual(normalizeRequestLog({ logRequests: true, logFilter: 'errors', logSampleEvery: '3', logRedact: true }),
-    { logRequests: true, logFilter: 'errors', logSampleEvery: 3, logRedact: true });
+    { logRequests: false, logFilter: 'all', logSampleEvery: DEFAULT_SAMPLE_EVERY, logMaxRecords: 500, logRedact: false });
+  assert.deepEqual(normalizeRequestLog({ logRequests: true, logFilter: 'errors', logSampleEvery: '3', logMaxRecords: '2000', logRedact: true }),
+    { logRequests: true, logFilter: 'errors', logSampleEvery: 3, logMaxRecords: 2000, logRedact: true });
   assert.equal(normalizeRequestLog({ logRedact: 'yes' }).logRedact, false, 'only true turns Hide secrets on');
   assert.equal(normalizeRequestLog({ logFilter: 'nope' }).logFilter, 'all');
   for (const bad of ['0', '-2', '1.5', 'abc', '']) {
     assert.equal(normalizeRequestLog({ logSampleEvery: bad }).logSampleEvery, DEFAULT_SAMPLE_EVERY, bad);
   }
   assert.equal(normalizeRequestLog({ logSampleEvery: 10 ** 9 }).logSampleEvery, MAX_SAMPLE_EVERY);
+});
+
+test('settings: the record limit is a whole number from 1 to the cap, 500 when unset or invalid', () => {
+  assert.equal(DEFAULT_MAX_RECORDS, 500);
+  for (const bad of [undefined, '0', '-2', '1.5', 'abc', '']) {
+    assert.equal(normalizeRequestLog({ logMaxRecords: bad }).logMaxRecords, 500, String(bad));
+  }
+  assert.equal(normalizeRequestLog({ logMaxRecords: '1' }).logMaxRecords, 1);
+  assert.equal(normalizeRequestLog({ logMaxRecords: 10 ** 9 }).logMaxRecords, MAX_RECORDS_LIMIT);
+});
+
+test('the script writes the record limit only when it is not the default, and sizes the burst from it', () => {
+  const defaultScript = generateScript(configOf([post], { logRequests: true }));
+  assert.doesNotMatch(defaultScript, /maxRecords/, 'a default script stays as it was');
+  const custom = generateScript(configOf([post], { logRequests: true, logMaxRecords: 2000 }));
+  assert.match(custom, /"maxRecords":2000/);
+  assert.equal(requestLogBudget({ vus: 1000 }).burst, 1);
+  assert.equal(requestLogBudget({ vus: 1000 }, 5000).burst, 5);
 });
 
 test('no request log code at all while recording is off', () => {
@@ -160,8 +180,8 @@ test('a gRPC record carries the message, metadata, response message and the meas
 
 test('importing a K6UI script keeps which requests it records, without warnings', () => {
   for (const options of [
-    { logRequests: true, logFilter: 'sample', logSampleEvery: 7, logRedact: false },
-    { logRequests: true, logFilter: 'errors', logSampleEvery: 10, logRedact: true },
+    { logRequests: true, logFilter: 'sample', logSampleEvery: 7, logMaxRecords: 500, logRedact: false },
+    { logRequests: true, logFilter: 'errors', logSampleEvery: 10, logMaxRecords: 2500, logRedact: true },
   ]) {
     const { config, warnings } = importK6Script(generateScript(configOf([post], options)));
     assert.deepEqual(config.options, options);

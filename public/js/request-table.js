@@ -1,17 +1,17 @@
 // Run & Results → Requests: one row per request record of the run (req-log events),
-// newest kept up to MAX_REQ_LOGS, sortable by every column, filterable by errors and
+// newest kept up to the run's record limit (logMaxRecords, default 500), sortable by every column, filterable by errors and
 // URL, and a detail row with the request and response (headers, body, "Copy as cURL").
 // Also the request details fields of "Before you run" (syncRequestLogFields).
 // Every value is set as text, never as markup.
 import { $, $$, el, setText } from './dom.js';
-import { MAX_REQUEST_RECORDS } from './shared/request-log.js';
+import { DEFAULT_MAX_RECORDS, normalizeMaxRecords } from './shared/request-log.js';
 import { ariaSortOf, compareRecords, insertIndex, nextSort } from './request-sort.js';
 import { curlFromRecord } from './curl-export.js';
 
-export const MAX_REQ_LOGS = MAX_REQUEST_RECORDS;
-
 // Request records { entry, seq, row }: reqLogs in arrival order (the oldest is
-// dropped past MAX_REQ_LOGS), reqRows the same records in table order (reqSort).
+// dropped past maxReqLogs, set when a run starts), reqRows the same records in
+// table order (reqSort).
+let maxReqLogs = DEFAULT_MAX_RECORDS;
 let reqLogs = [];
 let reqRows = [];
 let reqSeq = 0;
@@ -226,7 +226,10 @@ export function showSkippedRequestLogs(skipped) {
     : '';
 }
 
-export function resetReqLog() {
+// `limit`: the run's logMaxRecords (a run keeps the limit it started with).
+export function resetReqLog(limit = DEFAULT_MAX_RECORDS) {
+  maxReqLogs = normalizeMaxRecords(limit);
+  setText('#req-log-limit', maxReqLogs.toLocaleString('en-US'));
   reqLogs = [];
   reqRows = [];
   reqSeq = 0;
@@ -245,7 +248,7 @@ export function addRequestRecord(entry) {
   const next = reqRows[index];
   reqRows.splice(index, 0, record);
   $('#req-log-tbody').insertBefore(record.row, next ? next.row : null);
-  if (reqLogs.length > MAX_REQ_LOGS) {
+  if (reqLogs.length > maxReqLogs) {
     const oldest = reqLogs.shift();
     reqRows.splice(reqRows.indexOf(oldest), 1);
     rowNodes(oldest).forEach(node => node.remove());
