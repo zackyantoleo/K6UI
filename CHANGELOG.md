@@ -4,6 +4,15 @@ All notable changes to K6UI are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **License notices:** a `NOTICE` file (copyright, AGPL-3.0-only, commercial
+  licenses, the k6 / Grafana trademark note), a `REUSE.toml` that declares the
+  copyright and license of every file (with the license text in `LICENSES/`), and a
+  `.mailmap` that shows the author's commit identities as one.
+
 ## [1.1.0] - 2026-11-25
 
 Everything since `v1` (pull requests #16–#59).

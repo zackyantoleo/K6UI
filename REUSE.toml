@@ -1,0 +1,11 @@
+# Copyright and license of every file in this repository, declared once instead of a
+# header in each file (REUSE specification: https://reuse.software/spec/).
+# A file that carries its own REUSE header (for example one copied from another
+# project) keeps that header: precedence "closest".
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Zackyanto <https://github.com/zackyantoleo>"
+SPDX-License-Identifier = "AGPL-3.0-only"

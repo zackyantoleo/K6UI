@@ -1,0 +1,20 @@
+K6UI
+Copyright (C) 2026 Zackyanto <https://github.com/zackyantoleo>
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, version 3 of the License only (AGPL-3.0-only).
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License in the LICENSE
+file for more details.
+
+Commercial licenses, to use K6UI under terms other than the AGPL, are available
+from the copyright holder: https://github.com/zackyantoleo
+
+Trademarks
+
+k6 and Grafana are trademarks of Grafana Labs. K6UI is an independent project
+and is not affiliated with or endorsed by Grafana Labs; "k6" only names the
+load testing tool that K6UI works with.

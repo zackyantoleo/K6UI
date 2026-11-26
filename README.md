@@ -384,12 +384,10 @@ More reading: [CLAUDE.md](CLAUDE.md) (architecture and configuration schema), [d
 
 ## License
 
-Copyright (c) 2026 zackyantoleo
+Copyright (C) 2026 Zackyanto ([zackyantoleo](https://github.com/zackyantoleo)). The copyright and trademark notice is in [NOTICE](NOTICE).
 
 K6UI is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only). You may use, modify, share, and sell it, as long as everyone you give it to, or who uses a modified version over a network, gets the complete source code of that version under the same license.
 
 Want to use K6UI under other terms, for example in a closed-source product? Contact [zackyantoleo](https://github.com/zackyantoleo) about a commercial license.
-
-Versions published before this change remain available under the MIT License.
 
 K6UI is an independent project, not affiliated with or endorsed by Grafana Labs. k6 is a trademark of Grafana Labs.
